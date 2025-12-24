@@ -22,6 +22,8 @@ export function Message({ message }: MessageProps) {
 
   return (
     <div
+      data-role={message.role}
+      data-streaming={message.isStreaming}
       className={cn(
         'flex gap-3 p-4',
         isUser && 'flex-row-reverse',

@@ -1,25 +1,38 @@
 # Multi-Tenant Chat Assistant
 
-A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend.
+A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend. Built with OpenRouter for flexible LLM model selection, featuring real-time streaming, tool calling, and a modern React UI.
+
+**Repository:** https://github.com/scottopolis/multi-tenant-chat-app
 
 ## Project Structure
 
 ```
-chat-assistant/
-├── worker/         # Cloudflare Worker API
-├── widget/         # React chat widget
+multi-tenant-chat-app/
+├── worker/         # Cloudflare Worker API (Hono + AI SDK + OpenRouter)
+├── widget/         # React chat widget (Vite + TanStack Query + shadcn/ui)
 ├── docs/           # Documentation
+├── PLAN.md         # Detailed implementation plan
+├── QUICKSTART.md   # 5-minute setup guide
 └── README.md
 ```
 
 ## Quick Start
+
+See [QUICKSTART.md](./QUICKSTART.md) for a 5-minute setup guide.
 
 ### Prerequisites
 
 - Node.js 18+
 - npm or pnpm
 - Cloudflare account (for deployment)
-- OpenRouter API key
+- OpenRouter API key ([Get one here](https://openrouter.ai/))
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/scottopolis/multi-tenant-chat-app.git
+cd multi-tenant-chat-app
+```
 
 ### Development
 
@@ -71,5 +84,37 @@ See [PLAN.md](./PLAN.md) for detailed architecture and implementation plan.
 
 ## Deployment
 
-See [docs/deployment.md](./docs/deployment.md) for deployment instructions.
+This project is ready to deploy to Cloudflare Workers! See [docs/deployment.md](./docs/deployment.md) for detailed deployment instructions.
+
+**Quick Deploy:**
+```bash
+cd worker
+npm install
+npx wrangler login
+npx wrangler deploy
+```
+
+## Tech Stack
+
+### Worker Backend
+- **Runtime:** Cloudflare Workers
+- **Framework:** Hono (routing & middleware)
+- **AI:** Vercel AI SDK with OpenRouter
+- **Language:** TypeScript
+- **Testing:** Vitest
+
+### Widget Frontend
+- **Framework:** React 18 + Vite
+- **State Management:** TanStack Query
+- **UI Components:** shadcn/ui + Tailwind CSS
+- **Language:** TypeScript
+- **Testing:** Vitest + Playwright
+
+## Contributing
+
+See [docs/development.md](./docs/development.md) for development guidelines and best practices.
+
+## License
+
+MIT
 

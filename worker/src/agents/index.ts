@@ -1,4 +1,4 @@
-import { streamText } from 'ai';
+import { streamText, type CoreMessage } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { getTools } from '../tools';
 
@@ -97,14 +97,14 @@ export async function runAgent(options: RunAgentOptions) {
   const tools = getTools(orgId);
 
   // Prepare messages with system prompt
-  const messagesWithSystem = [
-    { role: 'system', content: systemPrompt },
-    ...messages,
+  const messagesWithSystem: CoreMessage[] = [
+    { role: 'system', content: systemPrompt } as CoreMessage,
+    ...messages.map(m => ({ role: m.role, content: m.content }) as CoreMessage),
   ];
 
   // Stream the response
   const result = streamText({
-    model: openrouter.chat(modelId),
+    model: openrouter.chat(modelId) as any, // Type compatibility issue with OpenRouter provider
     messages: messagesWithSystem,
     tools,
     maxSteps: 5, // Allow up to 5 tool use iterations

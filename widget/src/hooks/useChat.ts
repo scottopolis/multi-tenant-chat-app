@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getChat, sendMessage as apiSendMessage, streamMessage } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getChat, streamMessage } from '@/lib/api';
 import type { Message } from '@/lib/api';
 
 /**

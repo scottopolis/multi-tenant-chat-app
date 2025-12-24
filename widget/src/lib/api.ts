@@ -97,7 +97,7 @@ export async function listChats(): Promise<Chat[]> {
  */
 export function sendMessage(
   chatId: string,
-  data: SendMessageRequest
+  _data: SendMessageRequest
 ): EventSource {
   // For SSE with POST, we need to use a different approach
   // Create URL with query params for SSE connection
@@ -154,7 +154,7 @@ export async function* streamMessage(
 
       for (const line of lines) {
         if (line.startsWith('event:')) {
-          const event = line.slice(6).trim();
+          // Event type line, will be parsed with data line below
           continue;
         }
         
