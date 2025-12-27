@@ -1,8 +1,8 @@
 import { streamText, type CoreMessage } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { getTools } from '../tools';
-import { getLangfuseClient, getPromptByTenant, isLangfuseConfigured } from '../langfuse';
 import { getTenantConfig } from '../tenants/config';
+import { resolveSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './prompts';
 
 /**
  * Agent configuration and execution
@@ -71,9 +71,6 @@ export const AVAILABLE_MODELS = {
 export type ModelName = keyof typeof AVAILABLE_MODELS;
 
 const DEFAULT_MODEL: ModelName = 'gpt-4.1-mini';
-const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant. You have access to various tools that you can use to help users.
-
-Be concise and clear in your responses. When using tools, explain what you're doing and why.`;
 
 /**
  * Run the agent with streaming response
@@ -106,82 +103,12 @@ export async function runAgent(options: RunAgentOptions) {
 
   // 3. Determine system prompt
   // Priority: providedSystemPrompt → Langfuse → tenant.systemPrompt → DEFAULT_SYSTEM_PROMPT
-  let systemPrompt = providedSystemPrompt;
-  
-  if (!providedSystemPrompt) {
-    // Try to fetch from Langfuse first
-    let langfuseCredentials: { publicKey: string; secretKey: string; host?: string } | null = null;
-    let promptName = 'base-assistant';
-    let promptLabel: string | undefined = undefined;
-    
-    // Check if tenant has their own Langfuse configuration
-    if (tenantConfig.langfuse) {
-      const { publicKey, secretKey, host, promptName: configuredPromptName, label } = tenantConfig.langfuse;
-      
-      // Check if tenant is using platform credentials (special marker)
-      if (publicKey === 'PLATFORM_KEY' || secretKey === 'PLATFORM_KEY') {
-        // Use platform credentials
-        if (isLangfuseConfigured(env)) {
-          langfuseCredentials = {
-            publicKey: env.LANGFUSE_PUBLIC_KEY!,
-            secretKey: env.LANGFUSE_SECRET_KEY!,
-            host: env.LANGFUSE_HOST,
-          };
-          promptName = configuredPromptName || promptName;
-          promptLabel = label; // Only use label if explicitly configured
-          console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}${label ? ` (label: ${label})` : ''}`);
-        }
-      } else {
-        // Use tenant's own Langfuse credentials
-        langfuseCredentials = {
-          publicKey,
-          secretKey,
-          host,
-        };
-        promptName = configuredPromptName || promptName;
-        promptLabel = label; // Only use label if explicitly configured
-        console.log(`[Agent] Using tenant's Langfuse account: ${orgId}${label ? ` (label: ${label})` : ''}`);
-      }
-    } else if (isLangfuseConfigured(env)) {
-      // Fall back to platform credentials (without label)
-      langfuseCredentials = {
-        publicKey: env.LANGFUSE_PUBLIC_KEY!,
-        secretKey: env.LANGFUSE_SECRET_KEY!,
-        host: env.LANGFUSE_HOST,
-      };
-      // Don't set promptLabel - fetch default/production version
-      console.log(`[Agent] Using platform Langfuse for tenant: ${orgId}`);
-    }
-    
-    // Fetch prompt from Langfuse if credentials available
-    if (langfuseCredentials) {
-      try {
-        const langfuse = getLangfuseClient(langfuseCredentials);
-        systemPrompt = await getPromptByTenant(
-          langfuse,
-          promptName,
-          promptLabel // Only pass label if explicitly configured
-        );
-        const labelInfo = promptLabel ? ` (label: ${promptLabel})` : ' (default version)';
-        console.log(`[Agent] Fetched prompt from Langfuse: ${promptName}${labelInfo}`);
-      } catch (error) {
-        console.error(`[Agent] Failed to fetch Langfuse prompt:`, error);
-        // Don't set systemPrompt here, let it fall through to next fallback
-      }
-    }
-    
-    // Fallback to tenant's configured systemPrompt if Langfuse didn't provide one
-    if (!systemPrompt && tenantConfig.systemPrompt) {
-      systemPrompt = tenantConfig.systemPrompt;
-      console.log(`[Agent] Using tenant's configured systemPrompt`);
-    }
-    
-    // Final fallback to default
-    if (!systemPrompt) {
-      systemPrompt = DEFAULT_SYSTEM_PROMPT;
-      console.log(`[Agent] Using default system prompt`);
-    }
-  }
+  const systemPrompt = await resolveSystemPrompt(
+    tenantConfig,
+    orgId,
+    providedSystemPrompt,
+    env
+  );
 
   // 4. Create OpenRouter provider
   const openrouter = createOpenRouter({
