@@ -39,7 +39,6 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
   'default': {
     tenantId: 'default',
     name: 'Default Organization',
-    // No langfuse config = uses platform credentials from .dev.vars
     model: 'gpt-4.1-mini',
     langfuse: {
         publicKey: 'pk-lf-484a26a9-19d2-4b0c-be61-42821f6fca56',
@@ -47,11 +46,19 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
         host: 'https://us.cloud.langfuse.com',
         promptName: 'pirate', // Their custom prompt
       },
+    // MCP server configuration (optional)
+    // Uncomment and configure when you have an MCP server:
+    // mcpServer: {
+    //   url: 'http://localhost:3001/mcp',
+    //   authHeader: 'Bearer your-token',
+    //   transport: 'http',
+    // },
   },
   
   /**
-   * Example: Tenant with their own Langfuse account
+   * Example: Tenant with their own Langfuse account AND MCP server
    * They manage their own prompts in their Langfuse project
+   * and have custom tools exposed via MCP server
    */
   'tenant-1': {
     tenantId: 'tenant-1',
@@ -63,10 +70,11 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
       promptName: 'customer-support', // Their custom prompt
     },
     model: 'gpt-4.1-mini',
-    // Future: MCP server configuration
+    // MCP server configuration (example - replace with real server)
+    // Uncomment and configure when you have an MCP server running:
     // mcpServer: {
-    //   url: 'https://mcp.acme.com/api',
-    //   authHeader: 'Bearer acme-secret-key',
+    //   url: 'http://localhost:3001/mcp',
+    //   authHeader: 'Bearer tenant-1-mcp-key',
     //   transport: 'http',
     // },
   },
@@ -90,8 +98,9 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
   },
   
   /**
-   * Example: Tenant with systemPrompt (no Langfuse)
+   * Example: Tenant with systemPrompt (no Langfuse) + MCP server
    * Langfuse is optional - can use hardcoded systemPrompt instead
+   * This example shows a tenant using MCP without Langfuse
    */
   'tenant-3': {
     tenantId: 'tenant-3',
@@ -105,6 +114,14 @@ Be friendly, concise, and always try to upsell related products when appropriate
 If asked about orders or shipping, politely inform the customer to contact support directly.`,
     model: 'gpt-4.1-mini',
     // No Langfuse config - uses systemPrompt instead
+    
+    // Example MCP server configuration
+    // Uncomment and configure when you have an MCP server running:
+    // mcpServer: {
+    //   url: 'http://localhost:3002/mcp',
+    //   authHeader: 'Bearer tenant-3-secret',
+    //   transport: 'http',
+    // },
   },
 };
 

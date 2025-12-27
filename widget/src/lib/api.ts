@@ -142,6 +142,7 @@ export async function* streamMessage(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = 'message'; // Default event type
 
   try {
     while (true) {
@@ -154,19 +155,20 @@ export async function* streamMessage(
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (line.startsWith('event:')) {
-          // Event type line, will be parsed with data line below
+        if (!line.trim()) {
+          // Empty line resets the event type
+          currentEvent = 'message';
           continue;
         }
         
-        if (line.startsWith('data:')) {
+        if (line.startsWith('event:')) {
+          // Store the event type for the next data line
+          currentEvent = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
           const data = line.slice(5).trim();
-          const eventMatch = lines[lines.indexOf(line) - 1];
-          const event = eventMatch?.startsWith('event:') 
-            ? eventMatch.slice(6).trim() 
-            : 'message';
-          
-          yield { event, data };
+          yield { event: currentEvent, data };
+          // Reset event type after yielding
+          currentEvent = 'message';
         }
       }
     }

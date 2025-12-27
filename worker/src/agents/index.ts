@@ -191,8 +191,8 @@ export async function runAgent(options: RunAgentOptions) {
   // 5. Get model ID (handle both short names and full IDs)
   const modelId = AVAILABLE_MODELS[model as ModelName] || model;
 
-  // 6. Get tools for this org
-  const tools = getTools(orgId);
+  // 6. Get tools for this org (now async - includes MCP tools)
+  const tools = await getTools(orgId);
 
   // 7. Prepare messages with system prompt
   const messagesWithSystem: CoreMessage[] = [
