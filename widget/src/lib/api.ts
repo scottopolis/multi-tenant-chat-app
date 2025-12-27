@@ -8,6 +8,7 @@
  */
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'default';
 
 export interface Chat {
   id: string;
@@ -41,7 +42,7 @@ export interface SendMessageRequest {
  * Create a new chat
  */
 export async function createChat(data?: CreateChatRequest): Promise<Chat> {
-  const response = await fetch(`${API_URL}/api/chats`, {
+  const response = await fetch(`${API_URL}/api/chats?agent=${AGENT_ID}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,7 +62,7 @@ export async function createChat(data?: CreateChatRequest): Promise<Chat> {
  * Get a single chat with its messages
  */
 export async function getChat(chatId: string): Promise<ChatWithMessages> {
-  const response = await fetch(`${API_URL}/api/chats/${chatId}`, {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${AGENT_ID}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },
@@ -78,7 +79,7 @@ export async function getChat(chatId: string): Promise<ChatWithMessages> {
  * List all chats
  */
 export async function listChats(): Promise<Chat[]> {
-  const response = await fetch(`${API_URL}/api/chats`, {
+  const response = await fetch(`${API_URL}/api/chats?agent=${AGENT_ID}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },
@@ -121,7 +122,7 @@ export async function* streamMessage(
   chatId: string,
   data: SendMessageRequest
 ): AsyncGenerator<{ event: string; data: string }, void, unknown> {
-  const response = await fetch(`${API_URL}/api/chats/${chatId}/messages`, {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}/messages?agent=${AGENT_ID}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -178,7 +179,7 @@ export async function* streamMessage(
  * Get available models
  */
 export async function getModels(): Promise<Array<{ name: string; description: string }>> {
-  const response = await fetch(`${API_URL}/api/models`, {
+  const response = await fetch(`${API_URL}/api/models?agent=${AGENT_ID}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },

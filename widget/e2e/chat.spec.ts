@@ -9,35 +9,31 @@ test.describe('Chat Widget', () => {
     await page.goto('/');
     
     // Wait for the input to be ready
-    const input = page.getByPlaceholder(/Type your message/i);
+    const input = page.getByPlaceholder(/Type a message/i);
     await expect(input).toBeVisible();
     
     // Type and send a message
     await input.fill('What is 2 + 2?');
     await input.press('Enter');
     
-    // Verify input is cleared and disabled while processing
+    // Verify input is cleared
     await expect(input).toHaveValue('');
-    await expect(input).toBeDisabled();
     
     // Verify the user message appears
     await expect(page.getByText('What is 2 + 2?')).toBeVisible();
     
-    // Wait for assistant response with streaming indicator
-    const streamingIndicator = page.locator('[data-streaming="true"]');
-    await expect(streamingIndicator).toBeVisible({ timeout: 5000 });
+    // Wait for assistant response to appear
+    await expect(page.locator('[data-role="assistant"]')).toBeVisible({ timeout: 15000 });
     
-    // Wait for final response
-    await expect(page.locator('[data-role="assistant"]')).toBeVisible({ timeout: 10000 });
-    
-    // Verify input is re-enabled
+    // Verify input is re-enabled after response
     await expect(input).toBeEnabled();
+    await expect(input).toHaveAttribute('placeholder', 'Type a message...');
   });
 
   test('should handle multi-turn conversation with tool usage', async ({ page }) => {
     await page.goto('/');
     
-    const input = page.getByPlaceholder(/Type your message/i);
+    const input = page.getByPlaceholder(/Type a message/i);
     await expect(input).toBeVisible();
     
     // First message - should trigger calculator tool

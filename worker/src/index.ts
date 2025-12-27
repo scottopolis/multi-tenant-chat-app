@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { createChat, getChat, listChats, addMessage, getMessages } from './storage';
-import { runAgent, isValidModel } from './agents';
+import { runAgent, isValidModel } from './agents/index';
 import { z } from 'zod';
 
 /**
@@ -39,9 +39,11 @@ app.use('*', cors({
 /**
  * Auth Middleware (Placeholder)
  * 
- * TODO: Auth middleware
+ * MVP: Extract agent/tenant ID from query parameter ?agent=tenant-1
+ * 
+ * TODO: Auth middleware for production
  * - Verify JWT from Authorization header
- * - Extract orgId and userId from payload
+ * - Extract orgId/tenantId from JWT payload
  * - Reject requests with invalid/expired tokens
  * - Support API key authentication as alternative
  * 
@@ -52,15 +54,19 @@ app.use('*', cors({
  *   }
  *   try {
  *     const payload = await verifyJWT(token);
- *     c.set('orgId', payload.orgId);
+ *     c.set('orgId', payload.tenantId || payload.orgId);
  *     c.set('userId', payload.userId);
  *   } catch (error) {
  *     return c.json({ error: 'Invalid token' }, 401);
  *   }
  */
 app.use('*', async (c, next) => {
-  // For now, use a default org ID
-  c.set('orgId', 'default');
+  // MVP: Get agent/tenant from query param
+  const agentParam = c.req.query('agent');
+  const agentId = agentParam && agentParam.trim() !== '' ? agentParam : 'default';
+  
+  // Set orgId to the agent ID (used throughout the app to identify the tenant)
+  c.set('orgId', agentId);
   c.set('userId', 'anonymous');
   await next();
 });
@@ -247,10 +253,21 @@ app.post('/api/chats/:chatId/messages', async (c) => {
  */
 app.get('/api/models', (c) => {
   const models = [
-    { name: 'gpt-4.1-mini', description: 'Fast and affordable' },
+    // Fast and affordable models
+    { name: 'gpt-4.1-mini', description: 'Fast and affordable (default)' },
+    { name: 'claude-3.5-haiku', description: 'Fast and affordable' },
+    
+    // Balanced models
     { name: 'gpt-4.1', description: 'Balanced performance' },
-    { name: 'claude-3.5-sonnet', description: 'Excellent reasoning' },
-    { name: 'claude-3.5-haiku', description: 'Fast Claude model' },
+    { name: 'claude-3.5-sonnet', description: 'Balanced performance' },
+    
+    // Most capable models
+    { name: 'gpt-o3', description: 'Most capable OpenAI model' },
+    { name: 'claude-3.5-opus', description: 'Most capable Anthropic model' },
+    
+    // Open source models
+    { name: 'llama-3.3-70b', description: 'Open source from Meta' },
+    { name: 'deepseek-v3', description: 'Open source from DeepSeek' },
   ];
   
   return c.json({ models });

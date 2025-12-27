@@ -68,9 +68,80 @@ VITE_API_URL=http://localhost:8787
 - ✅ Real-time streaming chat with SSE
 - ✅ OpenRouter integration for flexible model selection
 - ✅ Tool/function calling support
+- ✅ Agent routing via query parameters (MVP multi-tenancy)
+- ✅ Comprehensive test coverage (unit + E2E)
 - 🚧 Authentication (placeholder)
 - 🚧 Persistent storage (in-memory for now)
 - 🚧 Langfuse integration (prepared)
+
+## Testing
+
+This project includes comprehensive test coverage for both backend and frontend:
+
+### Worker Tests (Backend)
+
+Run unit tests with Vitest:
+```bash
+cd worker
+npm test              # Run tests once
+npm run test:watch    # Watch mode
+```
+
+**Test Coverage:**
+- Storage layer tests (`storage.test.ts`)
+- API endpoint validation
+- Tool/agent functionality
+
+### Widget Tests (Frontend)
+
+**Unit Tests:**
+```bash
+cd widget
+npm test              # Run tests once
+npm run test:watch    # Watch mode
+```
+
+**E2E Tests with Playwright:**
+```bash
+cd widget
+npm run test:e2e      # Run E2E tests
+npm run test:e2e:ui   # Run with Playwright UI
+```
+
+**E2E Test Coverage:**
+- Complete chat flow: load → send message → receive streaming response
+- Multi-turn conversations with tool usage
+- UI interactions and state management
+- Agent routing and tenant isolation (`agent-routing.spec.ts`)
+
+**Note:** Make sure the worker is running on `http://localhost:8787` before running E2E tests.
+
+**Agent Routing Tests:**
+```bash
+cd widget
+npx playwright test agent-routing.spec.ts  # Run agent routing tests
+```
+
+These tests verify that:
+- Chats are correctly routed to different agents via `?agent=` query parameter
+- Tenants (agents) have isolated data
+- Default agent is used when no parameter is provided
+
+### Running All Tests
+
+From the root directory:
+```bash
+# Run worker tests
+cd worker && npm test
+
+# Run widget unit tests
+cd widget && npm test
+
+# Run widget E2E tests (requires worker running)
+cd widget && npm run test:e2e
+```
+
+See [TESTING.md](./TESTING.md) for detailed testing guidelines and best practices.
 
 ## Architecture
 
