@@ -88,6 +88,24 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
     },
     model: 'claude-3.5-sonnet',
   },
+  
+  /**
+   * Example: Tenant with systemPrompt (no Langfuse)
+   * Langfuse is optional - can use hardcoded systemPrompt instead
+   */
+  'tenant-3': {
+    tenantId: 'tenant-3',
+    name: 'Simple Bot Inc',
+    systemPrompt: `You are a helpful shopping assistant for Simple Bot Inc. 
+    
+You help customers find products, answer questions about availability, and provide recommendations.
+
+Be friendly, concise, and always try to upsell related products when appropriate.
+
+If asked about orders or shipping, politely inform the customer to contact support directly.`,
+    model: 'gpt-4.1-mini',
+    // No Langfuse config - uses systemPrompt instead
+  },
 };
 
 /**
@@ -150,6 +168,7 @@ async function fetchFromDatabase(
       `SELECT 
         tenant_id,
         name,
+        system_prompt,
         langfuse_public_key,
         langfuse_secret_key,
         langfuse_host,
@@ -170,6 +189,7 @@ async function fetchFromDatabase(
   return {
     tenantId: result.tenant_id as string,
     name: result.name as string | undefined,
+    systemPrompt: result.system_prompt as string | undefined,
     langfuse: result.langfuse_public_key
       ? {
           publicKey: result.langfuse_public_key as string,

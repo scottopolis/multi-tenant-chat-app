@@ -47,37 +47,37 @@ export function getLangfuseClient(credentials: {
 }
 
 /**
- * Fetch a tenant-specific prompt from Langfuse
+ * Fetch a prompt from Langfuse
  * 
- * Uses the tenant ID as a label to fetch tenant-specific prompt versions.
+ * If a label is provided, fetches the labeled version.
+ * If no label is provided, fetches the default/production version.
  * Falls back to default prompt if:
- * - Tenant-specific version doesn't exist
+ * - Prompt doesn't exist
  * - Langfuse API call fails
  * - No prompt found with the given name
  * 
  * @param langfuse - Langfuse client instance
- * @param tenantId - Tenant/org ID (used as label)
  * @param promptName - Name of the prompt in Langfuse (defaults to 'base-assistant')
+ * @param label - Optional label to fetch specific version
  * @returns System prompt string
  * 
  * @example
- * // Fetch prompt for tenant-1
- * const prompt = await getPromptByTenant(langfuse, 'tenant-1', 'base-assistant');
+ * // Fetch default/production version
+ * const prompt = await getPromptByTenant(langfuse, 'pirate');
  * 
- * // In Langfuse, create a prompt named "base-assistant" with:
- * // - Production version (default)
- * // - Label "tenant-1" for tenant-specific version
+ * // Fetch labeled version for specific tenant
+ * const prompt = await getPromptByTenant(langfuse, 'base-assistant', 'tenant-1');
  */
 export async function getPromptByTenant(
   langfuse: Langfuse,
-  tenantId: string,
-  promptName: string = 'base-assistant'
+  promptName: string = 'base-assistant',
+  label?: string
 ): Promise<string> {
   try {
-    // Try to get tenant-specific prompt version using label
-    const prompt = await langfuse.getPrompt(promptName, undefined, {
-      label: tenantId,
-    });
+    // Fetch prompt with or without label
+    const prompt = label 
+      ? await langfuse.getPrompt(promptName, undefined, { label })
+      : await langfuse.getPrompt(promptName);
     
     // Extract prompt content (could be string or object)
     if (typeof prompt.prompt === 'string') {
@@ -87,11 +87,13 @@ export async function getPromptByTenant(
       return JSON.stringify(prompt.prompt);
     }
     
-    console.warn(`Prompt ${promptName} for tenant ${tenantId} returned unexpected format`);
+    const labelInfo = label ? ` with label '${label}'` : '';
+    console.warn(`Prompt ${promptName}${labelInfo} returned unexpected format`);
     return 'You are a helpful AI assistant.';
   } catch (error) {
     // Log error but don't fail the request
-    console.error(`Failed to fetch prompt for tenant ${tenantId}:`, error);
+    const labelInfo = label ? ` with label '${label}'` : '';
+    console.error(`Failed to fetch prompt ${promptName}${labelInfo}:`, error);
     
     // Fallback to default prompt
     return 'You are a helpful AI assistant.';

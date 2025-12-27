@@ -8,7 +8,6 @@
  */
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
-const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'default';
 
 export interface Chat {
   id: string;
@@ -41,8 +40,8 @@ export interface SendMessageRequest {
 /**
  * Create a new chat
  */
-export async function createChat(data?: CreateChatRequest): Promise<Chat> {
-  const response = await fetch(`${API_URL}/api/chats?agent=${AGENT_ID}`, {
+export async function createChat(data?: CreateChatRequest, agentId: string = 'default'): Promise<Chat> {
+  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,8 +60,8 @@ export async function createChat(data?: CreateChatRequest): Promise<Chat> {
 /**
  * Get a single chat with its messages
  */
-export async function getChat(chatId: string): Promise<ChatWithMessages> {
-  const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${AGENT_ID}`, {
+export async function getChat(chatId: string, agentId: string = 'default'): Promise<ChatWithMessages> {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${agentId}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },
@@ -78,8 +77,8 @@ export async function getChat(chatId: string): Promise<ChatWithMessages> {
 /**
  * List all chats
  */
-export async function listChats(): Promise<Chat[]> {
-  const response = await fetch(`${API_URL}/api/chats?agent=${AGENT_ID}`, {
+export async function listChats(agentId: string = 'default'): Promise<Chat[]> {
+  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },
@@ -120,9 +119,10 @@ export function sendMessage(
  */
 export async function* streamMessage(
   chatId: string,
-  data: SendMessageRequest
+  data: SendMessageRequest,
+  agentId: string = 'default'
 ): AsyncGenerator<{ event: string; data: string }, void, unknown> {
-  const response = await fetch(`${API_URL}/api/chats/${chatId}/messages?agent=${AGENT_ID}`, {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}/messages?agent=${agentId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -178,8 +178,8 @@ export async function* streamMessage(
 /**
  * Get available models
  */
-export async function getModels(): Promise<Array<{ name: string; description: string }>> {
-  const response = await fetch(`${API_URL}/api/models?agent=${AGENT_ID}`, {
+export async function getModels(agentId: string = 'default'): Promise<Array<{ name: string; description: string }>> {
+  const response = await fetch(`${API_URL}/api/models?agent=${agentId}`, {
     headers: {
       // TODO: Authorization: `Bearer ${token}`,
     },

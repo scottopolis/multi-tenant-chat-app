@@ -7,13 +7,18 @@ import { getTenantConfig } from '../tenants/config';
 /**
  * Agent configuration and execution
  * 
- * ✅ Langfuse prompt management - Implemented in Phase 1
+ * ✅ Langfuse prompt management - Optional integration
  * - Fetches system prompt from Langfuse by tenant/org ID
  * - Supports prompt versioning via labels
- * - Falls back to default prompt if Langfuse unavailable
+ * - Falls back to tenant's systemPrompt, then default prompt
+ * - Priority: Langfuse → tenant.systemPrompt → DEFAULT_SYSTEM_PROMPT
  * 
- * TODO: Org-specific configuration
+ * ✅ Org-specific configuration - Implemented
  * - Model selection per org (gpt-4.1-mini, claude-sonnet-4.5, etc.)
+ * - Custom systemPrompt per tenant
+ * - Optional Langfuse integration per tenant
+ * 
+ * TODO: Advanced configuration
  * - Temperature and other generation parameters
  * - Token limits and rate limiting
  * 
@@ -74,8 +79,8 @@ Be concise and clear in your responses. When using tools, explain what you're do
  * Run the agent with streaming response
  * 
  * This function:
- * 1. Fetches tenant configuration (includes Langfuse, model, tools config)
- * 2. Fetches tenant-specific prompt from Langfuse (tenant's or platform's)
+ * 1. Fetches tenant configuration (includes systemPrompt, Langfuse, model, tools config)
+ * 2. Determines system prompt (priority: Langfuse → tenant.systemPrompt → default)
  * 3. Creates an OpenRouter provider with the API key
  * 4. Loads the appropriate tools for the org
  * 5. Calls streamText with the model, messages, and tools
@@ -93,15 +98,18 @@ export async function runAgent(options: RunAgentOptions) {
 
   // 1. Get tenant configuration
   const tenantConfig = await getTenantConfig(orgId);
+
+  console.log('tenantConfig', tenantConfig);
   
   // 2. Determine model (priority: request > tenant config > default)
   const model = requestedModel || tenantConfig.model || DEFAULT_MODEL;
 
   // 3. Determine system prompt
-  let systemPrompt = providedSystemPrompt || DEFAULT_SYSTEM_PROMPT;
+  // Priority: providedSystemPrompt → Langfuse → tenant.systemPrompt → DEFAULT_SYSTEM_PROMPT
+  let systemPrompt = providedSystemPrompt;
   
   if (!providedSystemPrompt) {
-    // Try to fetch from Langfuse
+    // Try to fetch from Langfuse first
     let langfuseCredentials: { publicKey: string; secretKey: string; host?: string } | null = null;
     let promptName = 'base-assistant';
     let promptLabel: string | undefined = undefined;
@@ -120,8 +128,8 @@ export async function runAgent(options: RunAgentOptions) {
             host: env.LANGFUSE_HOST,
           };
           promptName = configuredPromptName || promptName;
-          promptLabel = label;
-          console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}`);
+          promptLabel = label; // Only use label if explicitly configured
+          console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}${label ? ` (label: ${label})` : ''}`);
         }
       } else {
         // Use tenant's own Langfuse credentials
@@ -131,17 +139,17 @@ export async function runAgent(options: RunAgentOptions) {
           host,
         };
         promptName = configuredPromptName || promptName;
-        promptLabel = label;
-        console.log(`[Agent] Using tenant's Langfuse account: ${orgId}`);
+        promptLabel = label; // Only use label if explicitly configured
+        console.log(`[Agent] Using tenant's Langfuse account: ${orgId}${label ? ` (label: ${label})` : ''}`);
       }
     } else if (isLangfuseConfigured(env)) {
-      // Fall back to platform credentials
+      // Fall back to platform credentials (without label)
       langfuseCredentials = {
         publicKey: env.LANGFUSE_PUBLIC_KEY!,
         secretKey: env.LANGFUSE_SECRET_KEY!,
         host: env.LANGFUSE_HOST,
       };
-      promptLabel = orgId; // Use orgId as label for platform-managed prompts
+      // Don't set promptLabel - fetch default/production version
       console.log(`[Agent] Using platform Langfuse for tenant: ${orgId}`);
     }
     
@@ -151,16 +159,27 @@ export async function runAgent(options: RunAgentOptions) {
         const langfuse = getLangfuseClient(langfuseCredentials);
         systemPrompt = await getPromptByTenant(
           langfuse,
-          promptLabel || orgId,
-          promptName
+          promptName,
+          promptLabel // Only pass label if explicitly configured
         );
-        console.log(`[Agent] Fetched prompt: ${promptName} (label: ${promptLabel || orgId})`);
+        const labelInfo = promptLabel ? ` (label: ${promptLabel})` : ' (default version)';
+        console.log(`[Agent] Fetched prompt from Langfuse: ${promptName}${labelInfo}`);
       } catch (error) {
         console.error(`[Agent] Failed to fetch Langfuse prompt:`, error);
-        systemPrompt = DEFAULT_SYSTEM_PROMPT;
+        // Don't set systemPrompt here, let it fall through to next fallback
       }
-    } else {
-      console.log(`[Agent] Langfuse not configured, using default prompt`);
+    }
+    
+    // Fallback to tenant's configured systemPrompt if Langfuse didn't provide one
+    if (!systemPrompt && tenantConfig.systemPrompt) {
+      systemPrompt = tenantConfig.systemPrompt;
+      console.log(`[Agent] Using tenant's configured systemPrompt`);
+    }
+    
+    // Final fallback to default
+    if (!systemPrompt) {
+      systemPrompt = DEFAULT_SYSTEM_PROMPT;
+      console.log(`[Agent] Using default system prompt`);
     }
   }
 

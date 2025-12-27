@@ -4,6 +4,8 @@ import { Chat } from './components/Chat';
 import { Button } from './components/ui/button';
 import { createChat } from './lib/api';
 import { MessageSquarePlus, Loader2 } from 'lucide-react';
+import { AgentProvider, useAgent } from './contexts/AgentContext';
+import { AgentSelector } from './components/AgentSelector';
 
 /**
  * Main App Component
@@ -30,6 +32,7 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
+  const { agentId } = useAgent();
   const [chatId, setChatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -38,12 +41,18 @@ function AppContent() {
     if (!chatId) {
       handleCreateChat();
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
+  // Reset chat when agent changes
+  useEffect(() => {
+    setChatId(null);
+  }, [agentId]);
 
   const handleCreateChat = async () => {
     setIsCreating(true);
     try {
-      const newChat = await createChat({ title: 'New Chat' });
+      const newChat = await createChat({ title: 'New Chat' }, agentId);
       setChatId(newChat.id);
     } catch (error) {
       console.error('Failed to create chat:', error);
@@ -78,7 +87,10 @@ function AppContent() {
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
-        <h1 className="text-lg font-semibold">Chat Assistant</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-semibold">Chat Assistant</h1>
+          <AgentSelector />
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -92,7 +104,7 @@ function AppContent() {
 
       {/* Chat */}
       <div className="flex-1 overflow-hidden">
-        <Chat chatId={chatId} />
+        <Chat chatId={chatId} agentId={agentId} />
       </div>
     </div>
   );
@@ -101,7 +113,9 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <AgentProvider>
+        <AppContent />
+      </AgentProvider>
     </QueryClientProvider>
   );
 }

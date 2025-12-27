@@ -126,7 +126,8 @@ app.use('*', async (c, next) => {
 │                     Tenant Configuration                         │
 │  (stored in: hardcoded for MVP → database later)                 │
 │                                                                   │
-│  - Langfuse prompt name/version                                   │
+│  - System prompt (optional, fallback if no Langfuse)             │
+│  - Langfuse config (optional, for dynamic prompts)               │
 │  - MCP server endpoint (URL, auth, transport)                     │
 │  - Model selection                                                │
 └─────────────────────────────────────────────────────────────────┘
@@ -136,7 +137,8 @@ app.use('*', async (c, next) => {
 │                       runAgent()                                  │
 │                                                                   │
 │  1. Get tenant config (by agent ID from ?agent= param)           │
-│  2. Fetch prompt from Langfuse (by tenant/label)                 │
+│  2. Determine system prompt:                                      │
+│     Priority: Langfuse → tenant.systemPrompt → default           │
 │  3. Get tools:                                                    │
 │     - Built-in tools (currentTime, calculator)                   │
 │     - MCP tools (from connected MCP server)                      │
@@ -156,10 +158,15 @@ app.use('*', async (c, next) => {
 
 ---
 
-## Phase 1: Langfuse Prompt Integration (MVP)
+## Phase 1: Langfuse Prompt Integration (Optional)
 
 ### Goal
-Fetch system prompt from Langfuse instead of hardcoding.
+Make Langfuse integration optional. Tenants can choose:
+1. **Langfuse** - Dynamic prompts managed in Langfuse (most flexible)
+2. **systemPrompt** - Static prompt in tenant config (simpler)
+3. **Default** - Fall back to platform default prompt
+
+**Priority**: Langfuse → tenant.systemPrompt → DEFAULT_SYSTEM_PROMPT
 
 ### Implementation
 
@@ -505,15 +512,37 @@ export async function runAgent(options: RunAgentOptions) {
   // 1. Get tenant config
   const tenantConfig = await getTenantConfig(orgId);
   
-  // 2. Fetch prompt from Langfuse (tenant-specific)
-  let systemPrompt = DEFAULT_SYSTEM_PROMPT;
-  if (env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY) {
-    const langfuse = getLangfuseClient(env);
-    systemPrompt = await getPromptByTenant(
-      langfuse, 
-      orgId, 
-      tenantConfig?.langfusePromptName
-    );
+  // 2. Determine system prompt (priority: Langfuse → tenant.systemPrompt → default)
+  let systemPrompt: string | undefined;
+  
+  // Try Langfuse first (if configured for tenant or platform)
+  if (tenantConfig.langfuse || (env.LANGFUSE_PUBLIC_KEY && env.LANGFUSE_SECRET_KEY)) {
+    const langfuseCredentials = tenantConfig.langfuse || {
+      publicKey: env.LANGFUSE_PUBLIC_KEY!,
+      secretKey: env.LANGFUSE_SECRET_KEY!,
+      host: env.LANGFUSE_HOST,
+    };
+    
+    try {
+      const langfuse = getLangfuseClient(langfuseCredentials);
+      systemPrompt = await getPromptByTenant(
+        langfuse, 
+        orgId, 
+        langfuseCredentials.promptName || 'base-assistant'
+      );
+    } catch (error) {
+      console.error('Failed to fetch Langfuse prompt:', error);
+    }
+  }
+  
+  // Fallback to tenant's systemPrompt
+  if (!systemPrompt && tenantConfig.systemPrompt) {
+    systemPrompt = tenantConfig.systemPrompt;
+  }
+  
+  // Final fallback to default
+  if (!systemPrompt) {
+    systemPrompt = DEFAULT_SYSTEM_PROMPT;
   }
   
   // 3. Get model (from config or default)
@@ -550,8 +579,17 @@ export async function runAgent(options: RunAgentOptions) {
 export interface TenantConfig {
   tenantId: string;
   
-  // Langfuse prompt configuration
-  langfusePromptName?: string;  // defaults to 'base-assistant'
+  // System prompt (optional, used if Langfuse not configured)
+  systemPrompt?: string;
+  
+  // Langfuse prompt configuration (optional)
+  langfuse?: {
+    publicKey: string;
+    secretKey: string;
+    host?: string;
+    promptName?: string;  // defaults to 'base-assistant'
+    label?: string;
+  };
   
   // Model configuration
   model?: string;  // defaults to 'gpt-4.1-mini'
@@ -582,19 +620,33 @@ import type { TenantConfig } from './types';
 const TENANT_CONFIGS: Record<string, TenantConfig> = {
   'default': {
     tenantId: 'default',
-    langfusePromptName: 'base-assistant',
+    systemPrompt: 'You are a helpful AI assistant.',
     model: 'gpt-4.1-mini',
     // No MCP server for default tenant
   },
   'tenant-1': {
     tenantId: 'tenant-1',
-    langfusePromptName: 'support-agent',
+    // Option 1: Use Langfuse for dynamic prompt management
+    langfuse: {
+      publicKey: 'pk-lf-xxx',
+      secretKey: 'sk-lf-xxx',
+      promptName: 'support-agent',
+    },
     model: 'gpt-4.1-mini',
     mcpServer: {
       url: 'https://mcp.example.com/tenant-1',
       authHeader: 'Bearer tenant-1-mcp-key',
       transport: 'http',
     },
+  },
+  'tenant-2': {
+    tenantId: 'tenant-2',
+    // Option 2: Use hardcoded systemPrompt (simpler, no Langfuse needed)
+    systemPrompt: `You are a sales assistant for Acme Corp. 
+    
+Help customers find products and answer questions about our offerings.
+Be friendly, professional, and always try to upsell related items.`,
+    model: 'gpt-4.1-mini',
   },
 };
 

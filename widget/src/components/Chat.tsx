@@ -5,11 +5,13 @@ import { Loader2, AlertCircle } from 'lucide-react';
 
 interface ChatProps {
   chatId: string;
+  agentId: string;
 }
 
-export function Chat({ chatId }: ChatProps) {
+export function Chat({ chatId, agentId }: ChatProps) {
   const { messages, sendMessage, isLoading, isStreaming, error } = useChat({
     chatId,
+    agentId,
     onError: (err) => {
       console.error('Chat error:', err);
     },

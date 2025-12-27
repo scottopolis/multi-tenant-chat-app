@@ -13,6 +13,7 @@ export interface ChatMessage extends Omit<Message, 'createdAt'> {
 
 export interface UseChatOptions {
   chatId: string;
+  agentId: string;
   onError?: (error: Error) => void;
 }
 
@@ -25,7 +26,7 @@ export interface UseChatOptions {
  * - isLoading: Whether initial data is loading
  * - error: Any error that occurred
  */
-export function useChat({ chatId, onError }: UseChatOptions) {
+export function useChat({ chatId, agentId, onError }: UseChatOptions) {
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -33,8 +34,8 @@ export function useChat({ chatId, onError }: UseChatOptions) {
 
   // Fetch initial chat data
   const { data: chatData, isLoading } = useQuery({
-    queryKey: ['chat', chatId],
-    queryFn: () => getChat(chatId),
+    queryKey: ['chat', chatId, agentId],
+    queryFn: () => getChat(chatId, agentId),
     enabled: !!chatId,
   });
 
@@ -82,7 +83,7 @@ export function useChat({ chatId, onError }: UseChatOptions) {
         for await (const { event, data } of streamMessage(chatId, {
           content: content.trim(),
           model,
-        })) {
+        }, agentId)) {
           if (event === 'text') {
             fullContent += data;
             
@@ -105,7 +106,7 @@ export function useChat({ chatId, onError }: UseChatOptions) {
             );
             
             // Invalidate chat query to refresh from server
-            queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
+            queryClient.invalidateQueries({ queryKey: ['chat', chatId, agentId] });
           } else if (event === 'error') {
             const errorData = JSON.parse(data);
             throw new Error(errorData.error || 'Streaming error');
@@ -127,7 +128,7 @@ export function useChat({ chatId, onError }: UseChatOptions) {
         setIsStreaming(false);
       }
     },
-    [chatId, isStreaming, queryClient, onError]
+    [chatId, agentId, isStreaming, queryClient, onError]
   );
 
   return {

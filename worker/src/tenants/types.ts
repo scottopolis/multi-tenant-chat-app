@@ -35,9 +35,18 @@ export interface TenantConfig {
   name?: string;
   
   /** 
-   * Langfuse configuration
+   * System prompt for the agent
+   * If provided, used as fallback when Langfuse is not available
+   * If not provided, falls back to default system prompt
+   * 
+   * Priority: Langfuse → systemPrompt → default
+   */
+  systemPrompt?: string;
+  
+  /** 
+   * Langfuse configuration (optional)
    * If provided, tenant uses their own Langfuse account
-   * If not provided, falls back to platform default (from env vars)
+   * If not provided, falls back to tenant's systemPrompt or platform default
    */
   langfuse?: LangfuseConfig;
   
