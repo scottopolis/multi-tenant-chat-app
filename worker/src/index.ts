@@ -198,6 +198,11 @@ app.post('/api/chats/:chatId/messages', async (c) => {
       apiKey,
       orgId,
       model,
+      env: {
+        LANGFUSE_PUBLIC_KEY: c.env.LANGFUSE_PUBLIC_KEY,
+        LANGFUSE_SECRET_KEY: c.env.LANGFUSE_SECRET_KEY,
+        LANGFUSE_HOST: c.env.LANGFUSE_HOST,
+      },
     });
 
     // Stream SSE response

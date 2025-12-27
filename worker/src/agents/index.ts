@@ -1,22 +1,20 @@
 import { streamText, type CoreMessage } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { getTools } from '../tools';
+import { getLangfuseClient, getPromptByTenant, isLangfuseConfigured } from '../langfuse';
+import { getTenantConfig } from '../tenants/config';
 
 /**
  * Agent configuration and execution
  * 
- * TODO: Langfuse prompt management
- * - Fetch system prompt from Langfuse instead of hardcoding
- * - Support prompt versioning and A/B testing
- * - Example:
- *   const langfuse = new Langfuse({ publicKey, secretKey });
- *   const prompt = await langfuse.getPrompt("base-assistant", { label: orgId });
- *   const systemPrompt = prompt.prompt;
+ * ✅ Langfuse prompt management - Implemented in Phase 1
+ * - Fetches system prompt from Langfuse by tenant/org ID
+ * - Supports prompt versioning via labels
+ * - Falls back to default prompt if Langfuse unavailable
  * 
  * TODO: Org-specific configuration
  * - Model selection per org (gpt-4.1-mini, claude-sonnet-4.5, etc.)
  * - Temperature and other generation parameters
- * - Custom system prompts per org
  * - Token limits and rate limiting
  * 
  * TODO: Langfuse tracing via experimental_telemetry
@@ -36,6 +34,11 @@ export interface RunAgentOptions {
   orgId: string;
   model?: string;
   systemPrompt?: string;
+  env?: {
+    LANGFUSE_PUBLIC_KEY?: string;
+    LANGFUSE_SECRET_KEY?: string;
+    LANGFUSE_HOST?: string;
+  };
 }
 
 /**
@@ -71,38 +74,114 @@ Be concise and clear in your responses. When using tools, explain what you're do
  * Run the agent with streaming response
  * 
  * This function:
- * 1. Creates an OpenRouter provider with the API key
- * 2. Loads the appropriate tools for the org
- * 3. Calls streamText with the model, messages, and tools
- * 4. Returns the streaming result
+ * 1. Fetches tenant configuration (includes Langfuse, model, tools config)
+ * 2. Fetches tenant-specific prompt from Langfuse (tenant's or platform's)
+ * 3. Creates an OpenRouter provider with the API key
+ * 4. Loads the appropriate tools for the org
+ * 5. Calls streamText with the model, messages, and tools
+ * 6. Returns the streaming result
  */
 export async function runAgent(options: RunAgentOptions) {
   const {
     messages,
     apiKey,
     orgId,
-    model = DEFAULT_MODEL,
-    systemPrompt = DEFAULT_SYSTEM_PROMPT,
+    model: requestedModel,
+    systemPrompt: providedSystemPrompt,
+    env = {},
   } = options;
 
-  // Create OpenRouter provider
+  // 1. Get tenant configuration
+  const tenantConfig = await getTenantConfig(orgId);
+  
+  // 2. Determine model (priority: request > tenant config > default)
+  const model = requestedModel || tenantConfig.model || DEFAULT_MODEL;
+
+  // 3. Determine system prompt
+  let systemPrompt = providedSystemPrompt || DEFAULT_SYSTEM_PROMPT;
+  
+  if (!providedSystemPrompt) {
+    // Try to fetch from Langfuse
+    let langfuseCredentials: { publicKey: string; secretKey: string; host?: string } | null = null;
+    let promptName = 'base-assistant';
+    let promptLabel: string | undefined = undefined;
+    
+    // Check if tenant has their own Langfuse configuration
+    if (tenantConfig.langfuse) {
+      const { publicKey, secretKey, host, promptName: configuredPromptName, label } = tenantConfig.langfuse;
+      
+      // Check if tenant is using platform credentials (special marker)
+      if (publicKey === 'PLATFORM_KEY' || secretKey === 'PLATFORM_KEY') {
+        // Use platform credentials
+        if (isLangfuseConfigured(env)) {
+          langfuseCredentials = {
+            publicKey: env.LANGFUSE_PUBLIC_KEY!,
+            secretKey: env.LANGFUSE_SECRET_KEY!,
+            host: env.LANGFUSE_HOST,
+          };
+          promptName = configuredPromptName || promptName;
+          promptLabel = label;
+          console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}`);
+        }
+      } else {
+        // Use tenant's own Langfuse credentials
+        langfuseCredentials = {
+          publicKey,
+          secretKey,
+          host,
+        };
+        promptName = configuredPromptName || promptName;
+        promptLabel = label;
+        console.log(`[Agent] Using tenant's Langfuse account: ${orgId}`);
+      }
+    } else if (isLangfuseConfigured(env)) {
+      // Fall back to platform credentials
+      langfuseCredentials = {
+        publicKey: env.LANGFUSE_PUBLIC_KEY!,
+        secretKey: env.LANGFUSE_SECRET_KEY!,
+        host: env.LANGFUSE_HOST,
+      };
+      promptLabel = orgId; // Use orgId as label for platform-managed prompts
+      console.log(`[Agent] Using platform Langfuse for tenant: ${orgId}`);
+    }
+    
+    // Fetch prompt from Langfuse if credentials available
+    if (langfuseCredentials) {
+      try {
+        const langfuse = getLangfuseClient(langfuseCredentials);
+        systemPrompt = await getPromptByTenant(
+          langfuse,
+          promptLabel || orgId,
+          promptName
+        );
+        console.log(`[Agent] Fetched prompt: ${promptName} (label: ${promptLabel || orgId})`);
+      } catch (error) {
+        console.error(`[Agent] Failed to fetch Langfuse prompt:`, error);
+        systemPrompt = DEFAULT_SYSTEM_PROMPT;
+      }
+    } else {
+      console.log(`[Agent] Langfuse not configured, using default prompt`);
+    }
+  }
+
+  // 4. Create OpenRouter provider
   const openrouter = createOpenRouter({
     apiKey,
   });
 
-  // Get model ID (handle both short names and full IDs)
+  // 5. Get model ID (handle both short names and full IDs)
   const modelId = AVAILABLE_MODELS[model as ModelName] || model;
 
-  // Get tools for this org
+  // 6. Get tools for this org
   const tools = getTools(orgId);
 
-  // Prepare messages with system prompt
+  // 7. Prepare messages with system prompt
   const messagesWithSystem: CoreMessage[] = [
     { role: 'system', content: systemPrompt } as CoreMessage,
     ...messages.map(m => ({ role: m.role, content: m.content }) as CoreMessage),
   ];
 
-  // Stream the response
+  // 8. Stream the response
   const result = streamText({
     model: openrouter.chat(modelId) as any, // Type compatibility issue with OpenRouter provider
     messages: messagesWithSystem,
