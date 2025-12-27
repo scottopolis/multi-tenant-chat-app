@@ -4,6 +4,8 @@
  * Re-exports all MCP-related functionality
  */
 
-export { createTenantMCPClient, getMCPTools, closeMCPClient } from './client';
+// Client: Connect to external MCP servers
+export { getMCPTools } from './client';
 export type { MCPClientConfig } from './client';
+
 

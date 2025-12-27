@@ -47,12 +47,13 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
         promptName: 'pirate', // Their custom prompt
       },
     // MCP server configuration (optional)
-    // Uncomment and configure when you have an MCP server:
-    // mcpServer: {
-    //   url: 'http://localhost:3001/mcp',
-    //   authHeader: 'Bearer your-token',
-    //   transport: 'http',
-    // },
+    // NOTE: Don't configure a tenant to connect to its own MCP endpoint!
+    // That creates an infinite loop. Point to an external MCP server instead.
+    // Example for external MCP server:
+    mcpServer: {
+        url: 'http://localhost:3030',
+        transport: 'http',
+    },
   },
   
   /**

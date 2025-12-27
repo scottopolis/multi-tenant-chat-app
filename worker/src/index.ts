@@ -4,6 +4,7 @@ import { streamSSE } from 'hono/streaming';
 import { createChat, getChat, listChats, addMessage, getMessages } from './storage';
 import { runAgent, isValidModel } from './agents/index';
 import { z } from 'zod';
+import { getTools } from './tools';
 
 /**
  * Cloudflare Worker environment bindings
@@ -77,6 +78,7 @@ app.use('*', async (c, next) => {
 app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
 
 /**
  * POST /api/chats
@@ -205,19 +207,44 @@ app.post('/api/chats/:chatId/messages', async (c) => {
       },
     });
 
+    console.log('[Stream] Agent result received, checking for warnings...');
+    // Check for warnings or errors in the result
+    if (result.warnings) {
+      console.warn('[Stream] Warnings from agent:', result.warnings);
+    }
+
     // Stream SSE response
+    console.log('[Stream] Starting SSE stream for chatId:', chatId);
     return streamSSE(c, async (stream) => {
       let assistantMessage = '';
+      let chunkCount = 0;
 
       try {
-        // Stream text chunks
-        for await (const chunk of result.textStream) {
-          assistantMessage += chunk;
-          await stream.writeSSE({
-            event: 'text',
-            data: chunk,
-          });
+        console.log('[Stream] Beginning to iterate textStream');
+        
+        // Try to get the full stream to see all events
+        const fullStream = result.fullStream;
+        console.log('[Stream] Processing full stream...');
+        
+        for await (const part of fullStream) {
+          console.log('[Stream] Part type:', part.type);
+          
+          if (part.type === 'text-delta') {
+            chunkCount++;
+            const chunk = part.textDelta;
+            assistantMessage += chunk;
+            await stream.writeSSE({
+              event: 'text',
+              data: chunk,
+            });
+          } else if (part.type === 'error') {
+            console.error('[Stream] Error part:', part.error);
+          } else {
+            console.log('[Stream] Other part:', JSON.stringify(part).substring(0, 200));
+          }
         }
+
+        console.log(`[Stream] Completed streaming. Total chunks: ${chunkCount}, message length: ${assistantMessage.length}`);
 
         // Send done event
         await stream.writeSSE({
@@ -233,8 +260,10 @@ app.post('/api/chats/:chatId/messages', async (c) => {
           role: 'assistant',
           content: assistantMessage,
         });
+        console.log('[Stream] Saved assistant message to storage');
       } catch (error) {
-        console.error('Error streaming response:', error);
+        console.error('[Stream] Error streaming response:', error);
+        console.error('[Stream] Error stack:', error instanceof Error ? error.stack : 'No stack');
         await stream.writeSSE({
           event: 'error',
           data: JSON.stringify({

@@ -1,11 +1,15 @@
-import { createMCPClient } from '@ai-sdk/mcp';
+import { z } from 'zod';
 
 /**
  * MCP Client for connecting to Model Context Protocol servers
  * 
- * This module provides a wrapper around @ai-sdk/mcp to connect to external
- * MCP servers and fetch their tools. Tools are automatically converted to
- * AI SDK format and can be used directly with streamText().
+ * This module makes direct HTTP calls to MCP servers to discover and execute tools.
+ * It bypasses @ai-sdk/mcp's dynamic tool wrapper to avoid "unsupported tool type" errors.
+ * 
+ * Approach:
+ * 1. Call tools/list to discover available tools
+ * 2. Convert JSON schemas to Zod schemas
+ * 3. Create AI SDK tools that call tools/call endpoint
  * 
  * Supports:
  * - HTTP transport (recommended for production)
@@ -25,37 +29,34 @@ export interface MCPClientConfig {
 }
 
 /**
- * Create an MCP client and connect to the server
+ * Parse SSE (Server-Sent Events) response format
  * 
- * @param config - MCP server configuration
- * @returns MCP client instance
+ * SSE format looks like:
+ * event: message
+ * data: {"jsonrpc":"2.0","result":{...}}
  * 
- * @example
- * const client = await createTenantMCPClient({
- *   serverUrl: 'https://mcp.example.com/api',
- *   authHeader: 'Bearer secret-token',
- *   transport: 'http',
- * });
+ * Or just:
+ * data: {"jsonrpc":"2.0","result":{...}}
  */
-export async function createTenantMCPClient(config: MCPClientConfig) {
-  const { serverUrl, authHeader, transport = 'http' } = config;
-
-  // Prepare headers
-  const headers: Record<string, string> = {};
-  if (authHeader) {
-    headers.Authorization = authHeader;
+function parseSSEResponse(sseText: string): any {
+  const lines = sseText.split('\n');
+  let jsonData = '';
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('data: ')) {
+      // Extract JSON from data: line
+      jsonData += trimmed.substring(6);
+    } else if (trimmed.startsWith('data:')) {
+      jsonData += trimmed.substring(5);
+    }
   }
-
-  // Create MCP client with appropriate transport
-  const mcpClient = await createMCPClient({
-    transport: {
-      type: transport,
-      url: serverUrl,
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
-    },
-  });
-
-  return mcpClient;
+  
+  if (!jsonData) {
+    throw new Error('No data found in SSE response');
+  }
+  
+  return JSON.parse(jsonData);
 }
 
 /**
@@ -87,22 +88,162 @@ export async function getMCPTools(
   config: MCPClientConfig
 ): Promise<Record<string, any>> {
   try {
-    console.log(`[MCP] Connecting to server: ${config.serverUrl}`);
-    const client = await createTenantMCPClient(config);
-
-    // Get tools from the MCP client
-    // The AI SDK MCP package automatically converts MCP tools to AI SDK format
-    const tools = await client.tools();
+    console.log(`[MCP] Connecting to server: ${config.serverUrl} (transport: ${config.transport || 'http'})`);
     
-    const toolNames = Object.keys(tools);
-    console.log(`[MCP] Connected successfully. Tools available: ${toolNames.join(', ')}`);
+    // Use SSE transport - try GET with message in URL or body
+    if (config.transport === 'sse') {
+      console.log('[MCP] Using SSE transport - trying direct message endpoint');
+      
+      // For SSE, we might need to connect to the SSE stream directly
+      // Try GET with message parameter
+      const sseUrl = new URL(config.serverUrl);
+      const message = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {},
+      };
+      sseUrl.searchParams.set('message', JSON.stringify(message));
+      
+      console.log('[MCP] SSE URL:', sseUrl.toString());
+      
+      const response = await fetch(sseUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+          'User-Agent': 'Mozilla/5.0 (compatible; MCPClient/1.0)',
+          ...(config.authHeader ? { 'Authorization': config.authHeader } : {}),
+        },
+      });
+      
+      console.log(`[MCP] SSE Response status: ${response.status}`);
+      const text = await response.text();
+      console.log('[MCP] SSE Response:', text.substring(0, 500));
+      
+      throw new Error('SSE transport not yet fully implemented - use http transport');
+    }
+    
+    // Make a simple HTTP POST to call MCP tools directly
+    // Bypass the @ai-sdk/mcp wrapper to avoid dynamic tool issues
+    const callMCPTool = async (toolName: string, args: any) => {
+      const response = await fetch(config.serverUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
+          'User-Agent': 'Mozilla/5.0 (compatible; MCPClient/1.0)',
+          ...(config.authHeader ? { 'Authorization': config.authHeader } : {}),
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name: toolName,
+            arguments: args,
+          },
+        }),
+      });
 
-    // Note: We don't close the client here because we need it during execution
-    // The caller is responsible for cleanup if needed
+      if (!response.ok) {
+        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const responseText = await response.text();
+      
+      // Parse SSE or JSON response
+      let result: any;
+      if (responseText.startsWith('event:') || responseText.startsWith('data:')) {
+        result = parseSSEResponse(responseText);
+      } else {
+        result = JSON.parse(responseText);
+      }
+      
+      if (result.error) {
+        throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
+      }
+
+      return result.result?.result || JSON.stringify(result.result || result);
+    };
+
+    // First, list available tools from the server
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'User-Agent': 'Mozilla/5.0 (compatible; MCPClient/1.0)',
+      ...(config.authHeader ? { 'Authorization': config.authHeader } : {}),
+    };
+    
+    const requestBody = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: {},
+    };
+    
+    console.log('[MCP] Sending HTTP POST request');
+    
+    const listResponse = await fetch(config.serverUrl, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log(`[MCP] Response status: ${listResponse.status} ${listResponse.statusText}`);
+
+    if (!listResponse.ok) {
+      const text = await listResponse.text();
+      console.error(`[MCP] Error response body: ${text.substring(0, 300)}`);
+      throw new Error(`MCP server error: ${listResponse.status} ${listResponse.statusText}`);
+    }
+
+    const responseText = await listResponse.text();
+    console.log('[MCP] Success response:', responseText.substring(0, 300));
+    
+    // Check if response is SSE format or plain JSON
+    let listResult;
+    if (responseText.startsWith('event:') || responseText.startsWith('data:')) {
+      // Parse SSE format
+      console.log('[MCP] Response is in SSE format, parsing...');
+      listResult = parseSSEResponse(responseText);
+    } else {
+      // Plain JSON
+      listResult = JSON.parse(responseText);
+    }
+    
+    const availableTools = listResult.result?.tools || [];
+    
+    console.log(`[MCP] Server offers ${availableTools.length} tools: ${availableTools.map((t: any) => t.name).join(', ')}`);
+
+    // Create AI SDK tools for each MCP tool
+    const tools: Record<string, any> = {};
+    
+    for (const mcpTool of availableTools) {
+      const { name, description, inputSchema } = mcpTool;
+      
+      // Convert JSON Schema to simple Zod schema
+      const zodSchema = buildZodFromJsonSchema(inputSchema);
+      
+      tools[name] = {
+        description: description || `MCP tool: ${name}`,
+        parameters: zodSchema,
+        execute: async (args: any) => {
+          console.log(`[MCP] Calling tool: ${name} with args:`, args);
+          const result = await callMCPTool(name, args);
+          console.log(`[MCP] Tool ${name} returned:`, result.substring(0, 200));
+          return result;
+        },
+      };
+      
+      console.log(`[MCP] ✓ Registered tool: ${name}`);
+    }
+
+    console.log(`[MCP] Successfully loaded ${Object.keys(tools).length} tools`);
     return tools;
   } catch (error) {
     console.error('[MCP] Failed to connect to MCP server:', error);
     console.error('[MCP] Server URL:', config.serverUrl);
+    console.error('[MCP] Error details:', error instanceof Error ? error.stack : String(error));
     
     // Return empty tools - agent can continue with other available tools
     return {};
@@ -110,30 +251,51 @@ export async function getMCPTools(
 }
 
 /**
- * Close an MCP client connection
- * 
- * Call this when done to clean up resources. In Cloudflare Workers,
- * connections are typically per-request, so this should be called
- * after the agent completes its work.
- * 
- * @param client - MCP client instance to close
- * 
- * @example
- * const client = await createTenantMCPClient(config);
- * try {
- *   // Use the client...
- * } finally {
- *   await closeMCPClient(client);
- * }
+ * Build a simple Zod schema from JSON Schema
+ * Simplified version - just handles basic object properties
  */
-export async function closeMCPClient(
-  client: Awaited<ReturnType<typeof createMCPClient>>
-) {
-  try {
-    await client.close();
-    console.log('[MCP] Client closed successfully');
-  } catch (error) {
-    console.error('[MCP] Error closing MCP client:', error);
+function buildZodFromJsonSchema(jsonSchema: any): z.ZodObject<any> {
+  if (!jsonSchema?.properties) {
+    // No properties defined - return empty object schema
+    return z.object({});
   }
+
+  const { properties, required = [] } = jsonSchema;
+  const shape: Record<string, z.ZodType<any>> = {};
+  
+  for (const [key, prop] of Object.entries(properties as Record<string, any>)) {
+    let schema: z.ZodType<any>;
+    
+    // Build basic schema based on type
+    if (prop.type === 'string') {
+      schema = z.string();
+      if (prop.description) schema = schema.describe(prop.description);
+    } else if (prop.type === 'integer') {
+      schema = z.number().int();
+      if (prop.description) schema = schema.describe(prop.description);
+    } else if (prop.type === 'number') {
+      schema = z.number();
+      if (prop.description) schema = schema.describe(prop.description);
+    } else if (prop.type === 'boolean') {
+      schema = z.boolean();
+      if (prop.description) schema = schema.describe(prop.description);
+    } else {
+      schema = z.any();
+    }
+    
+    // Make optional if not in required array
+    if (!required.includes(key)) {
+      if (prop.default !== undefined) {
+        schema = schema.default(prop.default);
+      } else {
+        schema = schema.optional();
+      }
+    }
+    
+    shape[key] = schema;
+  }
+  
+  return z.object(shape);
 }
+
 
