@@ -1,4 +1,4 @@
-Welcome to your new TanStack app! 
+Welcome to your new TanStack app!
 
 # Getting Started
 
@@ -6,8 +6,10 @@ To run this application:
 
 ```bash
 npm install
-npm run start
+npm run dev
 ```
+
+The app will be available at http://localhost:3000
 
 # Building For Production
 
@@ -15,6 +17,17 @@ To build this application for production:
 
 ```bash
 npm run build
+```
+
+# Deployment
+
+This application is configured to deploy to **Cloudflare Pages**.
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+Quick deploy:
+```bash
+npm run deploy
 ```
 
 ## Testing
