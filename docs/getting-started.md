@@ -6,7 +6,7 @@ This guide will help you set up and run the Multi-Tenant Chat Assistant locally.
 
 - Node.js 18 or higher
 - npm or pnpm
-- OpenRouter API key (sign up at [openrouter.ai](https://openrouter.ai))
+- OpenAI API key (sign up at [platform.openai.com](https://platform.openai.com/api-keys))
 
 ## Installation
 
@@ -28,17 +28,36 @@ npm install
 
 ### Worker Setup
 
-1. **Set your OpenRouter API key:**
+1. **Set your OpenAI API key for local development:**
+
+Create a `.dev.vars` file in the `worker` directory:
 
 ```bash
 cd worker
-npx wrangler secret put OPENROUTER_API_KEY
+echo "OPENAI_API_KEY=your-api-key-here" > .dev.vars
 ```
 
-When prompted, paste your OpenRouter API key.
+Replace `your-api-key-here` with your actual OpenAI API key.
 
-2. **Optional: Configure Langfuse (for future use)**
+2. **For production deployment, use wrangler secrets:**
 
+```bash
+cd worker
+npx wrangler secret put OPENAI_API_KEY
+```
+
+When prompted, paste your OpenAI API key.
+
+3. **Optional: Configure Langfuse (for future use)**
+
+Add to `.dev.vars` for local development:
+```bash
+LANGFUSE_SECRET_KEY=your-secret-key
+LANGFUSE_PUBLIC_KEY=your-public-key
+LANGFUSE_HOST=https://us.cloud.langfuse.com
+```
+
+For production:
 ```bash
 npx wrangler secret put LANGFUSE_SECRET_KEY
 npx wrangler secret put LANGFUSE_PUBLIC_KEY
@@ -58,7 +77,10 @@ The `.env` file should contain:
 
 ```
 VITE_API_URL=http://localhost:8787
+VITE_AGENT_ID=default
 ```
+
+The `VITE_AGENT_ID` allows you to test different agent configurations.
 
 ## Running Locally
 
@@ -114,7 +136,8 @@ Navigate to `http://localhost:5173` in your browser. You should see the chat int
 ### Worker won't start
 
 - Make sure you've installed dependencies: `cd worker && npm install`
-- Verify your OpenRouter API key is set correctly
+- Verify your OpenAI API key is set correctly in `.dev.vars`
+- Check that `.dev.vars` file exists in the worker directory
 - Check for port conflicts on 8787
 
 ### Widget won't connect to API
@@ -127,7 +150,8 @@ Navigate to `http://localhost:5173` in your browser. You should see the chat int
 
 - Open browser DevTools and check the Network tab for SSE connections
 - Look for errors in both the worker logs and browser console
-- Verify your OpenRouter API key has available credits
+- Verify your OpenAI API key is valid and has available credits
+- Check the worker logs for any errors related to the OpenAI API
 
 ## Next Steps
 

@@ -4,27 +4,31 @@ This guide explains how the agent system works and how to add custom tools.
 
 ## Agent Overview
 
-The agent is powered by the Vercel AI SDK and uses OpenRouter to access various AI models. It can use tools (function calling) to extend its capabilities.
+The agent is powered by the **OpenAI Agents SDK** (`@openai/agents`), providing advanced capabilities including:
+- **Conversation continuity** using `previousResponseId` pattern
+- **Native tool/function calling** with automatic execution
+- **Agent handoffs** for multi-agent orchestration (prepared)
+- **Structured outputs** with response format schemas (prepared)
+- **MCP (Model Context Protocol)** integration via HTTP
 
 ## Available Models
 
-The system supports multiple models via OpenRouter:
+The system supports OpenAI models via the Agents SDK:
 
-**Fast & Affordable:**
-- `gpt-4.1-mini` - Default model
-- `claude-3.5-haiku` - Fast Claude model
+**Fast & Affordable (Default):**
+- `gpt-4.1-mini` - Default model, fast and cost-effective
+- `gpt-4o-mini` - Alternative fast model
 
 **Balanced:**
 - `gpt-4.1` - More capable GPT model
-- `claude-3.5-sonnet` - Excellent reasoning
+- `gpt-4o` - Balanced performance and cost
 
 **Most Capable:**
-- `gpt-o3` - Latest OpenAI model
-- `claude-3.5-opus` - Most capable Claude
+- `o1` - Advanced reasoning model
+- `o1-mini` - Faster reasoning model
+- `o3-mini` - Latest reasoning model
 
-**Open Source:**
-- `llama-3.3-70b` - Meta's Llama
-- `deepseek-v3` - DeepSeek Chat
+**Note:** After migrating from OpenRouter to OpenAI Agents SDK, only OpenAI models are supported. This trade-off enables advanced features like agent handoffs and structured outputs.
 
 ## Built-in Tools
 
@@ -43,10 +47,14 @@ import { currentTime } from './tools/builtin';
 
 **Implementation:**
 ```typescript
+import { tool } from '@openai/agents';
+import { z } from 'zod';
+
 export const currentTime = tool({
+  name: 'currentTime', // Required in Agents SDK
   description: 'Get the current date and time',
   parameters: z.object({
-    timezone: z.string().optional(),
+    timezone: z.string().nullable().optional(), // Optional params must be nullable
   }),
   execute: async ({ timezone }) => {
     const now = new Date();
@@ -62,6 +70,8 @@ export const currentTime = tool({
   },
 });
 ```
+
+**Important:** In the OpenAI Agents SDK, optional parameters must use `.nullable().optional()` chaining.
 
 ### Calculator Tool
 
@@ -80,11 +90,15 @@ To add a new built-in tool:
 1. **Create the tool in `worker/src/tools/builtin.ts`:**
 
 ```typescript
+import { tool } from '@openai/agents';
+import { z } from 'zod';
+
 export const webSearch = tool({
+  name: 'webSearch', // Required: tool name
   description: 'Search the web for information',
   parameters: z.object({
     query: z.string().describe('The search query'),
-    numResults: z.number().optional().describe('Number of results (default 5)'),
+    numResults: z.number().nullable().optional().describe('Number of results (default 5)'),
   }),
   execute: async ({ query, numResults = 5 }) => {
     // Implement web search using Brave API, Serper, etc.
@@ -94,15 +108,19 @@ export const webSearch = tool({
 });
 ```
 
-2. **Add it to the exports:**
+2. **Add it to the array export:**
 
 ```typescript
-export const builtinTools = {
+import { tool } from '@openai/agents';
+
+export const builtinTools = [
   currentTime,
   calculator,
   webSearch, // Add your new tool
-};
+];
 ```
+
+**Note:** Tools are now exported as an array, not an object, per the Agents SDK format.
 
 3. **The agent will automatically have access to it!**
 
@@ -161,10 +179,10 @@ The agent will receive this data and use it to formulate its response.
 
 ### Changing the System Prompt
 
-Edit `worker/src/agents/index.ts`:
+Edit `worker/src/agents/prompts.ts`:
 
 ```typescript
-const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant specialized in customer support.
+export const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI assistant specialized in customer support.
 
 Your role is to:
 - Answer questions about our products
@@ -174,37 +192,53 @@ Your role is to:
 Be friendly, professional, and concise.`;
 ```
 
-### Per-Organization Configuration
+### Per-Agent Configuration
 
-In the future, you can configure agents per organization:
+Agents can be configured per organization in `worker/src/tenants/config.ts`:
 
 ```typescript
-// TODO: Fetch from database
-const orgConfig = await getOrgConfig(orgId);
+import { Agent, run } from '@openai/agents';
 
-const result = await runAgent({
-  messages,
-  apiKey,
-  orgId,
-  model: orgConfig.model || 'gpt-4.1-mini',
-  systemPrompt: orgConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+const agentConfig = await getAgentConfig(agentId);
+
+const agent = new Agent({
+  name: agentConfig.name || agentId,
+  instructions: agentConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+  model: agentConfig.model || 'gpt-4.1-mini',
+  tools: await getTools(agentId),
+});
+
+const result = await run(agent, lastUserMessage, {
+  stream: true,
+  previousResponseId: chat.lastResponseId, // Conversation continuity
 });
 ```
 
-### Adjusting Generation Parameters
+### Conversation Continuity
 
-Modify the `streamText` call in `worker/src/agents/index.ts`:
+The system uses the `previousResponseId` pattern for maintaining context:
 
 ```typescript
-const result = streamText({
-  model: openrouter.chat(modelId),
-  messages: messagesWithSystem,
-  tools,
-  maxSteps: 5, // Max tool use iterations
-  temperature: 0.7, // Add temperature control
-  maxTokens: 2000, // Add token limit
+// First turn
+const result1 = await run(agent, 'What city is the Golden Gate Bridge in?', {
+  stream: true,
+});
+// Save result1.lastResponseId
+
+// Second turn - pass previousResponseId
+const result2 = await run(agent, 'What state is it in?', {
+  stream: true,
+  previousResponseId: result1.lastResponseId, // Context from first turn
 });
 ```
+
+This approach:
+- Maintains conversation context across turns
+- Avoids sending full message history every time
+- More efficient than client-side history management
+- Follows OpenAI's recommended pattern
+
+See [OpenAI Agents SDK Streaming Docs](https://openai.github.io/openai-agents-js/guides/streaming/) for more details.
 
 ## Tool Use Flow
 
@@ -224,11 +258,72 @@ const result = streamText({
 4. **Performance**: Keep tool execution fast (<2 seconds ideally)
 5. **Security**: Validate all inputs and sanitize outputs
 
+## Advanced Features (Prepared)
+
+### Agent Handoffs
+
+The OpenAI Agents SDK supports native handoffs between agents:
+
+```typescript
+import { Handoff } from '@openai/agents';
+
+const refundHandoff = new Handoff({
+  name: 'transfer_to_refund_agent',
+  description: 'Transfer to refund specialist',
+  agent: refundAgent,
+});
+
+const supportAgent = new Agent({
+  name: 'Support Agent',
+  handoffs: [refundHandoff],
+});
+```
+
+### Structured Outputs
+
+Configure agents to return structured data:
+
+```typescript
+const agent = new Agent({
+  name: 'Data Extractor',
+  outputType: 'structured',
+  responseFormat: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'user_info',
+      schema: z.object({
+        name: z.string(),
+        email: z.string(),
+        phone: z.string().nullable().optional(),
+      }),
+    },
+  },
+});
+```
+
+### MCP (Model Context Protocol) Integration
+
+Connect external MCP servers via HTTP:
+
+```typescript
+const agentConfig = {
+  agentId: 'support-agent',
+  mcpServers: [
+    {
+      url: 'http://localhost:3001',
+      transport: 'http',
+    },
+  ],
+};
+```
+
 ## Future Enhancements
 
-- **Langfuse Integration**: Track tool usage and costs
-- **Tool Authorization**: Per-user or per-org tool access
-- **Streaming Tool Results**: Stream long tool outputs
+- **Langfuse Integration**: Track tool usage and costs with experimental_telemetry
+- **Server-managed Conversations**: Use OpenAI's Conversations API
+- **Tool Authorization**: Per-user or per-org tool access control
 - **Tool Composition**: Allow tools to call other tools
 - **RAG Tools**: Add vector database search for knowledge retrieval
+- **Human-in-the-Loop**: Approval workflows for sensitive tools
+- **Voice Agents**: OpenAI Realtime API integration
 

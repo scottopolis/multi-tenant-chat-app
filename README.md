@@ -1,6 +1,6 @@
 # Multi-Tenant Chat Assistant
 
-A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend. Built with OpenRouter for flexible LLM model selection, featuring real-time streaming, tool calling, and a modern React UI.
+A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend. Built with OpenAI Agents SDK for advanced agent capabilities including conversation continuity, tool calling, and agent handoffs, featuring real-time streaming and a modern React UI.
 
 **Repository:** https://github.com/scottopolis/multi-tenant-chat-app
 
@@ -8,7 +8,7 @@ A minimal chat assistant platform with a React widget frontend and Cloudflare Wo
 
 ```
 multi-tenant-chat-app/
-├── worker/         # Cloudflare Worker API (Hono + AI SDK + OpenRouter)
+├── worker/         # Cloudflare Worker API (Hono + OpenAI Agents SDK)
 ├── widget/         # React chat widget (Vite + TanStack Query + shadcn/ui)
 ├── docs/           # Documentation
 ├── PLAN.md         # Detailed implementation plan
@@ -25,7 +25,7 @@ See [QUICKSTART.md](./QUICKSTART.md) for a 5-minute setup guide.
 - Node.js 18+
 - npm or pnpm
 - Cloudflare account (for deployment)
-- OpenRouter API key ([Get one here](https://openrouter.ai/))
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
 
 ### Clone the Repository
 
@@ -52,23 +52,34 @@ npm run dev
 
 3. **Configure environment variables:**
 
-Worker (use wrangler secrets):
+Worker (create `worker/.dev.vars` for local development):
 ```bash
 cd worker
-npx wrangler secret put OPENROUTER_API_KEY
+echo "OPENAI_API_KEY=your-api-key-here" > .dev.vars
+```
+
+For production deployment, use wrangler secrets:
+```bash
+npx wrangler secret put OPENAI_API_KEY
 ```
 
 Widget (create `.env`):
 ```
 VITE_API_URL=http://localhost:8787
+VITE_AGENT_ID=default
 ```
 
 ## Features
 
 - ✅ Real-time streaming chat with SSE
-- ✅ OpenRouter integration for flexible model selection
-- ✅ Tool/function calling support
+- ✅ OpenAI Agents SDK integration
+  - Conversation continuity with `previousResponseId` pattern
+  - Native tool/function calling support
+  - Support for agent handoffs (prepared)
+  - Structured output support (prepared)
+- ✅ Multiple OpenAI models (gpt-4.1, gpt-4.1-mini, o1, o3-mini)
 - ✅ Agent routing via query parameters (MVP multi-tenancy)
+- ✅ MCP (Model Context Protocol) server integration via HTTP
 - ✅ Comprehensive test coverage (unit + E2E)
 - 🚧 Authentication (placeholder)
 - 🚧 Persistent storage (in-memory for now)
@@ -168,10 +179,10 @@ npx wrangler deploy
 ## Tech Stack
 
 ### Worker Backend
-- **Runtime:** Cloudflare Workers
+- **Runtime:** Cloudflare Workers (with `nodejs_compat` flag)
 - **Framework:** Hono (routing & middleware)
-- **AI:** Vercel AI SDK with OpenRouter
-- **Language:** TypeScript
+- **AI:** OpenAI Agents SDK (`@openai/agents`)
+- **Language:** TypeScript (strict mode)
 - **Testing:** Vitest
 
 ### Widget Frontend
