@@ -257,10 +257,11 @@ main().catch(console.error);
 - [x] Update widget to render structured responses
   - Created `structured-output.ts` parser with JSON detection
   - Updated Message component to extract `response` field
-  - Added expandable metadata section for other fields (reasoning, etc.)
+  - Added `suggestions` field for clickable quick-reply buttons
+  - Clicking a suggestion sends it as a new user message
   - Implemented smart buffering: detects `{` at start, buffers entire JSON response
   - Plain text streams normally, structured JSON waits until complete (better UX)
-  - Added 15 unit tests for parsing logic ✓
+  - Added 17 unit tests for parsing logic ✓
 - [x] Schema validation on response (handled by OpenAI API)
 
 ### Architecture Changes

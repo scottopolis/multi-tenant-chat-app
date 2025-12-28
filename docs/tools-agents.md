@@ -392,32 +392,59 @@ The widget automatically detects and parses structured JSON responses:
 
 ```typescript
 interface StructuredResponse {
-  response: string;    // Main text to display to user
-  reasoning?: string;  // Internal reasoning (hidden by default)
-  confidence?: number; // Metadata (hidden by default)
-  [key: string]: any;  // Any other fields
+  response: string;       // Main text to display to user
+  suggestions?: string[]; // Optional: Quick-reply buttons shown below message
+  [key: string]: any;     // Any other fields (logged but not displayed)
 }
 ```
 
-**Example:**
+**Example with suggestions:**
 
 If the agent returns:
 ```json
 {
-  "response": "The meeting is scheduled for Monday at 9am",
-  "reasoning": "Extracted from 'Team standup Monday 9am' input",
-  "confidence": 0.95
+  "response": "I can help you with scheduling. What would you like to do?",
+  "suggestions": [
+    "Schedule a meeting",
+    "View my calendar",
+    "Cancel an appointment"
+  ]
 }
 ```
 
 The user sees:
-- **Displayed:** "The meeting is scheduled for Monday at 9am"
-- **Hidden (expandable):** reasoning and confidence fields
+- **Text:** "I can help you with scheduling. What would you like to do?"
+- **Buttons below:** Three clickable suggestion buttons (only on the latest message)
+- **Clicking a button:** Sends that text as the user's next message
+- **After new message:** Old suggestions disappear (only latest message shows suggestions)
+
+**Benefits:**
+- Quick-reply buttons for common follow-ups
+- Guided conversation flows
+- Better mobile UX (less typing required)
+
+**Try it out:**
+
+The `support-bot` agent is configured to always include suggestions:
+
+```bash
+# Chat with the support bot
+curl -X POST http://localhost:8787/api/chats?agent=support-bot \
+  -H "Content-Type: application/json" \
+  -d '{"message": "I need help"}'
+```
+
+Response will include clickable suggestions like:
+- "Check my order status"
+- "Track a shipment"
+- "Contact support"
+- "View return policy"
 
 **Widget implementation:**
 - Parser: `widget/src/lib/structured-output.ts`
-- Message component: `widget/src/components/Message.tsx`
-- Tests: `widget/src/lib/structured-output.test.ts` (15 tests ✓)
+- Message component: `widget/src/components/Message.tsx` (renders suggestion buttons)
+- Chat flow: `widget/src/components/Chat.tsx` (handles button clicks)
+- Tests: `widget/src/lib/structured-output.test.ts` (17 tests ✓)
 
 ### MCP (Model Context Protocol) Integration
 

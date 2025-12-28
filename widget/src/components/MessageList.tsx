@@ -5,9 +5,10 @@ import type { ChatMessage } from '@/hooks/useChat';
 
 interface MessageListProps {
   messages: ChatMessage[];
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, onSuggestionClick }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -15,6 +16,11 @@ export function MessageList({ messages }: MessageListProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Find the index of the last assistant message (for showing suggestions only on latest)
+  const lastAssistantIndex = messages.map((m, i) => m.role === 'assistant' ? i : -1)
+    .filter(i => i !== -1)
+    .pop() ?? -1;
 
   if (messages.length === 0) {
     return (
@@ -30,8 +36,13 @@ export function MessageList({ messages }: MessageListProps) {
   return (
     <ScrollArea className="flex-1 h-full" ref={scrollRef}>
       <div className="flex flex-col">
-        {messages.map((message) => (
-          <Message key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <Message 
+            key={message.id} 
+            message={message} 
+            onSuggestionClick={onSuggestionClick}
+            isLatestMessage={index === lastAssistantIndex}
+          />
         ))}
         <div ref={bottomRef} />
       </div>

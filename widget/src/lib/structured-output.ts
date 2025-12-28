@@ -11,9 +11,9 @@
  * Extend this interface for specific agent response types
  */
 export interface StructuredResponse {
-  response?: string;  // Main response text to display
-  reasoning?: string; // Internal reasoning (optional)
-  [key: string]: any; // Allow other fields
+  response?: string;     // Main response text to display
+  suggestions?: string[]; // Optional: Suggested follow-up prompts as clickable buttons
+  [key: string]: any;     // Allow other fields
 }
 
 /**
@@ -22,7 +22,7 @@ export interface StructuredResponse {
 export interface ParsedContent {
   isStructured: boolean;
   displayText: string;
-  metadata?: Record<string, any>;
+  suggestions?: string[];
   rawData?: any;
 }
 
@@ -82,19 +82,15 @@ export function parseMessageContent(content: string): ParsedContent {
 
     // If it has a 'response' field, use that as display text
     if (typeof data.response === 'string') {
-      const metadata: Record<string, any> = {};
-      
-      // Collect other fields as metadata
-      Object.keys(data).forEach((key) => {
-        if (key !== 'response' && data[key] !== undefined) {
-          metadata[key] = data[key];
-        }
-      });
+      // Extract suggestions if present (must be an array of strings)
+      const suggestions = Array.isArray(data.suggestions) 
+        ? data.suggestions.filter(s => typeof s === 'string')
+        : undefined;
 
       return {
         isStructured: true,
         displayText: data.response,
-        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        suggestions: suggestions && suggestions.length > 0 ? suggestions : undefined,
         rawData: data,
       };
     }

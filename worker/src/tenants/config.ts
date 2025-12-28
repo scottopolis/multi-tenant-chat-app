@@ -65,7 +65,7 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
     ],
     outputSchema: z.object({
       response: z.string(),
-      reasoning: z.string(),
+      suggestions: z.array(z.string()).describe('2-3 very short suggested follow-up actions or questions the user might want to ask'),
     }),
   },
   
@@ -189,6 +189,28 @@ If asked about orders or shipping, politely inform the customer to contact suppo
           description: z.string().nullable().optional().describe('Additional event details'),
         })
       ),
+    }),
+  },
+  
+  /**
+   * Example: Support Bot with Suggestions
+   * Demonstrates structured output with quick-reply suggestions
+   * Shows agent that guides user through conversation with clickable options
+   */
+  'support-bot': {
+    agentId: 'support-bot',
+    orgId: 'platform',
+    name: 'Support Assistant',
+    systemPrompt: `You are a helpful customer support assistant.
+
+Always provide your response in a friendly, concise manner, and include 2-4 relevant suggestions for what the user might want to do next.
+
+Use the 'response' field for your main answer, and 'suggestions' field for quick-reply options.`,
+    model: 'gpt-4.1-mini',
+    // Structured output with suggestions for guided conversation
+    outputSchema: z.object({
+      response: z.string().describe('Your helpful response to the user'),
+      suggestions: z.array(z.string()).describe('2-3 suggested follow-up actions or questions the user might want to ask'),
     }),
   },
 };

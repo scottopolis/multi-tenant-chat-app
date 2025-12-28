@@ -48,13 +48,13 @@ describe('Structured Output Utils', () => {
     it('should extract response field from structured JSON', () => {
       const json = JSON.stringify({
         response: 'Hello!',
-        reasoning: 'User greeted me',
+        suggestions: ['Tell me more', 'What else?'],
       });
       
       const result = parseMessageContent(json);
       expect(result.isStructured).toBe(true);
       expect(result.displayText).toBe('Hello!');
-      expect(result.metadata).toEqual({ reasoning: 'User greeted me' });
+      expect(result.suggestions).toEqual(['Tell me more', 'What else?']);
     });
 
     it('should handle structured JSON with only response field', () => {
@@ -65,7 +65,7 @@ describe('Structured Output Utils', () => {
       const result = parseMessageContent(json);
       expect(result.isStructured).toBe(true);
       expect(result.displayText).toBe('Just a response');
-      expect(result.metadata).toBeUndefined();
+      expect(result.suggestions).toBeUndefined();
     });
 
     it('should pretty-print JSON without response field', () => {
@@ -82,22 +82,40 @@ describe('Structured Output Utils', () => {
       expect(result.rawData).toBeDefined();
     });
 
-    it('should include all metadata fields except response', () => {
+    it('should extract suggestions as array of strings', () => {
+      const json = JSON.stringify({
+        response: 'I can help with that.',
+        suggestions: ['Option 1', 'Option 2', 'Option 3'],
+      });
+      
+      const result = parseMessageContent(json);
+      expect(result.isStructured).toBe(true);
+      expect(result.displayText).toBe('I can help with that.');
+      expect(result.suggestions).toEqual(['Option 1', 'Option 2', 'Option 3']);
+    });
+
+    it('should filter out non-string suggestions', () => {
       const json = JSON.stringify({
         response: 'Answer',
-        reasoning: 'Because',
-        confidence: 0.95,
-        sources: ['doc1', 'doc2'],
+        suggestions: ['Valid', 123, null, 'Also valid', {}],
       });
       
       const result = parseMessageContent(json);
       expect(result.isStructured).toBe(true);
       expect(result.displayText).toBe('Answer');
-      expect(result.metadata).toEqual({
-        reasoning: 'Because',
-        confidence: 0.95,
-        sources: ['doc1', 'doc2'],
+      expect(result.suggestions).toEqual(['Valid', 'Also valid']);
+    });
+
+    it('should handle empty suggestions array', () => {
+      const json = JSON.stringify({
+        response: 'Answer',
+        suggestions: [],
       });
+      
+      const result = parseMessageContent(json);
+      expect(result.isStructured).toBe(true);
+      expect(result.displayText).toBe('Answer');
+      expect(result.suggestions).toBeUndefined();
     });
   });
 

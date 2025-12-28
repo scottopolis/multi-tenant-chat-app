@@ -34,7 +34,10 @@ export function Chat({ chatId, agentId }: ChatProps) {
         </div>
       )}
       
-      <MessageList messages={messages} />
+      <MessageList 
+        messages={messages} 
+        onSuggestionClick={(suggestion) => sendMessage(suggestion)}
+      />
       
       <MessageInput
         onSend={(content) => sendMessage(content)}
