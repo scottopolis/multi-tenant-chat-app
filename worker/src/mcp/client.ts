@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { tool } from '@openai/agents';
 
 /**
  * MCP Client for connecting to Model Context Protocol servers
  * 
  * This module makes direct HTTP calls to MCP servers to discover and execute tools.
- * It bypasses @ai-sdk/mcp's dynamic tool wrapper to avoid "unsupported tool type" errors.
+ * Converts MCP tools to OpenAI Agents SDK tool format.
  * 
  * Approach:
  * 1. Call tools/list to discover available tools
@@ -63,13 +64,13 @@ function parseSSEResponse(sseText: string): any {
  * Get tools from an MCP server
  * 
  * This function connects to an MCP server, fetches its tools, and returns
- * them in AI SDK format. The tools are ready to use with streamText().
+ * them in OpenAI Agents SDK format. The tools are ready to use with Agent.
  * 
- * If the connection fails, logs an error and returns an empty object,
+ * If the connection fails, logs an error and returns an empty array,
  * allowing the agent to continue with other available tools.
  * 
  * @param config - MCP server configuration
- * @returns Record of tools in AI SDK format
+ * @returns Array of tools in Agents SDK format
  * 
  * @example
  * const tools = await getMCPTools({
@@ -77,16 +78,16 @@ function parseSSEResponse(sseText: string): any {
  *   authHeader: 'Bearer secret-token',
  * });
  * 
- * // Use with streamText
- * streamText({
- *   model: openrouter.chat('gpt-4'),
- *   messages,
- *   tools, // MCP tools + any other tools
+ * // Use with Agent
+ * const agent = new Agent({
+ *   name: 'Assistant',
+ *   instructions: 'You are helpful',
+ *   tools: [...builtinTools, ...tools], // MCP tools + any other tools
  * });
  */
 export async function getMCPTools(
   config: MCPClientConfig
-): Promise<Record<string, any>> {
+): Promise<any[]> {
   try {
     console.log(`[MCP] Connecting to server: ${config.serverUrl} (transport: ${config.transport || 'http'})`);
     
@@ -215,8 +216,8 @@ export async function getMCPTools(
     
     console.log(`[MCP] Server offers ${availableTools.length} tools: ${availableTools.map((t: any) => t.name).join(', ')}`);
 
-    // Create AI SDK tools for each MCP tool
-    const tools: Record<string, any> = {};
+    // Create Agents SDK tools for each MCP tool
+    const tools: any[] = [];
     
     for (const mcpTool of availableTools) {
       const { name, description, inputSchema } = mcpTool;
@@ -224,29 +225,32 @@ export async function getMCPTools(
       // Convert JSON Schema to simple Zod schema
       const zodSchema = buildZodFromJsonSchema(inputSchema);
       
-      tools[name] = {
+      // Create tool using Agents SDK tool() function
+      const agentTool = tool({
+        name: name,
         description: description || `MCP tool: ${name}`,
         parameters: zodSchema,
         execute: async (args: any) => {
           console.log(`[MCP] Calling tool: ${name} with args:`, args);
           const result = await callMCPTool(name, args);
-          console.log(`[MCP] Tool ${name} returned:`, result.substring(0, 200));
+          console.log(`[MCP] Tool ${name} returned:`, typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200));
           return result;
         },
-      };
+      });
       
+      tools.push(agentTool);
       console.log(`[MCP] ✓ Registered tool: ${name}`);
     }
 
-    console.log(`[MCP] Successfully loaded ${Object.keys(tools).length} tools`);
+    console.log(`[MCP] Successfully loaded ${tools.length} tools`);
     return tools;
   } catch (error) {
     console.error('[MCP] Failed to connect to MCP server:', error);
     console.error('[MCP] Server URL:', config.serverUrl);
     console.error('[MCP] Error details:', error instanceof Error ? error.stack : String(error));
     
-    // Return empty tools - agent can continue with other available tools
-    return {};
+    // Return empty array - agent can continue with other available tools
+    return [];
   }
 }
 
@@ -284,11 +288,12 @@ function buildZodFromJsonSchema(jsonSchema: any): z.ZodObject<any> {
     }
     
     // Make optional if not in required array
+    // OpenAI API requires optional fields to be nullable as well
     if (!required.includes(key)) {
       if (prop.default !== undefined) {
         schema = schema.default(prop.default);
       } else {
-        schema = schema.optional();
+        schema = schema.nullable().optional();
       }
     }
     

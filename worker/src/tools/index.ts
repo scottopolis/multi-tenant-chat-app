@@ -21,26 +21,31 @@ import { getAgentConfig } from '../tenants/config';
  * 
  * Combines:
  * 1. Built-in tools (currentTime, calculator, etc.)
- * 2. MCP server tools (if agent has MCP servers configured)
+ * 2. MCP server tools via HTTP (workaround for Cloudflare Workers)
  * 3. Future: Webhook tools, selective built-in tool filtering
  * 
+ * Note: Native MCP support via Agent.mcpServers uses stdio (subprocess spawning)
+ * which doesn't work in Cloudflare Workers. We use HTTP-based MCP client instead.
+ * 
  * @param agentId - Agent identifier
- * @returns Record of all available tools in AI SDK format
+ * @returns Array of tools in OpenAI Agents SDK format
  * 
  * @example
  * const tools = await getTools('acme-support');
- * // Returns: { currentTime, calculator, ...mcpTools }
+ * // Returns: [currentTime, calculator, ...mcpTools]
  */
 export async function getTools(agentId: string) {
   // 1. Get agent configuration
   const config = await getAgentConfig(agentId);
   
-  // 2. Start with built-in tools
-  const tools: Record<string, any> = { ...builtinTools };
+  // 2. Start with built-in tools (now an array)
+  const tools: any[] = [...builtinTools];
   
-  // 3. Add MCP tools if configured
+  // 3. Add MCP tools if configured (HTTP-based for Workers compatibility)
+  // Note: We can't use Agent.mcpServers because it requires stdio/subprocess
+  // which doesn't work in Cloudflare Workers sandboxed environment
   if (config?.mcpServers && config.mcpServers.length > 0) {
-    console.log(`[Tools] Fetching MCP tools from ${config.mcpServers.length} server(s) for agent: ${agentId}`);
+    console.log(`[Tools] Loading MCP tools via HTTP (stdio not supported in Workers)`);
     
     // Fetch tools from each MCP server
     for (const mcpServer of config.mcpServers) {
@@ -50,35 +55,30 @@ export async function getTools(agentId: string) {
       }
       
       try {
-        console.log(`[Tools] Connecting to MCP server: ${mcpServer.url}`);
         const mcpTools = await getMCPTools({
           serverUrl: mcpServer.url,
           authHeader: mcpServer.authHeader,
           transport: mcpServer.transport || 'http',
         });
         
-        // Merge MCP tools (later servers can override earlier ones and built-in tools)
-        Object.assign(tools, mcpTools);
+        // getMCPTools now returns an array directly
+        tools.push(...mcpTools);
         
-        const mcpToolCount = Object.keys(mcpTools).length;
-        console.log(`[Tools] Added ${mcpToolCount} tools from ${mcpServer.url}`);
+        console.log(`[Tools] Added ${mcpTools.length} tools from ${mcpServer.url}`);
       } catch (error) {
         console.error(`[Tools] Failed to fetch tools from ${mcpServer.url}:`, error);
         // Continue with other servers even if one fails
       }
     }
-  } else {
-    console.log(`[Tools] No MCP servers configured for agent: ${agentId}`);
-  }
+  } 
   
   // TODO: Add webhook tools here
   // if (config?.webhookTools) {
   //   const webhookTools = await createWebhookTools(config.webhookTools);
-  //   Object.assign(tools, webhookTools);
+  //   tools.push(...webhookTools);
   // }
   
-  const totalToolCount = Object.keys(tools).length;
-  console.log(`[Tools] Total tools available for agent ${agentId}: ${totalToolCount}`);
+  console.log(`[Tools] Total tools for agent ${agentId}: ${tools.length}`);
   
   return tools;
 }
