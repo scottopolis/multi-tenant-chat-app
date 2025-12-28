@@ -10,6 +10,8 @@ First, install Playwright browsers:
 npx playwright install
 ```
 
+**Note**: If you're in a restricted environment and browser installation fails, the tests can be run in CI/CD or a local development environment with internet access.
+
 ## Running Tests
 
 ```bash
