@@ -127,6 +127,7 @@ export async function runAgent(options: RunAgentOptions) {
   });
 
   // 7. Prepare conversation history (exclude system messages as they're in instructions)
+  // Convert to OpenAI Agents SDK format: Array<AgentInputItem>
   const conversationHistory = messages
     .filter(m => m.role !== 'system')
     .map(m => ({
@@ -134,15 +135,16 @@ export async function runAgent(options: RunAgentOptions) {
       content: m.content,
     }));
 
-  // 8. Get the last user message
+  // 8. Validate that the last message is from the user
   const lastMessage = conversationHistory[conversationHistory.length - 1];
   if (!lastMessage || lastMessage.role !== 'user') {
     throw new Error('Last message must be from user');
   }
 
-  // 9. Run the agent with streaming
-  // TODO: Handle conversation history properly - may need to pass as context or use RunState
-  const result = await run(agent, lastMessage.content, {
+  // 9. Run the agent with full conversation history and streaming
+  // The OpenAI Agents SDK accepts an array of conversation items for context
+  // This ensures the agent has full conversation history for better responses
+  const result = await run(agent, conversationHistory, {
     stream: true, // Enable streaming for real-time responses
   });
 

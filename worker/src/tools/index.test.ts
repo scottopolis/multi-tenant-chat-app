@@ -39,26 +39,33 @@ describe('Tools', () => {
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
-      // Mock MCP tools from server
-      const mockMCPTools = {
-        customTool1: {
+      // Mock MCP tools from server (array format)
+      const mockMCPTools = [
+        {
+          name: 'customTool1',
           description: 'Custom tool 1',
           parameters: {},
           execute: async () => 'result1',
         },
-      };
+      ];
       vi.mocked(mcpModule.getMCPTools).mockResolvedValue(mockMCPTools);
 
       // Get tools
       const tools = await getTools('test-agent');
 
+      // Should be an array
+      expect(Array.isArray(tools)).toBe(true);
+      
       // Should include built-in tools
-      expect(tools.currentTime).toBeDefined();
-      expect(tools.calculator).toBeDefined();
+      const timeToolIndex = tools.findIndex(t => t.name === 'currentTime');
+      const calcToolIndex = tools.findIndex(t => t.name === 'calculator');
+      expect(timeToolIndex).toBeGreaterThanOrEqual(0);
+      expect(calcToolIndex).toBeGreaterThanOrEqual(0);
 
       // Should include MCP tool
-      expect(tools.customTool1).toBeDefined();
-      expect(tools.customTool1.description).toBe('Custom tool 1');
+      const customToolIndex = tools.findIndex(t => t.name === 'customTool1');
+      expect(customToolIndex).toBeGreaterThanOrEqual(0);
+      expect(tools[customToolIndex].description).toBe('Custom tool 1');
 
       // Verify MCP client was called once with correct config
       expect(mcpModule.getMCPTools).toHaveBeenCalledTimes(1);
@@ -90,23 +97,25 @@ describe('Tools', () => {
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
-      // Mock tools from first MCP server
-      const mockMCPTools1 = {
-        serverOneTool: {
+      // Mock tools from first MCP server (array format)
+      const mockMCPTools1 = [
+        {
+          name: 'serverOneTool',
           description: 'Tool from server 1',
           parameters: {},
           execute: async () => 'result1',
         },
-      };
+      ];
 
-      // Mock tools from second MCP server
-      const mockMCPTools2 = {
-        serverTwoTool: {
+      // Mock tools from second MCP server (array format)
+      const mockMCPTools2 = [
+        {
+          name: 'serverTwoTool',
           description: 'Tool from server 2',
           parameters: {},
           execute: async () => 'result2',
         },
-      };
+      ];
 
       // Mock getMCPTools to return different tools for each server
       vi.mocked(mcpModule.getMCPTools)
@@ -116,15 +125,21 @@ describe('Tools', () => {
       // Get tools
       const tools = await getTools('test-agent');
 
+      // Should be an array
+      expect(Array.isArray(tools)).toBe(true);
+      
       // Should include built-in tools
-      expect(tools.currentTime).toBeDefined();
-      expect(tools.calculator).toBeDefined();
+      expect(tools.some(t => t.name === 'currentTime')).toBe(true);
+      expect(tools.some(t => t.name === 'calculator')).toBe(true);
 
       // Should include tools from both MCP servers
-      expect(tools.serverOneTool).toBeDefined();
-      expect(tools.serverOneTool.description).toBe('Tool from server 1');
-      expect(tools.serverTwoTool).toBeDefined();
-      expect(tools.serverTwoTool.description).toBe('Tool from server 2');
+      const serverOneTool = tools.find(t => t.name === 'serverOneTool');
+      const serverTwoTool = tools.find(t => t.name === 'serverTwoTool');
+      
+      expect(serverOneTool).toBeDefined();
+      expect(serverOneTool!.description).toBe('Tool from server 1');
+      expect(serverTwoTool).toBeDefined();
+      expect(serverTwoTool!.description).toBe('Tool from server 2');
 
       // Verify MCP client was called twice with correct configs
       expect(mcpModule.getMCPTools).toHaveBeenCalledTimes(2);
@@ -140,7 +155,7 @@ describe('Tools', () => {
       });
     });
 
-    it('should handle tool name conflicts (later server overrides earlier)', async () => {
+    it('should handle tool name conflicts (both tools are present)', async () => {
       // Mock agent config with multiple MCP servers
       const mockConfig: AgentConfig = {
         agentId: 'test-agent',
@@ -158,22 +173,24 @@ describe('Tools', () => {
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
-      // Both servers provide a tool with the same name
-      const mockMCPTools1 = {
-        conflictingTool: {
+      // Both servers provide a tool with the same name (array format)
+      const mockMCPTools1 = [
+        {
+          name: 'conflictingTool',
           description: 'Tool from server 1',
           parameters: {},
           execute: async () => 'server1',
         },
-      };
+      ];
 
-      const mockMCPTools2 = {
-        conflictingTool: {
-          description: 'Tool from server 2 (should win)',
+      const mockMCPTools2 = [
+        {
+          name: 'conflictingTool',
+          description: 'Tool from server 2',
           parameters: {},
           execute: async () => 'server2',
         },
-      };
+      ];
 
       vi.mocked(mcpModule.getMCPTools)
         .mockResolvedValueOnce(mockMCPTools1)
@@ -182,11 +199,11 @@ describe('Tools', () => {
       // Get tools
       const tools = await getTools('test-agent');
 
-      // Later server (server 2) should override earlier one
-      expect(tools.conflictingTool).toBeDefined();
-      expect(tools.conflictingTool.description).toBe('Tool from server 2 (should win)');
-      const result = await tools.conflictingTool.execute();
-      expect(result).toBe('server2');
+      // Both tools should be present (array allows duplicates)
+      const conflictingTools = tools.filter(t => t.name === 'conflictingTool');
+      expect(conflictingTools.length).toBe(2);
+      expect(conflictingTools[0].description).toBe('Tool from server 1');
+      expect(conflictingTools[1].description).toBe('Tool from server 2');
     });
 
     it('should continue if one MCP server fails', async () => {
@@ -211,24 +228,26 @@ describe('Tools', () => {
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
-      // Server 1 succeeds
-      const mockMCPTools1 = {
-        tool1: {
+      // Server 1 succeeds (array format)
+      const mockMCPTools1 = [
+        {
+          name: 'tool1',
           description: 'Tool 1',
           parameters: {},
           execute: async () => 'result1',
         },
-      };
+      ];
 
       // Server 2 fails
-      // Server 3 succeeds
-      const mockMCPTools3 = {
-        tool3: {
+      // Server 3 succeeds (array format)
+      const mockMCPTools3 = [
+        {
+          name: 'tool3',
           description: 'Tool 3',
           parameters: {},
           execute: async () => 'result3',
         },
-      };
+      ];
 
       vi.mocked(mcpModule.getMCPTools)
         .mockResolvedValueOnce(mockMCPTools1)
@@ -239,11 +258,11 @@ describe('Tools', () => {
       const tools = await getTools('test-agent');
 
       // Should include built-in tools
-      expect(tools.currentTime).toBeDefined();
+      expect(tools.some(t => t.name === 'currentTime')).toBe(true);
 
       // Should include tools from server 1 and 3, but not 2
-      expect(tools.tool1).toBeDefined();
-      expect(tools.tool3).toBeDefined();
+      expect(tools.some(t => t.name === 'tool1')).toBe(true);
+      expect(tools.some(t => t.name === 'tool3')).toBe(true);
 
       // Verify all three servers were attempted
       expect(mcpModule.getMCPTools).toHaveBeenCalledTimes(3);
@@ -252,9 +271,10 @@ describe('Tools', () => {
 
   describe('getTools with no MCP servers', () => {
     it('should return only built-in tools when no MCP servers configured', async () => {
-      // Mock tenant config without MCP servers
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config without MCP servers
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         // No mcpServers configured
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
@@ -262,18 +282,22 @@ describe('Tools', () => {
       // Get tools
       const tools = await getTools('test-agent');
 
+      // Should be an array
+      expect(Array.isArray(tools)).toBe(true);
+      
       // Should include built-in tools
-      expect(tools.currentTime).toBeDefined();
-      expect(tools.calculator).toBeDefined();
+      expect(tools.some(t => t.name === 'currentTime')).toBe(true);
+      expect(tools.some(t => t.name === 'calculator')).toBe(true);
 
       // MCP client should not be called
       expect(mcpModule.getMCPTools).not.toHaveBeenCalled();
     });
 
     it('should return only built-in tools when mcpServers is empty array', async () => {
-      // Mock tenant config with empty MCP servers array
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with empty MCP servers array
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [],
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
@@ -281,9 +305,12 @@ describe('Tools', () => {
       // Get tools
       const tools = await getTools('test-agent');
 
+      // Should be an array
+      expect(Array.isArray(tools)).toBe(true);
+      
       // Should include built-in tools
-      expect(tools.currentTime).toBeDefined();
-      expect(tools.calculator).toBeDefined();
+      expect(tools.some(t => t.name === 'currentTime')).toBe(true);
+      expect(tools.some(t => t.name === 'calculator')).toBe(true);
 
       // MCP client should not be called
       expect(mcpModule.getMCPTools).not.toHaveBeenCalled();
@@ -292,9 +319,10 @@ describe('Tools', () => {
 
   describe('getTools with invalid MCP server config', () => {
     it('should skip MCP server with missing URL', async () => {
-      // Mock tenant config with invalid MCP server (missing URL)
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with invalid MCP server (missing URL)
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [
           {
             url: '', // Invalid: empty URL
@@ -308,22 +336,26 @@ describe('Tools', () => {
       };
       vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
-      const mockMCPTools2 = {
-        validTool: {
+      const mockMCPTools2 = [
+        {
+          name: 'validTool',
           description: 'Tool from valid server',
           parameters: {},
           execute: async () => 'result',
         },
-      };
+      ];
 
       vi.mocked(mcpModule.getMCPTools).mockResolvedValue(mockMCPTools2);
 
       // Get tools
       const tools = await getTools('test-agent');
 
+      // Should be an array
+      expect(Array.isArray(tools)).toBe(true);
+      
       // Should have built-in tools and tools from valid server
-      expect(tools.currentTime).toBeDefined();
-      expect(tools.validTool).toBeDefined();
+      expect(tools.some(t => t.name === 'currentTime')).toBe(true);
+      expect(tools.some(t => t.name === 'validTool')).toBe(true);
 
       // MCP client should only be called once (for the valid server)
       expect(mcpModule.getMCPTools).toHaveBeenCalledTimes(1);

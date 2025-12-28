@@ -19,6 +19,9 @@ export interface Chat {
   agentId: string;
   title?: string;
   createdAt: Date;
+  // OpenAI Conversation API support (optional)
+  conversationId?: string; // OpenAI conversation ID for server-side state
+  lastResponseId?: string; // Last OpenAI response ID for chaining
 }
 
 export interface Message {
@@ -27,6 +30,9 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: Date;
+  // Optional metadata for tracing and debugging
+  responseId?: string; // OpenAI response ID if applicable
+  model?: string; // Model used for this response
 }
 
 // In-memory storage
@@ -90,7 +96,12 @@ export function listChats(orgId: string, agentId?: string): Chat[] {
  */
 export function addMessage(
   chatId: string,
-  data: { role: Message['role']; content: string }
+  data: { 
+    role: Message['role']; 
+    content: string;
+    responseId?: string;
+    model?: string;
+  }
 ): Message {
   const message: Message = {
     id: crypto.randomUUID(),
@@ -98,6 +109,8 @@ export function addMessage(
     role: data.role,
     content: data.content,
     createdAt: new Date(),
+    responseId: data.responseId,
+    model: data.model,
   };
   
   const chatMessages = messages.get(chatId) || [];
@@ -127,6 +140,30 @@ export function deleteChat(chatId: string): boolean {
   const deleted = chats.delete(chatId);
   messages.delete(chatId);
   return deleted;
+}
+
+/**
+ * Update chat conversation state (for OpenAI Conversation API integration)
+ * Useful for maintaining server-side conversation state
+ */
+export function updateChatConversationState(
+  chatId: string,
+  state: { conversationId?: string; lastResponseId?: string }
+): boolean {
+  const chat = chats.get(chatId);
+  if (!chat) {
+    return false;
+  }
+  
+  if (state.conversationId !== undefined) {
+    chat.conversationId = state.conversationId;
+  }
+  if (state.lastResponseId !== undefined) {
+    chat.lastResponseId = state.lastResponseId;
+  }
+  
+  chats.set(chatId, chat);
+  return true;
 }
 
 /**

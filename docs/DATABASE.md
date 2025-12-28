@@ -247,3 +247,5 @@ Request → Extract Bearer token → Hash token → Query Convex apiKeys.by_hash
 
 *This document is a specification. Implementation should follow these patterns exactly to ensure multi-tenant security.*
 
+
+

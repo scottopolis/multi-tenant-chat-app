@@ -142,9 +142,15 @@ const agent = new Agent({ tools }); // ✅ Works in Workers
 - ✅ Use `toTextStream()` for text-only apps (simpler than raw events)
 - 📝 Note: `stream: true` must be passed each time when using RunState
 
-Known Issues
-Test files need updates - Unit tests expect old tool format
-Conversation history - Currently only sends last message (needs RunState investigation): use conversations api for this:
+### Known Issues (Resolved ✅)
+
+- ✅ **Test files updated** - Unit tests now expect array format for tools
+- ✅ **Conversation history implemented** - Agent now receives full conversation history
+  - Implemented local history approach (passing all messages to agent)
+  - Added optional support for OpenAI Conversation API fields in storage
+  - Storage tracks `conversationId` and `lastResponseId` for future server-side state management
+
+### OpenAI Conversation API Patterns (for reference):
 
 ```
 Conversations / chat threads
@@ -239,8 +245,6 @@ async function main() {
 
 main().catch(console.error);
 ```
-
-MCP integration - Needs testing to verify compatibility
 
 #### Step 0.5: Add Handoffs Support
 - [ ] Define handoff targets in agent config
