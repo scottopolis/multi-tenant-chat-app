@@ -45,6 +45,7 @@ export interface RunAgentOptions {
   agentId: string;
   model?: string;
   systemPrompt?: string;
+  previousResponseId?: string; // For conversation continuity
   env?: {
     LANGFUSE_PUBLIC_KEY?: string;
     LANGFUSE_SECRET_KEY?: string;
@@ -82,16 +83,24 @@ const DEFAULT_MODEL: ModelName = 'gpt-4.1-mini';
  * 1. Fetches tenant configuration (includes systemPrompt, Langfuse, model, tools config)
  * 2. Determines system prompt (priority: Langfuse → tenant.systemPrompt → default)
  * 3. Creates an Agent instance with instructions and tools
- * 4. Runs the agent with the conversation history
- * 5. Returns the agent result for streaming
+ * 4. Runs the agent with conversation continuity via previousResponseId
+ * 5. Returns the streaming result (StreamedRunResult)
+ * 
+ * Conversation continuity pattern:
+ * - Pass previousResponseId from the last turn to maintain context
+ * - Save result.lastResponseId after each turn for the next request
+ * - This chains conversations without sending full history each time
+ * 
+ * Docs: https://openai.github.io/openai-agents-js/guides/streaming/
  */
-export async function runAgent(options: RunAgentOptions) {
+export async function runAgent(options: RunAgentOptions): Promise<any> {
   const {
     messages,
     apiKey,
     agentId,
     model: requestedModel,
     systemPrompt: providedSystemPrompt,
+    previousResponseId,
     env = {},
   } = options;
 
@@ -126,27 +135,27 @@ export async function runAgent(options: RunAgentOptions) {
     tools,
   });
 
-  // 7. Prepare conversation history (exclude system messages as they're in instructions)
-  // Convert to OpenAI Agents SDK format: Array<AgentInputItem>
-  const conversationHistory = messages
-    .filter(m => m.role !== 'system')
-    .map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
-
-  // 8. Validate that the last message is from the user
-  const lastMessage = conversationHistory[conversationHistory.length - 1];
-  if (!lastMessage || lastMessage.role !== 'user') {
-    throw new Error('Last message must be from user');
+  // 7. Get the last user message
+  const userMessages = messages.filter(m => m.role === 'user');
+  const lastUserMessage = userMessages[userMessages.length - 1];
+  
+  if (!lastUserMessage) {
+    throw new Error('No user message found');
   }
 
-  // 9. Run the agent with full conversation history and streaming
-  // The OpenAI Agents SDK accepts an array of conversation items for context
-  // This ensures the agent has full conversation history for better responses
-  const result = await run(agent, conversationHistory, {
+  // 8. Run the agent with streaming and conversation continuity
+  // Using previousResponseId to chain conversations - this keeps the context
+  // alive across turns without creating a full conversation resource
+  const runOptions: any = {
     stream: true, // Enable streaming for real-time responses
-  });
+  };
+
+  // Add previousResponseId if available for conversation continuity
+  if (previousResponseId) {
+    runOptions.previousResponseId = previousResponseId;
+  }
+
+  const result = await run(agent, lastUserMessage.content, runOptions);
 
   return result;
 }

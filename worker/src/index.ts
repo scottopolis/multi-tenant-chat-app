@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
-import { createChat, getChat, listChats, addMessage, getMessages } from './storage';
+import { createChat, getChat, listChats, addMessage, getMessages, updateChatConversationState } from './storage';
 import { runAgent, isValidModel } from './agents/index';
 import { z } from 'zod';
 import { getTools } from './tools';
@@ -204,13 +204,14 @@ app.post('/api/chats/:chatId/messages', async (c) => {
       return c.json({ error: 'Service configuration error' }, 500);
     }
 
-    // Run agent and stream response
+    // Run agent and stream response with conversation continuity
     const agentId = c.get('agentId');
     const result = await runAgent({
       messages,
       apiKey,
       agentId,
       model,
+      previousResponseId: chat.lastResponseId, // Use previous response for context
       env: {
         LANGFUSE_PUBLIC_KEY: c.env.LANGFUSE_PUBLIC_KEY,
         LANGFUSE_SECRET_KEY: c.env.LANGFUSE_SECRET_KEY,
@@ -221,6 +222,7 @@ app.post('/api/chats/:chatId/messages', async (c) => {
     console.log('[Stream] Agent result received, starting stream');
 
     // Stream SSE response using Agents SDK streaming
+    // Docs: https://openai.github.io/openai-agents-js/guides/streaming/
     return streamSSE(c, async (stream) => {
       let assistantMessage = '';
       let chunkCount = 0;
@@ -228,9 +230,8 @@ app.post('/api/chats/:chatId/messages', async (c) => {
       try {
         console.log('[Stream] Processing streamed agent response');
         
-        // The Agents SDK returns a StreamedRunResult
-        // We can iterate over the text chunks using toTextStream()
-        // Note: toTextStream() returns an async iterable of text deltas
+        // Get text stream from the StreamedRunResult
+        // toTextStream() returns an async iterable of text deltas
         const textStream = result.toTextStream();
         
         for await (const textChunk of textStream) {
@@ -244,10 +245,19 @@ app.post('/api/chats/:chatId/messages', async (c) => {
           });
         }
 
-        // Wait for the stream to complete
+        // Wait for the stream to complete (important: ensures all output is flushed)
         await result.completed;
 
         console.log(`[Stream] Completed streaming. Total chunks: ${chunkCount}, message length: ${assistantMessage.length}`);
+
+        // Save the lastResponseId for conversation continuity
+        // This allows us to chain conversations using previousResponseId
+        if (result.lastResponseId) {
+          updateChatConversationState(chatId, {
+            lastResponseId: result.lastResponseId,
+          });
+          console.log('[Stream] Saved lastResponseId for conversation continuity');
+        }
 
         // Send done event
         await stream.writeSSE({
@@ -262,6 +272,7 @@ app.post('/api/chats/:chatId/messages', async (c) => {
         addMessage(chatId, {
           role: 'assistant',
           content: assistantMessage,
+          responseId: result.lastResponseId,
         });
         console.log('[Stream] Saved assistant message to storage');
       } catch (error) {

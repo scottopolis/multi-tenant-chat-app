@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTenantConfig } from '../tenants/config';
+import { getAgentConfig } from '../tenants/config';
 import { getLangfuseClient, isLangfuseConfigured } from './index';
 
 /**
@@ -11,17 +11,17 @@ import { getLangfuseClient, isLangfuseConfigured } from './index';
  * Real integration testing happens via E2E tests with the actual Worker running.
  */
 describe('Langfuse Configuration', () => {
-  describe('Default tenant config', () => {
-    it('should load default tenant config with Langfuse credentials', async () => {
-      const config = await getTenantConfig('default');
+  describe('Default agent config', () => {
+    it('should load default agent config with Langfuse credentials', async () => {
+      const config = await getAgentConfig('default');
       
       expect(config).toBeDefined();
-      expect(config.tenantId).toBe('default');
+      expect(config.agentId).toBe('default');
       expect(config.name).toBe('Default Organization');
     });
 
     it('should have valid Langfuse credentials configured', async () => {
-      const config = await getTenantConfig('default');
+      const config = await getAgentConfig('default');
       
       // Check Langfuse config exists
       expect(config.langfuse).toBeDefined();
@@ -45,8 +45,8 @@ describe('Langfuse Configuration', () => {
       });
     });
 
-    it('should create Langfuse client with tenant credentials', async () => {
-      const config = await getTenantConfig('default');
+    it('should create Langfuse client with agent credentials', async () => {
+      const config = await getAgentConfig('default');
       
       expect(config.langfuse).toBeDefined();
       
@@ -76,17 +76,17 @@ describe('Langfuse Configuration', () => {
     });
   });
 
-  describe('Tenant-1 config', () => {
+  describe('Agent tenant-1 config', () => {
     it('should load tenant-1 config with Langfuse credentials', async () => {
-      const config = await getTenantConfig('tenant-1');
+      const config = await getAgentConfig('tenant-1');
       
       expect(config).toBeDefined();
-      expect(config.tenantId).toBe('tenant-1');
+      expect(config.agentId).toBe('tenant-1');
       expect(config.name).toBe('Acme Corp');
     });
 
     it('should have customer-support prompt configured', async () => {
-      const config = await getTenantConfig('tenant-1');
+      const config = await getAgentConfig('tenant-1');
       
       expect(config.langfuse).toBeDefined();
       expect(config.langfuse?.promptName).toBe('customer-support');
@@ -95,12 +95,12 @@ describe('Langfuse Configuration', () => {
     });
   });
 
-  describe('Tenant-2 config (platform keys)', () => {
+  describe('Agent tenant-2 config (platform keys)', () => {
     it('should have PLATFORM_KEY marker for using platform credentials', async () => {
-      const config = await getTenantConfig('tenant-2');
+      const config = await getAgentConfig('tenant-2');
       
       expect(config).toBeDefined();
-      expect(config.tenantId).toBe('tenant-2');
+      expect(config.agentId).toBe('tenant-2');
       expect(config.langfuse).toBeDefined();
       expect(config.langfuse?.publicKey).toBe('PLATFORM_KEY');
       expect(config.langfuse?.secretKey).toBe('PLATFORM_KEY');
@@ -111,7 +111,7 @@ describe('Langfuse Configuration', () => {
 
   describe('Client caching', () => {
     it('should cache Langfuse clients for same credentials', async () => {
-      const config = await getTenantConfig('default');
+      const config = await getAgentConfig('default');
       
       const client1 = getLangfuseClient({
         publicKey: config.langfuse!.publicKey,
@@ -131,8 +131,8 @@ describe('Langfuse Configuration', () => {
     });
 
     it('should create different clients for different credentials', async () => {
-      const defaultConfig = await getTenantConfig('default');
-      const tenant1Config = await getTenantConfig('tenant-1');
+      const defaultConfig = await getAgentConfig('default');
+      const tenant1Config = await getAgentConfig('tenant-1');
       
       const defaultClient = getLangfuseClient({
         publicKey: defaultConfig.langfuse!.publicKey,
@@ -152,10 +152,10 @@ describe('Langfuse Configuration', () => {
   });
 
   describe('Model configuration', () => {
-    it('should have model configured for each tenant', async () => {
-      const defaultConfig = await getTenantConfig('default');
-      const tenant1Config = await getTenantConfig('tenant-1');
-      const tenant2Config = await getTenantConfig('tenant-2');
+    it('should have model configured for each agent', async () => {
+      const defaultConfig = await getAgentConfig('default');
+      const tenant1Config = await getAgentConfig('tenant-1');
+      const tenant2Config = await getAgentConfig('tenant-2');
       
       expect(defaultConfig.model).toBe('gpt-4.1-mini');
       expect(tenant1Config.model).toBe('gpt-4.1-mini');
