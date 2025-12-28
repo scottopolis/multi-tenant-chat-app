@@ -248,11 +248,20 @@ main().catch(console.error);
 
 
 
-#### Step 0.6: Add Structured Output
-- [ ] Define output schemas per agent (Zod → JSON Schema)
-- [ ] Configure `response_format` for structured agents
-- [ ] Update widget to render structured responses
-- [ ] Add schema validation on response
+#### Step 0.6: Add Structured Output ✅
+- [x] Define output schemas per agent (Zod → JSON Schema)
+- [x] Configure `outputType` for structured agents
+- [x] Add `outputSchema` field to AgentConfig type
+- [x] Update `runAgent` to pass outputType to Agent constructor
+- [x] Add example agent with structured output (calendar-extractor)
+- [x] Update widget to render structured responses
+  - Created `structured-output.ts` parser with JSON detection
+  - Updated Message component to extract `response` field
+  - Added expandable metadata section for other fields (reasoning, etc.)
+  - Implemented smart buffering: detects `{` at start, buffers entire JSON response
+  - Plain text streams normally, structured JSON waits until complete (better UX)
+  - Added 15 unit tests for parsing logic ✓
+- [x] Schema validation on response (handled by OpenAI API)
 
 ### Architecture Changes
 
@@ -287,14 +296,16 @@ Widget → Hono API → Agents SDK Runner → OpenAI API → LLM
 
 **Completed:**
 - ✅ Core SDK migration (Steps 0.1-0.4)
+- ✅ Structured Output (Step 0.6)
 - Environment setup with `nodejs_compat`
 - Tool migration to Agents SDK format
 - Agent execution with `run()` function
 - Streaming with `toTextStream()`
+- Output schemas with Zod + `outputType`
 
 **Remaining:**
 - Handoffs (Step 0.5) - Optional
-- Structured Output (Step 0.6) - Optional
+- Widget rendering for structured responses - Optional
 
 **Deferred to Phase 6:**
 - Human-in-the-Loop

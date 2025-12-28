@@ -1,4 +1,5 @@
 import type { AgentConfig } from './types';
+import { z } from 'zod';
 
 /**
  * Agent Configuration Storage
@@ -62,6 +63,10 @@ const AGENT_CONFIGS: Record<string, AgentConfig> = {
         transport: 'http',
       },
     ],
+    outputSchema: z.object({
+      response: z.string(),
+      reasoning: z.string(),
+    }),
   },
   
   /**
@@ -159,6 +164,32 @@ If asked about orders or shipping, politely inform the customer to contact suppo
     //     transport: 'http',
     //   },
     // ],
+  },
+  
+  /**
+   * Example: Calendar Event Extractor
+   * Demonstrates structured output - returns parsed calendar events
+   * Shows agent with outputSchema for structured responses
+   */
+  'calendar-extractor': {
+    agentId: 'calendar-extractor',
+    orgId: 'platform',
+    name: 'Calendar Event Extractor',
+    systemPrompt: 'Extract calendar events from the supplied text. Parse dates, times, participants, and event details.',
+    model: 'gpt-4.1-mini',
+    // Structured output schema - agent returns this format instead of text
+    outputSchema: z.object({
+      events: z.array(
+        z.object({
+          name: z.string().describe('Event name or title'),
+          date: z.string().describe('Event date in ISO format'),
+          time: z.string().nullable().optional().describe('Event time if specified'),
+          participants: z.array(z.string()).describe('List of participants or attendees'),
+          location: z.string().nullable().optional().describe('Event location if specified'),
+          description: z.string().nullable().optional().describe('Additional event details'),
+        })
+      ),
+    }),
   },
 };
 

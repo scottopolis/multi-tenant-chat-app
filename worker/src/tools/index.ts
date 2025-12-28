@@ -45,7 +45,6 @@ export async function getTools(agentId: string) {
   // Note: We can't use Agent.mcpServers because it requires stdio/subprocess
   // which doesn't work in Cloudflare Workers sandboxed environment
   if (config?.mcpServers && config.mcpServers.length > 0) {
-    console.log(`[Tools] Loading MCP tools via HTTP (stdio not supported in Workers)`);
     
     // Fetch tools from each MCP server
     for (const mcpServer of config.mcpServers) {
@@ -64,7 +63,6 @@ export async function getTools(agentId: string) {
         // getMCPTools now returns an array directly
         tools.push(...mcpTools);
         
-        console.log(`[Tools] Added ${mcpTools.length} tools from ${mcpServer.url}`);
       } catch (error) {
         console.error(`[Tools] Failed to fetch tools from ${mcpServer.url}:`, error);
         // Continue with other servers even if one fails
@@ -77,8 +75,6 @@ export async function getTools(agentId: string) {
   //   const webhookTools = await createWebhookTools(config.webhookTools);
   //   tools.push(...webhookTools);
   // }
-  
-  console.log(`[Tools] Total tools for agent ${agentId}: ${tools.length}`);
   
   return tools;
 }

@@ -18,6 +18,13 @@ import { resolveSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './prompts';
  * - Custom systemPrompt per agent
  * - Optional Langfuse integration per agent
  * - MCP tool servers per agent
+ * - Structured output via Zod schemas (outputSchema)
+ * 
+ * ✅ Structured Output - Implemented
+ * - Define Zod schema in agent config (outputSchema field)
+ * - Agent returns structured data instead of plain text
+ * - Example: Calendar event extraction, data parsing, form filling
+ * - Uses OpenAI Agents SDK outputType parameter
  * 
  * Architecture:
  * - Each agent belongs to an organization (orgId)
@@ -83,8 +90,15 @@ const DEFAULT_MODEL: ModelName = 'gpt-4.1-mini';
  * 1. Fetches tenant configuration (includes systemPrompt, Langfuse, model, tools config)
  * 2. Determines system prompt (priority: Langfuse → tenant.systemPrompt → default)
  * 3. Creates an Agent instance with instructions and tools
- * 4. Runs the agent with conversation continuity via previousResponseId
- * 5. Returns the streaming result (StreamedRunResult)
+ * 4. Optionally configures structured output via outputType (if outputSchema in config)
+ * 5. Runs the agent with conversation continuity via previousResponseId
+ * 6. Returns the streaming result (StreamedRunResult)
+ * 
+ * Structured Output:
+ * - If agent config includes outputSchema (Zod schema), agent returns structured data
+ * - Uses OpenAI Agents SDK outputType parameter
+ * - Example use cases: data extraction, form filling, calendar parsing
+ * - Result will be in result.finalOutput as structured object (not plain text)
  * 
  * Conversation continuity pattern:
  * - Pass previousResponseId from the last turn to maintain context
@@ -128,12 +142,20 @@ export async function runAgent(options: RunAgentOptions): Promise<any> {
   const tools = await getTools(agentId);
 
   // 6. Create Agent instance
-  const agent = new Agent({
+  // If outputSchema is provided, create agent with structured output
+  const agentOptions: any = {
     name: agentConfig.name || agentId,
     instructions,
     model: modelId,
     tools,
-  });
+  };
+
+  // Add outputType if schema is configured for structured responses
+  if (agentConfig.outputSchema) {
+    agentOptions.outputType = agentConfig.outputSchema;
+  }
+
+  const agent = new Agent(agentOptions);
 
   // 7. Get the last user message
   const userMessages = messages.filter(m => m.role === 'user');

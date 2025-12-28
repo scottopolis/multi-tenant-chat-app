@@ -71,6 +71,23 @@ export interface AgentConfig {
    */
   mcpServers?: MCPServerConfig[];
   
+  /**
+   * Output schema for structured responses (Zod schema)
+   * When provided, the agent will return structured data matching this schema
+   * instead of plain text responses
+   * 
+   * @example
+   * import { z } from 'zod';
+   * const CalendarEvent = z.object({
+   *   name: z.string(),
+   *   date: z.string(),
+   *   participants: z.array(z.string()),
+   * });
+   * 
+   * outputSchema: CalendarEvent
+   */
+  outputSchema?: any; // Zod schema type
+  
   // Future additions:
   // webhookTools?: WebhookToolConfig[];
   // enabledBuiltinTools?: string[];

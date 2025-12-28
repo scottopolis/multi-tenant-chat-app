@@ -209,7 +209,13 @@ cd widget && npx playwright test agent-routing.spec.ts
 3. **When fixing bugs**: Add a test that reproduces the bug first
 4. **When refactoring**: Ensure tests still pass
 5. **When in doubt**: Check PLAN.md for architectural decisions
-6. **Do NOT create summary documents** - No MCP-IMPLEMENTATION.md, SUMMARY.md, or similar files unless explicitly requested
+6. **Documentation Updates**:
+   - **Do NOT create standalone summary documents** (no MCP-IMPLEMENTATION.md, SUMMARY.md, TESTING.md, etc.)
+   - **Instead, update existing documentation**: 
+     - Update `PLAN.md` for architectural changes
+     - Update files in `/docs/` for feature documentation
+     - Update root `README.md` for high-level changes
+     - Add inline comments and JSDoc for code documentation
 
 ## References
 

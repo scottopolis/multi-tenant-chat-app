@@ -48,6 +48,11 @@ export function useChat({ chatId, agentId, onError }: UseChatOptions) {
 
   /**
    * Send a message and handle streaming response
+   * 
+   * Streaming behavior:
+   * - Detects structured JSON responses (starts with { or [)
+   * - For structured: Buffers entire response, displays after parsing (avoids showing raw JSON)
+   * - For plain text: Streams content normally, showing text as it arrives
    */
   const sendMessage = useCallback(
     async (content: string, model?: string) => {
@@ -79,6 +84,8 @@ export function useChat({ chatId, agentId, onError }: UseChatOptions) {
       try {
         // Stream the response
         let fullContent = '';
+        let isStructuredResponse = false;
+        let firstChunkReceived = false;
 
         for await (const { event, data } of streamMessage(chatId, {
           content: content.trim(),
@@ -87,20 +94,33 @@ export function useChat({ chatId, agentId, onError }: UseChatOptions) {
           if (event === 'text') {
             fullContent += data;
             
-            // Update the assistant message with accumulated content
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? { ...msg, content: fullContent }
-                  : msg
-              )
-            );
+            // On first chunk, detect if this is structured JSON output
+            // Structured responses (like {"response": "..."}) should be buffered and parsed
+            if (!firstChunkReceived) {
+              firstChunkReceived = true;
+              const trimmed = fullContent.trim();
+              isStructuredResponse = trimmed.startsWith('{') || trimmed.startsWith('[');
+            }
+            
+            // Update UI based on response type:
+            // - Plain text: Stream content as it arrives (natural typing effect)
+            // - Structured JSON: Buffer completely (avoid showing raw JSON to user)
+            if (!isStructuredResponse) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                )
+              );
+            }
           } else if (event === 'done') {
-            // Mark streaming as complete
+            // Streaming complete - set final content and mark as done
+            // For structured responses, this is when content first appears (after parsing)
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
-                  ? { ...msg, isStreaming: false }
+                  ? { ...msg, content: fullContent, isStreaming: false }
                   : msg
               )
             );

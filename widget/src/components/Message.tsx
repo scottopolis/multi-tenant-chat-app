@@ -1,10 +1,17 @@
+import { useState } from 'react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/hooks/useChat';
-import { User, Bot, Loader2 } from 'lucide-react';
+import { User, Bot, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { parseMessageContent } from '@/lib/structured-output';
 
 /**
  * Message component
+ * 
+ * Features:
+ * - Detects and parses structured JSON responses
+ * - Extracts 'response' field for display if available
+ * - Shows metadata (like reasoning) in expandable section
  * 
  * TODO: Add markdown support
  * - Use react-markdown or similar to render formatted content
@@ -19,6 +26,16 @@ interface MessageProps {
 export function Message({ message }: MessageProps) {
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
+  const [showMetadata, setShowMetadata] = useState(false);
+
+  // Parse content to detect structured responses
+  // Only parse if not streaming (to avoid JSON parsing errors on incomplete data)
+  // For streaming messages, content will be empty for structured responses (buffered in useChat)
+  const parsed = !message.isStreaming && message.content
+    ? parseMessageContent(message.content)
+    : { isStructured: false, displayText: message.content || '' };
+
+  const hasMetadata = parsed.metadata && Object.keys(parsed.metadata).length > 0;
 
   return (
     <div
@@ -53,14 +70,54 @@ export function Message({ message }: MessageProps) {
               : 'bg-background border border-border'
           )}
         >
+          {/* Main content */}
           <div className="text-sm whitespace-pre-wrap break-words">
-            {message.content || (message.isStreaming && '...')}
+            {message.isStreaming 
+              ? (message.content || '...')
+              : (parsed.displayText || '...')
+            }
           </div>
           
+          {/* Streaming indicator */}
           {message.isStreaming && (
             <div className="flex items-center gap-2 mt-2 text-xs opacity-70">
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Thinking...</span>
+            </div>
+          )}
+
+          {/* Metadata section (for structured responses) */}
+          {!message.isStreaming && hasMetadata && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <button
+                onClick={() => setShowMetadata(!showMetadata)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showMetadata ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+                <span>
+                  {showMetadata ? 'Hide' : 'Show'} details
+                </span>
+              </button>
+              
+              {showMetadata && (
+                <div className="mt-2 space-y-2">
+                  {Object.entries(parsed.metadata!).map(([key, value]) => (
+                    <div key={key} className="text-xs">
+                      <span className="font-medium capitalize">{key}:</span>
+                      <div className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                        {typeof value === 'object' 
+                          ? JSON.stringify(value, null, 2)
+                          : String(value)
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

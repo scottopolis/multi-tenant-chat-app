@@ -258,7 +258,7 @@ See [OpenAI Agents SDK Streaming Docs](https://openai.github.io/openai-agents-js
 4. **Performance**: Keep tool execution fast (<2 seconds ideally)
 5. **Security**: Validate all inputs and sanitize outputs
 
-## Advanced Features (Prepared)
+## Advanced Features
 
 ### Agent Handoffs
 
@@ -279,27 +279,145 @@ const supportAgent = new Agent({
 });
 ```
 
-### Structured Outputs
+### Structured Outputs ✅
 
-Configure agents to return structured data:
+Agents can return structured data instead of plain text using Zod schemas. This is useful for data extraction, form filling, and structured responses.
+
+**How it works:**
+
+1. Define a Zod schema in the agent config (`outputSchema` field)
+2. The agent returns structured data matching that schema
+3. Result is available in `result.finalOutput` as a structured object
+
+**Example: Calendar Event Extractor**
 
 ```typescript
-const agent = new Agent({
-  name: 'Data Extractor',
-  outputType: 'structured',
-  responseFormat: {
-    type: 'json_schema',
-    json_schema: {
-      name: 'user_info',
-      schema: z.object({
-        name: z.string(),
-        email: z.string(),
-        phone: z.string().nullable().optional(),
-      }),
-    },
-  },
+import { z } from 'zod';
+
+// Define the output schema
+const CalendarEventSchema = z.object({
+  events: z.array(
+    z.object({
+      name: z.string().describe('Event name or title'),
+      date: z.string().describe('Event date in ISO format'),
+      time: z.string().nullable().optional().describe('Event time if specified'),
+      participants: z.array(z.string()).describe('List of participants or attendees'),
+      location: z.string().nullable().optional().describe('Event location if specified'),
+    })
+  ),
 });
+
+// Configure agent in worker/src/tenants/config.ts
+const agentConfig = {
+  agentId: 'calendar-extractor',
+  orgId: 'platform',
+  name: 'Calendar Event Extractor',
+  systemPrompt: 'Extract calendar events from the supplied text.',
+  model: 'gpt-4.1-mini',
+  outputSchema: CalendarEventSchema, // Add the schema here
+};
 ```
+
+**Agent creation with structured output:**
+
+```typescript
+import { Agent } from '@openai/agents';
+
+const agent = new Agent({
+  name: 'Calendar Extractor',
+  instructions: 'Extract calendar events from the supplied text.',
+  outputType: CalendarEventSchema, // Pass the Zod schema
+});
+
+const result = await run(agent, 'Meeting with Bob tomorrow at 2pm');
+// result.finalOutput will be: { events: [{ name: "Meeting with Bob", date: "...", ... }] }
+```
+
+**Try it out:**
+
+```bash
+# Send a message to the calendar-extractor agent
+curl -X POST http://localhost:8787/api/chats?agent=calendar-extractor \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Team standup Monday 9am with Alice and Bob. Client demo Tuesday 3pm in Building A."}'
+```
+
+**Response will be structured JSON:**
+
+```json
+{
+  "events": [
+    {
+      "name": "Team standup",
+      "date": "2024-12-30",
+      "time": "9:00 AM",
+      "participants": ["Alice", "Bob"],
+      "location": null
+    },
+    {
+      "name": "Client demo",
+      "date": "2024-12-31",
+      "time": "3:00 PM",
+      "participants": [],
+      "location": "Building A"
+    }
+  ]
+}
+```
+
+**Use cases:**
+- Data extraction from unstructured text
+- Form filling from natural language input
+- Parsing emails for action items
+- Converting documents to structured formats
+- Creating database entries from conversations
+
+### Client-Side Handling
+
+The widget automatically detects and parses structured JSON responses:
+
+**How it works:**
+1. First chunk is checked - if it starts with `{` or `[`, it's detected as structured
+2. **Structured responses:** Buffered entirely (no partial JSON shown), then parsed after completion
+3. **Plain text responses:** Streamed normally, showing text as it arrives
+4. If JSON has a `response` field, only that field is displayed
+5. Other fields (like `reasoning`) are shown in a collapsible "Show details" section
+
+**UX Benefits:**
+- No raw JSON visible to users during streaming (shows "Thinking..." instead)
+- Clean display of just the answer, with optional technical details
+- Plain text responses still stream naturally word-by-word
+
+**Response field convention:**
+
+```typescript
+interface StructuredResponse {
+  response: string;    // Main text to display to user
+  reasoning?: string;  // Internal reasoning (hidden by default)
+  confidence?: number; // Metadata (hidden by default)
+  [key: string]: any;  // Any other fields
+}
+```
+
+**Example:**
+
+If the agent returns:
+```json
+{
+  "response": "The meeting is scheduled for Monday at 9am",
+  "reasoning": "Extracted from 'Team standup Monday 9am' input",
+  "confidence": 0.95
+}
+```
+
+The user sees:
+- **Displayed:** "The meeting is scheduled for Monday at 9am"
+- **Hidden (expandable):** reasoning and confidence fields
+
+**Widget implementation:**
+- Parser: `widget/src/lib/structured-output.ts`
+- Message component: `widget/src/components/Message.tsx`
+- Tests: `widget/src/lib/structured-output.test.ts` (15 tests ✓)
 
 ### MCP (Model Context Protocol) Integration
 
