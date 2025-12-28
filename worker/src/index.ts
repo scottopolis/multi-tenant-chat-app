@@ -10,7 +10,8 @@ import { getTools } from './tools';
  * Cloudflare Worker environment bindings
  */
 type Bindings = {
-  OPENROUTER_API_KEY: string;
+  OPENAI_API_KEY: string;
+  OPENROUTER_API_KEY?: string; // Deprecated, keeping for backward compatibility
   LANGFUSE_SECRET_KEY?: string;
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_HOST?: string;
@@ -196,10 +197,10 @@ app.post('/api/chats/:chatId/messages', async (c) => {
     // Get chat history
     const messages = getMessages(chatId);
 
-    // Get API key from environment
-    const apiKey = c.env.OPENROUTER_API_KEY;
+    // Get API key from environment (prefer OPENAI_API_KEY, fallback to OPENROUTER_API_KEY)
+    const apiKey = c.env.OPENAI_API_KEY || c.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      console.error('OPENROUTER_API_KEY not configured');
+      console.error('OPENAI_API_KEY not configured');
       return c.json({ error: 'Service configuration error' }, 500);
     }
 
@@ -217,42 +218,34 @@ app.post('/api/chats/:chatId/messages', async (c) => {
       },
     });
 
-    console.log('[Stream] Agent result received, checking for warnings...');
-    // Check for warnings or errors in the result
-    if (result.warnings) {
-      console.warn('[Stream] Warnings from agent:', result.warnings);
-    }
+    console.log('[Stream] Agent result received, starting stream');
 
-    // Stream SSE response
-    console.log('[Stream] Starting SSE stream for chatId:', chatId);
+    // Stream SSE response using Agents SDK streaming
     return streamSSE(c, async (stream) => {
       let assistantMessage = '';
       let chunkCount = 0;
 
       try {
-        console.log('[Stream] Beginning to iterate textStream');
+        console.log('[Stream] Processing streamed agent response');
         
-        // Try to get the full stream to see all events
-        const fullStream = result.fullStream;
-        console.log('[Stream] Processing full stream...');
+        // The Agents SDK returns a StreamedRunResult
+        // We can iterate over the text chunks using toTextStream()
+        // Note: toTextStream() returns an async iterable of text deltas
+        const textStream = result.toTextStream();
         
-        for await (const part of fullStream) {
-          console.log('[Stream] Part type:', part.type);
+        for await (const textChunk of textStream) {
+          chunkCount++;
+          assistantMessage += textChunk;
           
-          if (part.type === 'text-delta') {
-            chunkCount++;
-            const chunk = part.textDelta;
-            assistantMessage += chunk;
-            await stream.writeSSE({
-              event: 'text',
-              data: chunk,
-            });
-          } else if (part.type === 'error') {
-            console.error('[Stream] Error part:', part.error);
-          } else {
-            console.log('[Stream] Other part:', JSON.stringify(part).substring(0, 200));
-          }
+          // Send each chunk as it arrives
+          await stream.writeSSE({
+            event: 'text',
+            data: textChunk,
+          });
         }
+
+        // Wait for the stream to complete
+        await result.completed;
 
         console.log(`[Stream] Completed streaming. Total chunks: ${chunkCount}, message length: ${assistantMessage.length}`);
 
@@ -293,25 +286,22 @@ app.post('/api/chats/:chatId/messages', async (c) => {
 
 /**
  * GET /api/models
- * List available models
+ * List available OpenAI models
  */
 app.get('/api/models', (c) => {
   const models = [
     // Fast and affordable models
     { name: 'gpt-4.1-mini', description: 'Fast and affordable (default)' },
-    { name: 'claude-3.5-haiku', description: 'Fast and affordable' },
+    { name: 'gpt-4o-mini', description: 'Fast and affordable' },
     
     // Balanced models
     { name: 'gpt-4.1', description: 'Balanced performance' },
-    { name: 'claude-3.5-sonnet', description: 'Balanced performance' },
+    { name: 'gpt-4o', description: 'Balanced performance' },
     
     // Most capable models
-    { name: 'gpt-o3', description: 'Most capable OpenAI model' },
-    { name: 'claude-3.5-opus', description: 'Most capable Anthropic model' },
-    
-    // Open source models
-    { name: 'llama-3.3-70b', description: 'Open source from Meta' },
-    { name: 'deepseek-v3', description: 'Open source from DeepSeek' },
+    { name: 'o1', description: 'Most capable reasoning model' },
+    { name: 'o1-mini', description: 'Faster reasoning model' },
+    { name: 'o3-mini', description: 'Latest reasoning model' },
   ];
   
   return c.json({ models });

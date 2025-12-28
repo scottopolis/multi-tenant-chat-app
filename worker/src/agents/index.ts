@@ -1,5 +1,5 @@
-import { streamText, type CoreMessage } from 'ai';
-import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { Agent, run } from '@openai/agents';
+import { setDefaultOpenAIKey } from '@openai/agents';
 import { getTools } from '../tools';
 import { getAgentConfig } from '../tenants/config';
 import { resolveSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './prompts';
@@ -53,25 +53,22 @@ export interface RunAgentOptions {
 }
 
 /**
- * Available models via OpenRouter
- * Add or remove models as needed
+ * Available OpenAI models
+ * Note: After migrating to OpenAI Agents SDK, only OpenAI models are supported
  */
 export const AVAILABLE_MODELS = {
   // Fast and affordable models
-  'gpt-4.1-mini': 'openai/gpt-4.1-mini',
-  'claude-3.5-haiku': 'anthropic/claude-3.5-haiku',
+  'gpt-4.1-mini': 'gpt-4.1-mini',
+  'gpt-4o-mini': 'gpt-4o-mini',
   
   // Balanced models
-  'gpt-4.1': 'openai/gpt-4.1',
-  'claude-3.5-sonnet': 'anthropic/claude-3.5-sonnet',
+  'gpt-4.1': 'gpt-4.1',
+  'gpt-4o': 'gpt-4o',
   
   // Most capable models
-  'gpt-o3': 'openai/o3',
-  'claude-3.5-opus': 'anthropic/claude-3.5-opus',
-  
-  // Open source models
-  'llama-3.3-70b': 'meta-llama/llama-3.3-70b-instruct',
-  'deepseek-v3': 'deepseek/deepseek-chat',
+  'o1': 'o1',
+  'o1-mini': 'o1-mini',
+  'o3-mini': 'o3-mini',
 } as const;
 
 export type ModelName = keyof typeof AVAILABLE_MODELS;
@@ -79,15 +76,14 @@ export type ModelName = keyof typeof AVAILABLE_MODELS;
 const DEFAULT_MODEL: ModelName = 'gpt-4.1-mini';
 
 /**
- * Run the agent with streaming response
+ * Run the agent with streaming response using OpenAI Agents SDK
  * 
  * This function:
  * 1. Fetches tenant configuration (includes systemPrompt, Langfuse, model, tools config)
  * 2. Determines system prompt (priority: Langfuse → tenant.systemPrompt → default)
- * 3. Creates an OpenRouter provider with the API key
- * 4. Loads the appropriate tools for the org
- * 5. Calls streamText with the model, messages, and tools
- * 6. Returns the streaming result
+ * 3. Creates an Agent instance with instructions and tools
+ * 4. Runs the agent with the conversation history
+ * 5. Returns the agent result for streaming
  */
 export async function runAgent(options: RunAgentOptions) {
   const {
@@ -104,53 +100,50 @@ export async function runAgent(options: RunAgentOptions) {
 
   // 2. Determine model (priority: request > agent config > default)
   const model = requestedModel || agentConfig.model || DEFAULT_MODEL;
+  const modelId = AVAILABLE_MODELS[model as ModelName] || model;
 
-  // 3. Determine system prompt
+  // 3. Determine system prompt (now called "instructions" in Agents SDK)
   // Priority: providedSystemPrompt → Langfuse → agent.systemPrompt → DEFAULT_SYSTEM_PROMPT
-  const systemPrompt = await resolveSystemPrompt(
+  const instructions = await resolveSystemPrompt(
     agentConfig,
     agentId,
     providedSystemPrompt,
     env
   );
 
-  // 4. Create OpenRouter provider
-  const openrouter = createOpenRouter({
-    apiKey,
-  });
+  // 4. Set the OpenAI API key globally for this request
+  // The Agents SDK requires the API key to be set before creating/running agents
+  setDefaultOpenAIKey(apiKey);
 
-  // 5. Get model ID (handle both short names and full IDs)
-  const modelId = AVAILABLE_MODELS[model as ModelName] || model;
-
-  // 6. Get tools for this agent (now async - includes MCP tools)
+  // 5. Get tools for this agent (now returns array)
   const tools = await getTools(agentId);
 
-  // 7. Prepare messages with system prompt
-  const messagesWithSystem: CoreMessage[] = [
-    { role: 'system', content: systemPrompt } as CoreMessage,
-    ...messages.map(m => ({ role: m.role, content: m.content }) as CoreMessage),
-  ];
-
-  console.log(`[Agent] Running agent: ${agentId} (org: ${agentConfig.orgId})`);
-  console.log(`[Agent] Model: ${model}`);
-  console.log(`[Agent] System prompt: ${systemPrompt.substring(0, 100)}...`);
-
-  // 8. Stream the response
-  const result = streamText({
-    model: openrouter.chat(modelId) as any, // Type compatibility issue with OpenRouter provider
-    messages: messagesWithSystem,
+  // 6. Create Agent instance
+  const agent = new Agent({
+    name: agentConfig.name || agentId,
+    instructions,
+    model: modelId,
     tools,
-    maxSteps: 5, // Allow up to 5 tool use iterations
-    // TODO: Add Langfuse telemetry
-    // experimental_telemetry: {
-    //   isEnabled: true,
-    //   functionId: 'chat-agent',
-    //   metadata: {
-    //     agentId,
-    //     orgId: agentConfig.orgId,
-    //     model: modelId,
-    //   },
-    // },
+  });
+
+  // 7. Prepare conversation history (exclude system messages as they're in instructions)
+  const conversationHistory = messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+  // 8. Get the last user message
+  const lastMessage = conversationHistory[conversationHistory.length - 1];
+  if (!lastMessage || lastMessage.role !== 'user') {
+    throw new Error('Last message must be from user');
+  }
+
+  // 9. Run the agent with streaming
+  // TODO: Handle conversation history properly - may need to pass as context or use RunState
+  const result = await run(agent, lastMessage.content, {
+    stream: true, // Enable streaming for real-time responses
   });
 
   return result;

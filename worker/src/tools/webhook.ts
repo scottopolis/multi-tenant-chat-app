@@ -1,4 +1,4 @@
-import { tool } from 'ai';
+import { tool } from '@openai/agents';
 import { z } from 'zod';
 
 /**
@@ -33,6 +33,7 @@ export interface WebhookToolConfig {
  */
 export function createWebhookTool(config: WebhookToolConfig) {
   return tool({
+    name: config.name,
     description: config.description,
     parameters: config.parameters,
     execute: async (params) => {
@@ -74,7 +75,7 @@ export function getExampleWebhookTool() {
     description: 'Execute a custom action via webhook',
     parameters: z.object({
       action: z.string().describe('The action to perform'),
-      data: z.record(z.any()).optional().describe('Additional data for the action'),
+      data: z.record(z.any()).nullable().optional().describe('Additional data for the action'),
     }),
     webhookUrl: 'https://example.com/webhook',
     headers: {

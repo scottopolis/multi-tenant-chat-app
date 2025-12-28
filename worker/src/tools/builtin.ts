@@ -1,4 +1,4 @@
-import { tool } from 'ai';
+import { tool } from '@openai/agents';
 import { z } from 'zod';
 
 /**
@@ -16,9 +16,10 @@ import { z } from 'zod';
  * Simple example tool that returns the current time
  */
 export const currentTime = tool({
+  name: 'currentTime',
   description: 'Get the current date and time',
   parameters: z.object({
-    timezone: z.string().optional().describe('Timezone (e.g., "America/New_York"). Defaults to UTC.'),
+    timezone: z.string().nullable().optional().describe('Timezone (e.g., "America/New_York"). Defaults to UTC.'),
   }),
   execute: async ({ timezone }) => {
     const now = new Date();
@@ -38,6 +39,7 @@ export const currentTime = tool({
  * Example calculator tool
  */
 export const calculator = tool({
+  name: 'calculator',
   description: 'Perform basic arithmetic operations',
   parameters: z.object({
     operation: z.enum(['add', 'subtract', 'multiply', 'divide']).describe('The arithmetic operation to perform'),
@@ -74,9 +76,6 @@ export const calculator = tool({
   },
 });
 
-// Export all built-in tools
-export const builtinTools = {
-  currentTime,
-  calculator,
-};
+// Export all built-in tools as array (Agents SDK format)
+export const builtinTools = [currentTime, calculator];
 

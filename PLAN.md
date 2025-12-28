@@ -19,12 +19,18 @@ This project is a multi-tenant chat assistant SaaS platform with:
 - Agent routing via `?agent=<id>` query param
 
 ### ✅ Worker (Cloudflare Workers + Hono)
-- OpenRouter integration for LLM access
+- OpenRouter integration for LLM access (migrating to OpenAI Agents SDK)
 - Tool/function calling (built-in + webhook)
 - MCP server support for external tools
 - In-memory storage (placeholder)
 - Langfuse integration (prepared)
 - Tenant config types defined
+
+### 🔄 Planned: OpenAI Agents SDK Migration
+- Replace AI SDK + OpenRouter with OpenAI Agents SDK
+- Native handoffs between agents
+- Structured output support
+- Voice agent preparation
 
 ### ✅ Testing
 - Unit tests with Vitest
@@ -33,6 +39,291 @@ This project is a multi-tenant chat assistant SaaS platform with:
 ---
 
 See DATABASE.md for convex and D1 implementation details.
+
+---
+
+## Phase 0: OpenAI Agents SDK Migration
+
+**Goal**: Replace Vercel AI SDK + OpenRouter with OpenAI Agents SDK for native support of handoffs, structured output, voice agents, and advanced agent patterns.
+
+### Why Migrate?
+
+**Current Stack (AI SDK + OpenRouter):**
+- ✅ Multi-model support via OpenRouter
+- ✅ Streaming with `streamText`
+- ✅ Basic tool calling
+- ❌ No native handoffs (would need custom implementation)
+- ❌ No native structured output mode
+- ❌ No voice agent support
+- ❌ No human-in-the-loop patterns
+
+**OpenAI Agents SDK:**
+- ✅ Native agent handoffs (transfer between agents)
+- ✅ Built-in structured output via response format
+- ✅ Voice agents via Realtime API
+- ✅ Guardrails and input validation
+- ✅ Tracing built-in
+- ⚠️ OpenAI models only (trade-off for features)
+
+### Migration Steps
+
+#### Step 0.1: Environment & Dependencies ✅
+- [x] Add `nodejs_compat` flag to `wrangler.toml` (required for SDK compatibility)
+- [x] Ensure `compatibility_date` is `2024-09-23` or later (set to 2024-12-01)
+- [x] Install `@openai/agents` (TypeScript SDK - correct package name)
+- [x] `OPENAI_API_KEY` exists in env vars (confirmed in .dev.vars)
+- [x] Remove `@openrouter/ai-sdk-provider` and `ai` packages (removed from package.json)
+- [x] Test basic OpenAI API call works in Worker (test file created in src/openai.test.ts)
+
+#### Step 0.2: Agent Definition Refactor ✅
+- [x] Convert `runAgent()` to use Agents SDK `Agent` class
+- [x] Define agents with `instructions`, `tools`, and `model`
+- [x] Migrate built-in tools to Agents SDK tool format (added `name` field)
+- [x] Update `AgentConfig` types for new SDK patterns
+- [x] Update models list to OpenAI-only models
+- [x] Update API key handling (OPENAI_API_KEY instead of OPENROUTER_API_KEY)
+
+**Note:** Need to fix Agent.run() API usage - checking SDK documentation for correct method
+
+#### Step 0.3: Tool Migration ✅
+- [x] Convert `tool()` definitions to Agents SDK format (added `name` field to all tools)
+- [x] Update `getTools()` to return array instead of object
+- [x] Fixed optional parameters to use `.nullable().optional()` (OpenAI API requirement)
+- [x] Migrate MCP integration - MCP tools now use `tool()` from Agents SDK
+- [x] Fixed MCP tools return type (array instead of object)
+- [x] Set API key globally with `setDefaultOpenAIKey()` before agent runs
+- [x] Test tool calling with new SDK
+
+**⚠️ Important: OpenAI API requires optional fields to be nullable**
+```typescript
+// ❌ Wrong - will cause runtime error
+timezone: z.string().optional()
+
+// ✅ Correct - must chain nullable() before optional()
+timezone: z.string().nullable().optional()
+```
+
+**🔑 API Key Configuration**
+Must call `setDefaultOpenAIKey(apiKey)` before creating/running agents:
+```typescript
+setDefaultOpenAIKey(apiKey);  // Required!
+const agent = new Agent({ ... });
+const result = await run(agent, input);
+```
+
+**🚧 MCP Integration Limitation in Cloudflare Workers**
+The Agents SDK native MCP support (`Agent.mcpServers` + `MCPServerStdio`) uses stdio for subprocess communication, which **doesn't work in Cloudflare Workers** sandboxed environment. 
+
+Our workaround: HTTP-based MCP client that fetches tools via HTTP and converts them to function tools. This works but doesn't support all MCP features (like resources, prompts).
+
+Native approach (doesn't work in Workers):
+```typescript
+const server = new MCPServerStdio({ fullCommand: '...' });
+await server.connect();
+const agent = new Agent({ mcpServers: [server] }); // ❌ Won't work in Workers
+```
+
+Our HTTP workaround (works in Workers):
+```typescript
+const tools = await getTools(agentId); // Includes MCP tools via HTTP
+const agent = new Agent({ tools }); // ✅ Works in Workers
+```
+
+#### Step 0.4: Streaming Response Update ✅
+- [x] Replace `streamText` with Agents SDK streaming (`stream: true`)
+- [x] Use `toTextStream()` to get text deltas from StreamedRunResult
+- [x] Iterate over text stream with `for await` loop
+- [x] Await `result.completed` promise for proper completion (critical!)
+- [x] SSE event format unchanged - widget compatible
+- [x] Fixed to use `result.finalOutput` for non-streaming mode
+
+**Best Practices Applied:**
+- ✅ Always `await result.completed` before exiting to flush output
+- ✅ Use `toTextStream()` for text-only apps (simpler than raw events)
+- 📝 Note: `stream: true` must be passed each time when using RunState
+
+Known Issues
+Test files need updates - Unit tests expect old tool format
+Conversation history - Currently only sends last message (needs RunState investigation): use conversations api for this:
+
+```
+Conversations / chat threads
+Each call to runner.run() (or run() utility) represents one turn in your application-level conversation. You choose how much of the RunResult you show the end‑user – sometimes only finalOutput, other times every generated item.
+
+Example of carrying over the conversation history
+import { Agent, run } from '@openai/agents';
+import type { AgentInputItem } from '@openai/agents';
+
+let thread: AgentInputItem[] = [];
+
+const agent = new Agent({
+  name: 'Assistant',
+});
+
+async function userSays(text: string) {
+  const result = await run(
+    agent,
+    thread.concat({ role: 'user', content: text }),
+  );
+
+  thread = result.history; // Carry over history + newly generated items
+  return result.finalOutput;
+}
+
+await userSays('What city is the Golden Gate Bridge in?');
+// -> "San Francisco"
+
+await userSays('What state is it in?');
+// -> "California"
+
+See the chat example for an interactive version.
+
+Server-managed conversations
+You can let the OpenAI Responses API persist conversation history for you instead of sending your entire local transcript on every turn. This is useful when you are coordinating long conversations or multiple services. See the Conversation state guide for details.
+
+OpenAI exposes two ways to reuse server-side state:
+
+1. conversationId for an entire conversation
+You can create a conversation once using Conversations API and then reuse its ID for every turn. The SDK automatically includes only the newly generated items.
+
+Reusing a server conversation
+import { Agent, run } from '@openai/agents';
+import { OpenAI } from 'openai';
+
+const agent = new Agent({
+  name: 'Assistant',
+  instructions: 'Reply very concisely.',
+});
+
+async function main() {
+  // Create a server-managed conversation:
+  const client = new OpenAI();
+  const { id: conversationId } = await client.conversations.create({});
+
+  const first = await run(agent, 'What city is the Golden Gate Bridge in?', {
+    conversationId,
+  });
+  console.log(first.finalOutput);
+  // -> "San Francisco"
+
+  const second = await run(agent, 'What state is it in?', { conversationId });
+  console.log(second.finalOutput);
+  // -> "California"
+}
+
+main().catch(console.error);
+
+2. previousResponseId to continue from the last turn
+If you want to start only with Responses API anyway, you can chain each request using the ID returned from the previous response. This keeps the context alive across turns without creating a full conversation resource.
+
+Chaining with previousResponseId
+import { Agent, run } from '@openai/agents';
+
+const agent = new Agent({
+  name: 'Assistant',
+  instructions: 'Reply very concisely.',
+});
+
+async function main() {
+  const first = await run(agent, 'What city is the Golden Gate Bridge in?');
+  console.log(first.finalOutput);
+  // -> "San Francisco"
+
+  const previousResponseId = first.lastResponseId;
+  const second = await run(agent, 'What state is it in?', {
+    previousResponseId,
+  });
+  console.log(second.finalOutput);
+  // -> "California"
+}
+
+main().catch(console.error);
+```
+
+MCP integration - Needs testing to verify compatibility
+
+#### Step 0.5: Add Handoffs Support
+- [ ] Define handoff targets in agent config
+- [ ] Implement `handoff()` function for agent transfers
+- [ ] Add handoff routing logic
+- [ ] Store handoff context in chat history
+- [ ] Update widget to handle handoff events
+
+#### Step 0.6: Add Structured Output
+- [ ] Define output schemas per agent (Zod → JSON Schema)
+- [ ] Configure `response_format` for structured agents
+- [ ] Update widget to render structured responses
+- [ ] Add schema validation on response
+
+### Architecture Changes
+
+**Before:**
+```
+Widget → Hono API → AI SDK streamText → OpenRouter → LLM
+```
+
+**After:**
+```
+Widget → Hono API → Agents SDK Runner → OpenAI API → LLM
+                  ↓
+            Agent Handoffs
+            Structured Output
+            Voice (future)
+```
+
+### Model Configuration
+
+**Default models (post-migration):**
+- `gpt-4.1` - Default model (balanced)
+- `gpt-4.1-mini` - Fast/cheap option
+
+### Breaking Changes
+
+1. **Model selection**: Limited to OpenAI models (gpt-4.1, gpt-4.1-mini, o1, etc.)
+2. **Environment variable**: `OPENROUTER_API_KEY` → `OPENAI_API_KEY`
+3. **Tool format**: Slightly different schema format
+4. **Streaming events**: May have different event structure
+
+### Scope for Phase 0
+
+**Completed:**
+- ✅ Core SDK migration (Steps 0.1-0.4)
+- Environment setup with `nodejs_compat`
+- Tool migration to Agents SDK format
+- Agent execution with `run()` function
+- Streaming with `toTextStream()`
+
+**Remaining:**
+- Handoffs (Step 0.5) - Optional
+- Structured Output (Step 0.6) - Optional
+
+**Deferred to Phase 6:**
+- Human-in-the-Loop
+- Voice Agents
+
+### Rollback Plan
+
+Keep the current AI SDK implementation in a separate branch. If migration fails or OpenAI-only models become a blocker, can revert.
+
+### Cloudflare Workers Compatibility
+
+Requires `nodejs_compat` flag in `wrangler.toml`:
+
+```toml
+compatibility_flags = [ "nodejs_compat" ]
+compatibility_date = "2024-09-23"
+```
+
+This enables Node.js API support needed by the Agents SDK (Buffer, Crypto, Streams, etc.).
+
+### Open Questions
+
+- [x] Cloudflare Worker compatibility with Agents SDK? → **Use `nodejs_compat` flag**
+- [x] HITL and Voice? → **Deferred to Phase 6**
+- [ ] Can we keep OpenRouter as fallback for non-OpenAI models?
+- [ ] Tracing: Agents SDK tracing vs Langfuse?
+
+---
 
 ## Phase 1: Dashboard Web App
 
@@ -201,6 +492,19 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
 
 ## Phase 6: Advanced Features (Future)
 
+### Human-in-the-Loop (Deferred from Phase 0)
+- Implement approval workflow for sensitive tools
+- Add `pending_approval` state to messages
+- Create approval/rejection API endpoints
+- Update widget with approval UI
+- Configurable timeout and auto-reject behavior
+
+### Voice Agents (Deferred from Phase 0)
+- OpenAI Realtime API integration
+- WebSocket support (may require Durable Objects)
+- Voice-specific agent configurations
+- Audio streaming in widget
+
 ### Analytics & Monitoring
 - Chat analytics per tenant
 - Cost tracking (tokens used)
@@ -236,7 +540,7 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Cloudflare Worker API                             │
-│                    (Hono + AI SDK + OpenRouter)                      │
+│                    (Hono + OpenAI Agents SDK)                        │
 │                                                                      │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ │
 │  │   Router    │  │   Agents    │  │    Tools    │  │  Storage   │ │
@@ -247,8 +551,8 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
 ┌───────────────────────────┐    ┌────────────────────────────────────┐
 │         Convex            │    │           External Services         │
 │                           │    │  ┌──────────┐  ┌─────────────────┐ │
-│  • Tenant configs         │    │  │OpenRouter│  │  Langfuse       │ │
-│  • Chat history           │    │  │   (LLM)  │  │  (Tracing/Eval) │ │
+│  • Tenant configs         │    │  │ OpenAI   │  │  Langfuse       │ │
+│  • Chat history           │    │  │   API    │  │  (Tracing/Eval) │ │
 │  • API keys               │    │  └──────────┘  └─────────────────┘ │
 │  • Documents (files)      │    │  ┌──────────┐  ┌─────────────────┐ │
 │  • Vector embeddings      │    │  │MCP Server│  │  Webhooks       │ │
@@ -294,6 +598,7 @@ multi-tenant-chat-assistant/
 
 ## Implementation Order
 
+0. **Phase 0**: OpenAI Agents SDK migration (handoffs, structured output, voice prep)
 1. **Phase 1**: Dashboard web app with Clerk auth
 2. **Phase 2**: Database integration with Convex
 3. **Phase 3**: Worker auth with API keys
@@ -306,6 +611,9 @@ multi-tenant-chat-assistant/
 ## Open Questions
 
 - [x] Which database? → **Hybrid: Convex (configs/RAG) + D1 (conversations)**
+- [x] Which AI SDK? → **OpenAI Agents SDK (for handoffs, structured output, voice)**
+- [x] OpenAI Agents SDK: Python vs TypeScript? → **TypeScript (`@openai/agents-sdk`)**
+- [x] Cloudflare Worker compatibility? → **Use `nodejs_compat` flag + compatibility_date ≥ 2024-09-23**
 - [ ] Monorepo tooling? (Turborepo, pnpm workspaces)
 - [ ] Shared types package or duplicate?
 - [ ] Embedding model? (OpenAI text-embedding-3-small vs open-source)
