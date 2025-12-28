@@ -46,14 +46,16 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
         host: 'https://us.cloud.langfuse.com',
         promptName: 'pirate', // Their custom prompt
       },
-    // MCP server configuration (optional)
+    // MCP servers configuration (optional)
     // NOTE: Don't configure a tenant to connect to its own MCP endpoint!
-    // That creates an infinite loop. Point to an external MCP server instead.
-    // Example for external MCP server:
-    mcpServer: {
+    // That creates an infinite loop. Point to external MCP servers instead.
+    // Example for external MCP servers:
+    mcpServers: [
+      {
         url: 'http://localhost:3030',
         transport: 'http',
-    },
+      },
+    ],
   },
   
   /**
@@ -71,13 +73,20 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
       promptName: 'customer-support', // Their custom prompt
     },
     model: 'gpt-4.1-mini',
-    // MCP server configuration (example - replace with real server)
-    // Uncomment and configure when you have an MCP server running:
-    // mcpServer: {
-    //   url: 'http://localhost:3001/mcp',
-    //   authHeader: 'Bearer tenant-1-mcp-key',
-    //   transport: 'http',
-    // },
+    // MCP servers configuration (example - replace with real servers)
+    // Uncomment and configure when you have MCP servers running:
+    // You can have multiple MCP servers providing different tools
+    // mcpServers: [
+    //   {
+    //     url: 'http://localhost:3001/mcp',
+    //     authHeader: 'Bearer tenant-1-mcp-key',
+    //     transport: 'http',
+    //   },
+    //   {
+    //     url: 'http://localhost:3002/mcp',
+    //     transport: 'http',
+    //   },
+    // ],
   },
   
   /**
@@ -116,13 +125,15 @@ If asked about orders or shipping, politely inform the customer to contact suppo
     model: 'gpt-4.1-mini',
     // No Langfuse config - uses systemPrompt instead
     
-    // Example MCP server configuration
-    // Uncomment and configure when you have an MCP server running:
-    // mcpServer: {
-    //   url: 'http://localhost:3002/mcp',
-    //   authHeader: 'Bearer tenant-3-secret',
-    //   transport: 'http',
-    // },
+    // Example MCP servers configuration
+    // Uncomment and configure when you have MCP servers running:
+    // mcpServers: [
+    //   {
+    //     url: 'http://localhost:3002/mcp',
+    //     authHeader: 'Bearer tenant-3-secret',
+    //     transport: 'http',
+    //   },
+    // ],
   },
 };
 

@@ -103,11 +103,11 @@ To connect this MCP server to your chat assistant:
 2. Configure a tenant to use it in `worker/src/tenants/config.ts`:
    ```typescript
    {
-     orgId: 'test-tenant',
+     tenantId: 'test-tenant',
      name: 'Test Tenant',
      mcpServers: [
        {
-         serverUrl: 'http://localhost:3030',
+         url: 'http://localhost:3030',
          transport: 'http'
        }
      ]

@@ -96,8 +96,6 @@ export async function runAgent(options: RunAgentOptions) {
   // 1. Get tenant configuration
   const tenantConfig = await getTenantConfig(orgId);
 
-  console.log('tenantConfig', tenantConfig);
-  
   // 2. Determine model (priority: request > tenant config > default)
   const model = requestedModel || tenantConfig.model || DEFAULT_MODEL;
 

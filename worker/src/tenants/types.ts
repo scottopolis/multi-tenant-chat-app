@@ -57,10 +57,11 @@ export interface TenantConfig {
   model?: string;
   
   /**
-   * MCP Server configuration
-   * Connects to external tool server for custom tools
+   * MCP Server configurations
+   * Connects to multiple external tool servers for custom tools
+   * Each server can provide different sets of tools
    */
-  mcpServer?: MCPServerConfig;
+  mcpServers?: MCPServerConfig[];
   
   // Future additions:
   // webhookTools?: WebhookToolConfig[];
