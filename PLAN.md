@@ -246,12 +246,7 @@ async function main() {
 main().catch(console.error);
 ```
 
-#### Step 0.5: Add Handoffs Support
-- [ ] Define handoff targets in agent config
-- [ ] Implement `handoff()` function for agent transfers
-- [ ] Add handoff routing logic
-- [ ] Store handoff context in chat history
-- [ ] Update widget to handle handoff events
+
 
 #### Step 0.6: Add Structured Output
 - [ ] Define output schemas per agent (Zod → JSON Schema)
@@ -609,6 +604,14 @@ multi-tenant-chat-assistant/
 4. **Phase 4**: Eval runner with Langfuse
 5. **Phase 5**: RAG knowledgebase (document upload + vector search)
 6. **Phase 6**: Advanced features as needed
+
+
+#### Deferred: Add Handoffs Support
+- [ ] Define handoff targets in agent config
+- [ ] Implement `handoff()` function for agent transfers
+- [ ] Add handoff routing logic
+- [ ] Store handoff context in chat history
+- [ ] Update widget to handle handoff events
 
 ---
 
