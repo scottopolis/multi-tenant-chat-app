@@ -96,14 +96,17 @@ Store tenant configurations, API keys, documents, and vector embeddings.
 | Field | Type | Description |
 |-------|------|-------------|
 | _id | Id | Convex auto ID |
+| agentId | string | Unique agent identifier (indexed) |
 | tenantId | Id | Reference to tenants table |
-| name | string | Agent name |
-| systemPrompt | string | System prompt text |
-| model | string | Model ID (gpt-4.1-mini, etc.) |
-| mcpServers | array | MCP server configurations |
-| webhookTools | array | Webhook tool definitions |
-| langfuseConfig | object | Optional Langfuse settings |
+| orgId | string | Organization/tenant identifier |
+| name | string | Agent display name |
+| systemPrompt | string? | System prompt text (optional) |
+| model | string | Model ID (gpt-4.1-mini, gpt-4o, o1, etc.) |
+| mcpServers | array? | MCP server configurations [{url, authHeader?, transport?}] |
+| langfuse | object? | Optional Langfuse config {publicKey, secretKey, host?, promptName?, label?} |
+| outputSchema | string? | JSON-serialized Zod schema for structured output |
 | createdAt | number | Unix timestamp |
+| updatedAt | number | Unix timestamp |
 
 #### `apiKeys`
 | Field | Type | Description |
@@ -140,7 +143,9 @@ Store tenant configurations, API keys, documents, and vector embeddings.
 
 ### Indexes
 - `tenants.by_clerk_org` on `clerkOrgId` - lookup by Clerk org
+- `agents.by_agent_id` on `agentId` - lookup by agent ID (unique)
 - `agents.by_tenant` on `tenantId` - list agents for tenant
+- `agents.by_org_id` on `orgId` - list agents for org
 - `apiKeys.by_hash` on `keyHash` - API key validation
 - `apiKeys.by_tenant` on `tenantId` - list keys for tenant
 - `documents.by_tenant` on `tenantId` - list docs for tenant

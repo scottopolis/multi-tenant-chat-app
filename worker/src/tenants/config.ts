@@ -24,7 +24,8 @@ import { z } from 'zod';
  * Includes DB binding for production use
  */
 export interface AgentConfigEnv {
-  DB?: D1Database; // D1 database binding (production)
+  DB?: D1Database; // D1 database binding (production - for D1 approach)
+  CONVEX_URL?: string; // Convex deployment URL (production - for Convex approach)
   // Add other bindings as needed (KV, Durable Objects, etc.)
 }
 
@@ -240,13 +241,21 @@ export async function getAgentConfig(
 
   let config: AgentConfig;
 
-  // Production: Fetch from database if DB binding exists
-  if (env?.DB) {
+  // Production: Fetch from Convex or D1 database
+  if (env?.CONVEX_URL) {
+    try {
+      config = await fetchFromConvex(agentId, env.CONVEX_URL);
+      console.log(`[AgentConfig] Loaded from Convex: ${agentId}`);
+    } catch (error) {
+      console.error(`[AgentConfig] Convex fetch failed for ${agentId}:`, error);
+      config = AGENT_CONFIGS[agentId] || AGENT_CONFIGS['default'];
+    }
+  } else if (env?.DB) {
     try {
       config = await fetchFromDatabase(agentId, env.DB);
-      console.log(`[AgentConfig] Loaded from DB: ${agentId}`);
+      console.log(`[AgentConfig] Loaded from D1: ${agentId}`);
     } catch (error) {
-      console.error(`[AgentConfig] DB fetch failed for ${agentId}:`, error);
+      console.error(`[AgentConfig] D1 fetch failed for ${agentId}:`, error);
       config = AGENT_CONFIGS[agentId] || AGENT_CONFIGS['default'];
     }
   } else {
@@ -266,8 +275,41 @@ export async function getAgentConfig(
 export const getTenantConfig = getAgentConfig;
 
 /**
+ * Fetch agent config from Convex
+ *
+ * @internal
+ */
+async function fetchFromConvex(
+  agentId: string,
+  convexUrl: string
+): Promise<AgentConfig> {
+  const { getConvexClient } = await import('../convex/client');
+  const { api } = await import('../../../convex/_generated/api');
+
+  const client = getConvexClient(convexUrl);
+  const result = await client.query(api.agents.getByAgentId, { agentId });
+
+  if (!result) {
+    return AGENT_CONFIGS['default'];
+  }
+
+  // Convex returns the data already parsed
+  // The Convex function handles JSON parsing for mcpServers and outputSchema
+  return {
+    agentId: result.agentId,
+    orgId: result.orgId,
+    name: result.name,
+    systemPrompt: result.systemPrompt,
+    langfuse: result.langfuse,
+    model: result.model,
+    mcpServers: result.mcpServers,
+    outputSchema: result.outputSchema,
+  };
+}
+
+/**
  * Fetch agent config from D1 database
- * 
+ *
  * @internal
  */
 async function fetchFromDatabase(
