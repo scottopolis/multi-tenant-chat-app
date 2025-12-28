@@ -403,6 +403,8 @@ This hybrid approach optimizes for latency on the hot path (conversations) while
 **In Convex:**
 - **Tenants**: Organization settings, billing tier
 - **Agents**: Per-tenant agent configurations
+  - Include `type: 'chat' | 'voice'` field for future voice agent support
+  - Voice agents share tools/prompts but have additional config (voice, audio format, etc.)
 - **API Keys**: Tenant API keys for widget auth
 - **Documents**: Uploaded files per tenant
 - **Embeddings**: Vector chunks for RAG knowledgebase
@@ -511,10 +513,90 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
 - Configurable timeout and auto-reject behavior
 
 ### Voice Agents (Deferred from Phase 0)
-- OpenAI Realtime API integration
-- WebSocket support (may require Durable Objects)
-- Voice-specific agent configurations
-- Audio streaming in widget
+
+**Goal**: Support real-time voice conversations alongside text chat, using the same tools and prompts.
+
+**Architecture Principle**: Voice agents are **separate configs** but **share the core layer**:
+- ✅ Same `getTools(agentId)` — tools work for both `Agent` and `RealtimeAgent`
+- ✅ Same `resolveSystemPrompt()` — instructions work for both
+- ✅ Same `AgentConfig` base — just extend with voice-specific fields
+- 🆕 New `RealtimeAgent` + `RealtimeSession` from `@openai/agents/realtime`
+
+**SDK Classes**:
+| Chat Agent | Voice Agent |
+|------------|-------------|
+| `Agent` | `RealtimeAgent` |
+| `run()` / `Runner` | `RealtimeSession` |
+| HTTP/SSE | WebSocket/WebRTC |
+| `gpt-4.1-mini`, etc. | `gpt-4o-realtime-preview` |
+
+**VoiceAgentConfig Extension**:
+```typescript
+interface VoiceAgentConfig extends AgentConfig {
+  type: 'voice';
+  voice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse';
+  realtimeModel?: 'gpt-4o-realtime-preview' | 'gpt-4o-mini-realtime-preview';
+  inputAudioFormat?: 'pcm16' | 'g711_ulaw' | 'g711_alaw';
+  outputAudioFormat?: 'pcm16' | 'g711_ulaw' | 'g711_alaw';
+  turnDetection?: {
+    type: 'server_vad' | 'semantic_vad';
+    threshold?: number;
+    silenceDuration?: number;
+    interruptResponse?: boolean;
+  };
+  inputTranscription?: { model: 'gpt-4o-mini-transcribe' | 'gpt-4o-transcribe' };
+}
+```
+
+**Cloudflare Workers Compatibility**:
+Workers can't use native WebSocket constructor. Must use:
+```typescript
+import { CloudflareRealtimeTransportLayer } from '@openai/agents-extensions';
+
+const transport = new CloudflareRealtimeTransportLayer({
+  url: 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview',
+});
+const session = new RealtimeSession(agent, { transport });
+```
+
+**Implementation Routes**:
+
+1. **Browser WebRTC** (simplest for web voice):
+   - Client-side `RealtimeSession` with `OpenAIRealtimeWebRTC`
+   - Worker provides session token/ephemeral key + agent config
+   - Lowest latency, OpenAI handles media
+
+2. **Twilio Phone** (via Worker):
+   - Twilio → WebSocket → Worker → OpenAI Realtime API
+   - Use `CloudflareRealtimeTransportLayer` in Worker
+   - May need Durable Objects for persistent WebSocket state
+   - Worker bridges audio between Twilio Media Streams and OpenAI
+
+**Implementation Steps**:
+- [ ] Add `type?: 'chat' | 'voice'` field to AgentConfig (do in Phase 2 schema)
+- [ ] Install `@openai/agents-extensions` for Cloudflare transport
+- [ ] Create `worker/src/agents/voice.ts` with `createVoiceAgent()`
+- [ ] Add `/api/voice/session` endpoint for browser WebRTC token
+- [ ] Add `/api/voice/twilio` webhook for incoming calls
+- [ ] Add `/api/voice/stream` WebSocket for Twilio Media Streams
+- [ ] Test browser voice with client-side SDK
+- [ ] Implement Twilio integration (may need Durable Objects)
+
+**File Structure**:
+```
+worker/src/
+├── agents/
+│   ├── index.ts      # Chat agent runner (existing)
+│   ├── voice.ts      # Voice agent runner (new)
+│   └── prompts.ts    # Shared prompt resolution
+├── routes/
+│   ├── chat.ts       # POST /api/chats/:id/messages
+│   └── voice.ts      # WebSocket /api/voice/*, Twilio webhooks
+└── realtime/
+    └── session.ts    # RealtimeSession management
+```
+
+**Timing**: Can be implemented anytime after Phase 2 (Database). The shared layer (tools, prompts) is already compatible. Only dependency is having `type` field in DB schema to distinguish agent types.
 
 ### Analytics & Monitoring
 - Chat analytics per tenant
@@ -541,21 +623,31 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         End Users                                    │
 └─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Embeddable Chat Widget                            │
-│                    (React + Vite + shadcn)                          │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │ API Key Auth
-                                    ▼
+              │                    │                    │
+              ▼                    ▼                    ▼
+┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐
+│   Chat Widget     │  │  Browser Voice    │  │    Twilio Phone       │
+│  (React + SSE)    │  │    (WebRTC)       │  │   (SIP/WebSocket)     │
+└─────────┬─────────┘  └─────────┬─────────┘  └───────────┬───────────┘
+          │                      │                        │
+          │ API Key Auth         │ Ephemeral Token        │ Webhook
+          ▼                      ▼                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Cloudflare Worker API                             │
 │                    (Hono + OpenAI Agents SDK)                        │
 │                                                                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ │
-│  │   Router    │  │   Agents    │  │    Tools    │  │  Storage   │ │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └────────────┘ │
+│  ┌─────────────────────────────────────────────────────────────────┐│
+│  │                      SHARED LAYER                                ││
+│  │  • getTools(agentId)        — same tools for chat & voice       ││
+│  │  • resolveSystemPrompt()    — same instructions                 ││
+│  │  • getAgentConfig()         — unified config lookup             ││
+│  └─────────────────────────────────────────────────────────────────┘│
+│            │                              │                          │
+│            ▼                              ▼                          │
+│  ┌─────────────────────┐      ┌─────────────────────────────────┐  │
+│  │   Agent (text)      │      │   RealtimeAgent (voice)         │  │
+│  │   run() → SSE       │      │   RealtimeSession → WebSocket   │  │
+│  └─────────────────────┘      └─────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                 │                             │
                 ▼                             ▼
@@ -564,10 +656,10 @@ Widget Request → API Key Header → Validate Key → Extract Tenant → Load C
 │                           │    │  ┌──────────┐  ┌─────────────────┐ │
 │  • Tenant configs         │    │  │ OpenAI   │  │  Langfuse       │ │
 │  • Chat history           │    │  │   API    │  │  (Tracing/Eval) │ │
-│  • API keys               │    │  └──────────┘  └─────────────────┘ │
-│  • Documents (files)      │    │  ┌──────────┐  ┌─────────────────┐ │
-│  • Vector embeddings      │    │  │MCP Server│  │  Webhooks       │ │
-│                           │    │  │  (Tools) │  │  (Custom Tools) │ │
+│  • API keys               │    │  │ Realtime │  └─────────────────┘ │
+│  • Documents (files)      │    │  └──────────┘  ┌─────────────────┐ │
+│  • Vector embeddings      │    │  ┌──────────┐  │  Webhooks       │ │
+│                           │    │  │MCP Server│  │  (Custom Tools) │ │
 └───────────────────────────┘    │  └──────────┘  └─────────────────┘ │
                                  └────────────────────────────────────┘
 
@@ -633,6 +725,7 @@ multi-tenant-chat-assistant/
 - [x] Which AI SDK? → **OpenAI Agents SDK (for handoffs, structured output, voice)**
 - [x] OpenAI Agents SDK: Python vs TypeScript? → **TypeScript (`@openai/agents-sdk`)**
 - [x] Cloudflare Worker compatibility? → **Use `nodejs_compat` flag + compatibility_date ≥ 2024-09-23**
+- [x] Voice agents architecture? → **Separate configs, shared tools/prompts. Use `RealtimeAgent` + `CloudflareRealtimeTransportLayer`. Twilio via WebSocket, browser via WebRTC. See Phase 6.**
 - [ ] Monorepo tooling? (Turborepo, pnpm workspaces)
 - [ ] Shared types package or duplicate?
 - [ ] Embedding model? (OpenAI text-embedding-3-small vs open-source)
