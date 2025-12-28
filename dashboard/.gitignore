@@ -16,3 +16,6 @@ todos.json
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Build output
+.output/
