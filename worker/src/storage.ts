@@ -6,11 +6,17 @@
  * 
  * This is a temporary solution for development. Data will be lost
  * when the worker restarts or is redeployed.
+ * 
+ * Architecture:
+ * - Chats belong to an organization (orgId)
+ * - Each chat is associated with a specific agent (agentId)
+ * - One org can have multiple agents, each with their own chats
  */
 
 export interface Chat {
   id: string;
   orgId: string;
+  agentId: string;
   title?: string;
   createdAt: Date;
 }
@@ -28,12 +34,13 @@ const chats = new Map<string, Chat>();
 const messages = new Map<string, Message[]>();
 
 /**
- * Create a new chat for an organization
+ * Create a new chat for an organization and agent
  */
-export function createChat(orgId: string, title?: string): Chat {
+export function createChat(orgId: string, agentId: string, title?: string): Chat {
   const chat: Chat = {
     id: crypto.randomUUID(),
     orgId,
+    agentId,
     title,
     createdAt: new Date(),
   };
@@ -62,11 +69,16 @@ export function getChat(chatId: string): (Chat & { messages: Message[] }) | null
 
 /**
  * List all chats for an organization
+ * Optionally filter by agentId
  * Returns chats sorted by newest first
  */
-export function listChats(orgId: string): Chat[] {
+export function listChats(orgId: string, agentId?: string): Chat[] {
   const orgChats = Array.from(chats.values())
-    .filter(chat => chat.orgId === orgId)
+    .filter(chat => {
+      if (chat.orgId !== orgId) return false;
+      if (agentId && chat.agentId !== agentId) return false;
+      return true;
+    })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   
   return orgChats;

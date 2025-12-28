@@ -1,5 +1,5 @@
 import { getLangfuseClient, getPromptByTenant, isLangfuseConfigured } from '../langfuse';
-import type { TenantConfig } from '../tenants/types';
+import type { AgentConfig } from '../tenants/types';
 
 /**
  * Default system prompt used when no other prompt is configured
@@ -18,26 +18,26 @@ export interface LangfuseEnv {
 }
 
 /**
- * Resolve system prompt with priority: providedSystemPrompt → Langfuse → tenant.systemPrompt → DEFAULT_SYSTEM_PROMPT
+ * Resolve system prompt with priority: providedSystemPrompt → Langfuse → agent.systemPrompt → DEFAULT_SYSTEM_PROMPT
  * 
  * This function:
  * 1. Returns providedSystemPrompt if given (highest priority)
- * 2. Checks if tenant has Langfuse configuration
+ * 2. Checks if agent has Langfuse configuration
  *    - If using platform credentials (PLATFORM_KEY), fetches from platform Langfuse
- *    - If has own credentials, fetches from tenant's Langfuse account
+ *    - If has own credentials, fetches from agent's Langfuse account
  * 3. Falls back to platform Langfuse if configured (without label)
- * 4. Falls back to tenant's configured systemPrompt
+ * 4. Falls back to agent's configured systemPrompt
  * 5. Falls back to DEFAULT_SYSTEM_PROMPT (lowest priority)
  * 
- * @param tenantConfig - Tenant configuration with potential Langfuse settings
- * @param orgId - Organization ID for logging
+ * @param agentConfig - Agent configuration with potential Langfuse settings
+ * @param agentId - Agent ID for logging
  * @param providedSystemPrompt - Optional system prompt provided directly
  * @param env - Environment variables with Langfuse credentials
  * @returns Resolved system prompt
  */
 export async function resolveSystemPrompt(
-  tenantConfig: TenantConfig,
-  orgId: string,
+  agentConfig: AgentConfig,
+  agentId: string,
   providedSystemPrompt?: string,
   env: LangfuseEnv = {}
 ): Promise<string> {
@@ -52,11 +52,11 @@ export async function resolveSystemPrompt(
   let promptName = 'base-assistant';
   let promptLabel: string | undefined = undefined;
 
-  // Check if tenant has their own Langfuse configuration
-  if (tenantConfig.langfuse) {
-    const { publicKey, secretKey, host, promptName: configuredPromptName, label } = tenantConfig.langfuse;
+  // Check if agent has their own Langfuse configuration
+  if (agentConfig.langfuse) {
+    const { publicKey, secretKey, host, promptName: configuredPromptName, label } = agentConfig.langfuse;
 
-    // Check if tenant is using platform credentials (special marker)
+    // Check if agent is using platform credentials (special marker)
     if (publicKey === 'PLATFORM_KEY' || secretKey === 'PLATFORM_KEY') {
       // Use platform credentials
       if (isLangfuseConfigured(env)) {
@@ -70,7 +70,7 @@ export async function resolveSystemPrompt(
         console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}${label ? ` (label: ${label})` : ''}`);
       }
     } else {
-      // Use tenant's own Langfuse credentials
+      // Use agent's own Langfuse credentials
       langfuseCredentials = {
         publicKey,
         secretKey,
@@ -78,7 +78,7 @@ export async function resolveSystemPrompt(
       };
       promptName = configuredPromptName || promptName;
       promptLabel = label; // Only use label if explicitly configured
-      console.log(`[Agent] Using tenant's Langfuse account: ${orgId}${label ? ` (label: ${label})` : ''}`);
+      console.log(`[Agent] Using agent's Langfuse account: ${agentId}${label ? ` (label: ${label})` : ''}`);
     }
   } else if (isLangfuseConfigured(env)) {
     // Fall back to platform credentials (without label)
@@ -88,7 +88,7 @@ export async function resolveSystemPrompt(
       host: env.LANGFUSE_HOST,
     };
     // Don't set promptLabel - fetch default/production version
-    console.log(`[Agent] Using platform Langfuse for tenant: ${orgId}`);
+    console.log(`[Agent] Using platform Langfuse for agent: ${agentId}`);
   }
 
   // Fetch prompt from Langfuse if credentials available
@@ -108,10 +108,10 @@ export async function resolveSystemPrompt(
     }
   }
 
-  // 3. Fallback to tenant's configured systemPrompt if Langfuse didn't provide one
-  if (!systemPrompt && tenantConfig.systemPrompt) {
-    systemPrompt = tenantConfig.systemPrompt;
-    console.log(`[Agent] Using tenant's configured systemPrompt`);
+  // 3. Fallback to agent's configured systemPrompt if Langfuse didn't provide one
+  if (!systemPrompt && agentConfig.systemPrompt) {
+    systemPrompt = agentConfig.systemPrompt;
+    console.log(`[Agent] Using agent's configured systemPrompt`);
   }
 
   // 4. Final fallback to default

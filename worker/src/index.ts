@@ -17,6 +17,7 @@ type Bindings = {
 };
 
 type Variables = {
+  agentId: string;
   orgId: string;
   userId?: string;
 };
@@ -40,11 +41,12 @@ app.use('*', cors({
 /**
  * Auth Middleware (Placeholder)
  * 
- * MVP: Extract agent/tenant ID from query parameter ?agent=tenant-1
+ * MVP: Extract agent ID from query parameter ?agent=acme-support
  * 
  * TODO: Auth middleware for production
  * - Verify JWT from Authorization header
- * - Extract orgId/tenantId from JWT payload
+ * - Extract orgId and userId from JWT payload
+ * - Agent ID can come from query param or be inferred from org
  * - Reject requests with invalid/expired tokens
  * - Support API key authentication as alternative
  * 
@@ -55,19 +57,24 @@ app.use('*', cors({
  *   }
  *   try {
  *     const payload = await verifyJWT(token);
- *     c.set('orgId', payload.tenantId || payload.orgId);
+ *     c.set('orgId', payload.orgId);
  *     c.set('userId', payload.userId);
+ *     c.set('agentId', c.req.query('agent') || 'default');
  *   } catch (error) {
  *     return c.json({ error: 'Invalid token' }, 401);
  *   }
  */
 app.use('*', async (c, next) => {
-  // MVP: Get agent/tenant from query param
+  // MVP: Get agent from query param
   const agentParam = c.req.query('agent');
   const agentId = agentParam && agentParam.trim() !== '' ? agentParam : 'default';
   
-  // Set orgId to the agent ID (used throughout the app to identify the tenant)
-  c.set('orgId', agentId);
+  // Get agent config to extract orgId
+  const { getAgentConfig } = await import('./tenants/config');
+  const agentConfig = await getAgentConfig(agentId);
+  
+  c.set('agentId', agentId);
+  c.set('orgId', agentConfig.orgId);
   c.set('userId', 'anonymous');
   await next();
 });
@@ -82,15 +89,16 @@ app.get('/health', (c) => {
 
 /**
  * POST /api/chats
- * Create a new chat
+ * Create a new chat for the current agent
  */
 app.post('/api/chats', async (c) => {
   try {
     const orgId = c.get('orgId');
+    const agentId = c.get('agentId');
     const body = await c.req.json().catch(() => ({}));
     const title = body.title;
 
-    const chat = createChat(orgId, title);
+    const chat = createChat(orgId, agentId, title);
     
     return c.json(chat, 201);
   } catch (error) {
@@ -101,12 +109,13 @@ app.post('/api/chats', async (c) => {
 
 /**
  * GET /api/chats
- * List all chats for the current org
+ * List all chats for the current org and agent
  */
 app.get('/api/chats', async (c) => {
   try {
     const orgId = c.get('orgId');
-    const chats = listChats(orgId);
+    const agentId = c.get('agentId');
+    const chats = listChats(orgId, agentId);
     
     return c.json({ chats });
   } catch (error) {
@@ -195,10 +204,11 @@ app.post('/api/chats/:chatId/messages', async (c) => {
     }
 
     // Run agent and stream response
+    const agentId = c.get('agentId');
     const result = await runAgent({
       messages,
       apiKey,
-      orgId,
+      agentId,
       model,
       env: {
         LANGFUSE_PUBLIC_KEY: c.env.LANGFUSE_PUBLIC_KEY,

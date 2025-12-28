@@ -1,8 +1,13 @@
 /**
- * Tenant/Organization Configuration
+ * Agent Configuration
  * 
  * In production, this would be stored in a database (D1, Convex, etc.)
- * and fetched per request based on the authenticated tenant.
+ * and fetched per request based on the agentId.
+ * 
+ * Architecture:
+ * - orgId: Organization/tenant (e.g., 'acme-corp')
+ * - agentId: Specific agent within org (e.g., 'customer-support', 'sales-assistant')
+ * - One org can have multiple agents with different configurations
  */
 
 export interface LangfuseConfig {
@@ -27,11 +32,14 @@ export interface MCPServerConfig {
   transport?: 'http' | 'sse';
 }
 
-export interface TenantConfig {
-  /** Unique tenant/org identifier */
-  tenantId: string;
+export interface AgentConfig {
+  /** Unique agent identifier */
+  agentId: string;
   
-  /** Display name for the tenant */
+  /** Organization/tenant this agent belongs to */
+  orgId: string;
+  
+  /** Display name for the agent */
   name?: string;
   
   /** 
@@ -45,13 +53,13 @@ export interface TenantConfig {
   
   /** 
    * Langfuse configuration (optional)
-   * If provided, tenant uses their own Langfuse account
-   * If not provided, falls back to tenant's systemPrompt or platform default
+   * If provided, agent uses their own Langfuse account
+   * If not provided, falls back to agent's systemPrompt or platform default
    */
   langfuse?: LangfuseConfig;
   
   /** 
-   * Default model to use for this tenant
+   * Default model to use for this agent
    * Defaults to 'gpt-4.1-mini' if not specified
    */
   model?: string;
@@ -69,4 +77,8 @@ export interface TenantConfig {
   // rateLimits?: RateLimitConfig;
   // corsOrigins?: string[];
 }
+
+// Backward compatibility alias (deprecated)
+/** @deprecated Use AgentConfig instead */
+export type TenantConfig = AgentConfig;
 

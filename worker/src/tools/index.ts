@@ -1,51 +1,51 @@
 import { builtinTools } from './builtin';
 import { getMCPTools } from '../mcp';
-import { getTenantConfig } from '../tenants/config';
+import { getAgentConfig } from '../tenants/config';
 
 /**
  * Tool registry
  * 
  * ✅ MCP Server Integration - Implemented
- * - Connects to tenant's MCP servers if configured
+ * - Connects to agent's MCP servers if configured
  * - Fetches tools from multiple MCP servers
  * - Merges with built-in tools
  * 
  * TODO: Future enhancements
- * - Fetch enabled built-in tools from org settings (selective tool enabling)
- * - Fetch webhook tool definitions from org config
- * - Cache tool configurations per org (with TTL)
+ * - Fetch enabled built-in tools from agent settings (selective tool enabling)
+ * - Fetch webhook tool definitions from agent config
+ * - Cache tool configurations per agent (with TTL)
  */
 
 /**
- * Get all available tools for an organization
+ * Get all available tools for an agent
  * 
  * Combines:
  * 1. Built-in tools (currentTime, calculator, etc.)
- * 2. MCP server tools (if tenant has MCP servers configured)
+ * 2. MCP server tools (if agent has MCP servers configured)
  * 3. Future: Webhook tools, selective built-in tool filtering
  * 
- * @param orgId - Organization/tenant identifier
+ * @param agentId - Agent identifier
  * @returns Record of all available tools in AI SDK format
  * 
  * @example
- * const tools = await getTools('tenant-1');
+ * const tools = await getTools('acme-support');
  * // Returns: { currentTime, calculator, ...mcpTools }
  */
-export async function getTools(orgId: string) {
-  // 1. Get tenant configuration
-  const config = await getTenantConfig(orgId);
+export async function getTools(agentId: string) {
+  // 1. Get agent configuration
+  const config = await getAgentConfig(agentId);
   
   // 2. Start with built-in tools
   const tools: Record<string, any> = { ...builtinTools };
   
   // 3. Add MCP tools if configured
   if (config?.mcpServers && config.mcpServers.length > 0) {
-    console.log(`[Tools] Fetching MCP tools from ${config.mcpServers.length} server(s) for tenant: ${orgId}`);
+    console.log(`[Tools] Fetching MCP tools from ${config.mcpServers.length} server(s) for agent: ${agentId}`);
     
     // Fetch tools from each MCP server
     for (const mcpServer of config.mcpServers) {
       if (!mcpServer.url) {
-        console.warn(`[Tools] Skipping MCP server with missing URL for tenant: ${orgId}`);
+        console.warn(`[Tools] Skipping MCP server with missing URL for agent: ${agentId}`);
         continue;
       }
       
@@ -68,7 +68,7 @@ export async function getTools(orgId: string) {
       }
     }
   } else {
-    console.log(`[Tools] No MCP servers configured for tenant: ${orgId}`);
+    console.log(`[Tools] No MCP servers configured for agent: ${agentId}`);
   }
   
   // TODO: Add webhook tools here
@@ -78,7 +78,7 @@ export async function getTools(orgId: string) {
   // }
   
   const totalToolCount = Object.keys(tools).length;
-  console.log(`[Tools] Total tools available for ${orgId}: ${totalToolCount}`);
+  console.log(`[Tools] Total tools available for agent ${agentId}: ${totalToolCount}`);
   
   return tools;
 }

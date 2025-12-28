@@ -100,11 +100,12 @@ To connect this MCP server to your chat assistant:
    npm run dev
    ```
 
-2. Configure a tenant to use it in `worker/src/tenants/config.ts`:
+2. Configure an agent to use it in `worker/src/tenants/config.ts`:
    ```typescript
    {
-     tenantId: 'test-tenant',
-     name: 'Test Tenant',
+     agentId: 'test-agent',
+     orgId: 'test-org',
+     name: 'Test Agent',
      mcpServers: [
        {
          url: 'http://localhost:3030',

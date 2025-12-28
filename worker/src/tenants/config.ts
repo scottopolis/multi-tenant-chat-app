@@ -1,44 +1,50 @@
-import type { TenantConfig } from './types';
+import type { AgentConfig } from './types';
 
 /**
- * Tenant Configuration Storage
+ * Agent Configuration Storage
  * 
  * MVP: Hardcoded configs for testing
  * Production: Fetch from database (D1, Convex, etc.)
  * 
+ * Architecture:
+ * - Each agent belongs to an organization (orgId)
+ * - One org can have multiple agents with different configs
+ * - Agents are identified by unique agentId
+ * 
  * This is where you'd store:
- * - Each tenant's Langfuse keys (if they provide their own)
- * - MCP server configurations
- * - Model preferences
- * - Other tenant-specific settings
+ * - Agent-specific Langfuse keys
+ * - MCP server configurations per agent
+ * - Model preferences per agent
+ * - System prompts per agent
  */
 
 /**
- * Environment bindings for tenant config
+ * Environment bindings for agent config
  * Includes DB binding for production use
  */
-export interface TenantConfigEnv {
+export interface AgentConfigEnv {
   DB?: D1Database; // D1 database binding (production)
   // Add other bindings as needed (KV, Durable Objects, etc.)
 }
 
 /**
- * In-memory cache for tenant configs
+ * In-memory cache for agent configs
  * Reduces DB queries in production
  */
-const configCache = new Map<string, { config: TenantConfig; timestamp: number }>();
+const configCache = new Map<string, { config: AgentConfig; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// MVP: Hardcoded tenant configurations
+// MVP: Hardcoded agent configurations
 // TODO: Replace with database queries
-const TENANT_CONFIGS: Record<string, TenantConfig> = {
+const AGENT_CONFIGS: Record<string, AgentConfig> = {
   /**
-   * Default tenant - uses platform Langfuse credentials
-   * Langfuse config is undefined, so it falls back to platform env vars
+   * Default agent - general purpose assistant
+   * Belongs to the platform organization
    */
   'default': {
-    tenantId: 'default',
-    name: 'Default Organization',
+    agentId: 'default',
+    orgId: 'platform',
+    name: 'Default Assistant',
     model: 'gpt-4.1-mini',
     langfuse: {
         publicKey: 'pk-lf-484a26a9-19d2-4b0c-be61-42821f6fca56',
@@ -47,7 +53,7 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
         promptName: 'pirate', // Their custom prompt
       },
     // MCP servers configuration (optional)
-    // NOTE: Don't configure a tenant to connect to its own MCP endpoint!
+    // NOTE: Don't configure an agent to connect to its own MCP endpoint!
     // That creates an infinite loop. Point to external MCP servers instead.
     // Example for external MCP servers:
     mcpServers: [
@@ -59,13 +65,13 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
   },
   
   /**
-   * Example: Tenant with their own Langfuse account AND MCP server
-   * They manage their own prompts in their Langfuse project
-   * and have custom tools exposed via MCP server
+   * Example: Acme Corp - Customer Support Agent
+   * Manages their own prompts in Langfuse and has custom MCP tools
    */
-  'tenant-1': {
-    tenantId: 'tenant-1',
-    name: 'Acme Corp',
+  'acme-support': {
+    agentId: 'acme-support',
+    orgId: 'acme-corp',
+    name: 'Acme Customer Support',
     langfuse: {
       publicKey: 'pk-lf-484a26a9-19d2-4b0c-be61-42821f6fca56',
       secretKey: 'sk-lf-f75218f3-7d55-45ec-ab41-4d9a9c927a2a',
@@ -79,7 +85,7 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
     // mcpServers: [
     //   {
     //     url: 'http://localhost:3001/mcp',
-    //     authHeader: 'Bearer tenant-1-mcp-key',
+    //     authHeader: 'Bearer acme-corp-mcp-key',
     //     transport: 'http',
     //   },
     //   {
@@ -90,31 +96,50 @@ const TENANT_CONFIGS: Record<string, TenantConfig> = {
   },
   
   /**
-   * Example: Tenant using platform Langfuse with custom prompt
-   * Uses platform credentials but references a specific prompt
+   * Example: Acme Corp - Sales Agent
+   * Same org, different agent with different configuration
    */
-  'tenant-2': {
-    tenantId: 'tenant-2',
-    name: 'Contoso Ltd',
+  'acme-sales': {
+    agentId: 'acme-sales',
+    orgId: 'acme-corp',
+    name: 'Acme Sales Assistant',
+    langfuse: {
+      publicKey: 'pk-lf-484a26a9-19d2-4b0c-be61-42821f6fca56',
+      secretKey: 'sk-lf-f75218f3-7d55-45ec-ab41-4d9a9c927a2a',
+      host: 'https://us.cloud.langfuse.com',
+      promptName: 'sales-assistant', // Different prompt
+    },
+    model: 'claude-3.5-sonnet', // Different model
+  },
+  
+  /**
+   * Example: Contoso - General Agent
+   * Uses platform Langfuse with custom prompt
+   */
+  'contoso-general': {
+    agentId: 'contoso-general',
+    orgId: 'contoso-ltd',
+    name: 'Contoso Assistant',
     langfuse: {
       // These would be the platform's keys in production
       // or you could omit this entirely and use platform default
       publicKey: 'PLATFORM_KEY', // Special marker to use platform keys
       secretKey: 'PLATFORM_KEY',
-      promptName: 'sales-assistant',
-      label: 'tenant-2', // Use labeled version in platform's Langfuse
+      promptName: 'general-assistant',
+      label: 'contoso', // Use labeled version in platform's Langfuse
     },
     model: 'claude-3.5-sonnet',
   },
   
   /**
-   * Example: Tenant with systemPrompt (no Langfuse) + MCP server
-   * Langfuse is optional - can use hardcoded systemPrompt instead
-   * This example shows a tenant using MCP without Langfuse
+   * Example: Simple Bot - Shopping Agent
+   * Uses systemPrompt (no Langfuse) + MCP server
+   * Shows agent using MCP without Langfuse
    */
-  'tenant-3': {
-    tenantId: 'tenant-3',
-    name: 'Simple Bot Inc',
+  'simplebot-shopping': {
+    agentId: 'simplebot-shopping',
+    orgId: 'simplebot-inc',
+    name: 'Simple Bot Shopping Assistant',
     systemPrompt: `You are a helpful shopping assistant for Simple Bot Inc. 
     
 You help customers find products, answer questions about availability, and provide recommendations.
@@ -130,7 +155,7 @@ If asked about orders or shipping, politely inform the customer to contact suppo
     // mcpServers: [
     //   {
     //     url: 'http://localhost:3002/mcp',
-    //     authHeader: 'Bearer tenant-3-secret',
+    //     authHeader: 'Bearer simplebot-secret',
     //     transport: 'http',
     //   },
     // ],
@@ -138,64 +163,69 @@ If asked about orders or shipping, politely inform the customer to contact suppo
 };
 
 /**
- * Get tenant configuration
+ * Get agent configuration
  * 
- * @param tenantId - Tenant/org identifier
+ * @param agentId - Agent identifier
  * @param env - Optional environment bindings (for DB access in production)
- * @returns Tenant configuration or default config if not found
+ * @returns Agent configuration or default config if not found
  * 
  * @example MVP (current)
- * const config = await getTenantConfig('tenant-1');
+ * const config = await getAgentConfig('acme-support');
  * 
  * @example Production (with DB)
- * const config = await getTenantConfig('tenant-1', { DB: env.DB });
+ * const config = await getAgentConfig('acme-support', { DB: env.DB });
  */
-export async function getTenantConfig(
-  tenantId: string,
-  env?: TenantConfigEnv
-): Promise<TenantConfig> {
+export async function getAgentConfig(
+  agentId: string,
+  env?: AgentConfigEnv
+): Promise<AgentConfig> {
   // Check cache first
-  const cached = configCache.get(tenantId);
+  const cached = configCache.get(agentId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.config;
   }
 
-  let config: TenantConfig;
+  let config: AgentConfig;
 
   // Production: Fetch from database if DB binding exists
   if (env?.DB) {
     try {
-      config = await fetchFromDatabase(tenantId, env.DB);
-      console.log(`[TenantConfig] Loaded from DB: ${tenantId}`);
+      config = await fetchFromDatabase(agentId, env.DB);
+      console.log(`[AgentConfig] Loaded from DB: ${agentId}`);
     } catch (error) {
-      console.error(`[TenantConfig] DB fetch failed for ${tenantId}:`, error);
-      config = TENANT_CONFIGS[tenantId] || TENANT_CONFIGS['default'];
+      console.error(`[AgentConfig] DB fetch failed for ${agentId}:`, error);
+      config = AGENT_CONFIGS[agentId] || AGENT_CONFIGS['default'];
     }
   } else {
     // MVP: Use hardcoded configs
-    config = TENANT_CONFIGS[tenantId] || TENANT_CONFIGS['default'];
-    console.log(`[TenantConfig] Loaded from memory: ${tenantId}`);
+    config = AGENT_CONFIGS[agentId] || AGENT_CONFIGS['default'];
+    console.log(`[AgentConfig] Loaded from memory: ${agentId}`);
   }
 
   // Cache the config
-  configCache.set(tenantId, { config, timestamp: Date.now() });
+  configCache.set(agentId, { config, timestamp: Date.now() });
 
   return config;
 }
 
+// Backward compatibility alias (deprecated)
+/** @deprecated Use getAgentConfig instead */
+export const getTenantConfig = getAgentConfig;
+
 /**
- * Fetch tenant config from D1 database
+ * Fetch agent config from D1 database
  * 
  * @internal
  */
 async function fetchFromDatabase(
-  tenantId: string,
+  agentId: string,
   db: D1Database
-): Promise<TenantConfig> {
+): Promise<AgentConfig> {
   const result = await db
     .prepare(
       `SELECT 
-        tenant_id,
+        agent_id,
+        org_id,
         name,
         system_prompt,
         langfuse_public_key,
@@ -204,19 +234,20 @@ async function fetchFromDatabase(
         langfuse_prompt_name,
         langfuse_label,
         model
-      FROM tenant_configs 
-      WHERE tenant_id = ?`
+      FROM agent_configs 
+      WHERE agent_id = ?`
     )
-    .bind(tenantId)
+    .bind(agentId)
     .first();
 
   if (!result) {
-    return TENANT_CONFIGS['default'];
+    return AGENT_CONFIGS['default'];
   }
 
-  // Parse DB result into TenantConfig
+  // Parse DB result into AgentConfig
   return {
-    tenantId: result.tenant_id as string,
+    agentId: result.agent_id as string,
+    orgId: result.org_id as string,
     name: result.name as string | undefined,
     systemPrompt: result.system_prompt as string | undefined,
     langfuse: result.langfuse_public_key
@@ -233,58 +264,84 @@ async function fetchFromDatabase(
 }
 
 /**
- * Invalidate cached config for a tenant
- * Call this when tenant config is updated
+ * Invalidate cached config for an agent
+ * Call this when agent config is updated
  * 
- * @param tenantId - Tenant ID to invalidate, or undefined to clear all
+ * @param agentId - Agent ID to invalidate, or undefined to clear all
  */
-export function invalidateTenantCache(tenantId?: string): void {
-  if (tenantId) {
-    configCache.delete(tenantId);
-    console.log(`[TenantConfig] Invalidated cache for: ${tenantId}`);
+export function invalidateAgentCache(agentId?: string): void {
+  if (agentId) {
+    configCache.delete(agentId);
+    console.log(`[AgentConfig] Invalidated cache for: ${agentId}`);
   } else {
     configCache.clear();
-    console.log(`[TenantConfig] Cleared all cache`);
+    console.log(`[AgentConfig] Cleared all cache`);
   }
 }
 
 /**
- * List all configured tenants (for testing/debugging)
+ * List all configured agents (for testing/debugging)
  * In production, this would query the database
+ * 
+ * @param orgId - Optional: Filter agents by organization
  */
-export async function listTenants(env?: TenantConfigEnv): Promise<string[]> {
+export async function listAgents(env?: AgentConfigEnv, orgId?: string): Promise<string[]> {
   if (env?.DB) {
     try {
-      const result = await env.DB.prepare(
-        'SELECT tenant_id FROM tenant_configs ORDER BY tenant_id'
-      ).all();
-      return result.results.map((row: any) => row.tenant_id as string);
+      const query = orgId
+        ? 'SELECT agent_id FROM agent_configs WHERE org_id = ? ORDER BY agent_id'
+        : 'SELECT agent_id FROM agent_configs ORDER BY agent_id';
+      
+      const stmt = orgId 
+        ? env.DB.prepare(query).bind(orgId)
+        : env.DB.prepare(query);
+      
+      const result = await stmt.all();
+      return result.results.map((row: any) => row.agent_id as string);
     } catch (error) {
-      console.error('[TenantConfig] Failed to list tenants from DB:', error);
+      console.error('[AgentConfig] Failed to list agents from DB:', error);
     }
   }
-  return Object.keys(TENANT_CONFIGS);
+  
+  // Filter by orgId if provided
+  const allAgents = Object.values(AGENT_CONFIGS);
+  if (orgId) {
+    return allAgents
+      .filter(config => config.orgId === orgId)
+      .map(config => config.agentId);
+  }
+  
+  return Object.keys(AGENT_CONFIGS);
 }
 
 /**
- * Check if a tenant exists
+ * Check if an agent exists
  */
-export async function tenantExists(
-  tenantId: string,
-  env?: TenantConfigEnv
+export async function agentExists(
+  agentId: string,
+  env?: AgentConfigEnv
 ): Promise<boolean> {
   if (env?.DB) {
     try {
       const result = await env.DB.prepare(
-        'SELECT 1 FROM tenant_configs WHERE tenant_id = ?'
+        'SELECT 1 FROM agent_configs WHERE agent_id = ?'
       )
-        .bind(tenantId)
+        .bind(agentId)
         .first();
       return !!result;
     } catch (error) {
-      console.error('[TenantConfig] Failed to check tenant existence:', error);
+      console.error('[AgentConfig] Failed to check agent existence:', error);
     }
   }
-  return tenantId in TENANT_CONFIGS;
+  return agentId in AGENT_CONFIGS;
 }
+
+// Backward compatibility aliases (deprecated)
+/** @deprecated Use invalidateAgentCache instead */
+export const invalidateTenantCache = invalidateAgentCache;
+/** @deprecated Use listAgents instead */
+export const listTenants = listAgents;
+/** @deprecated Use agentExists instead */
+export const tenantExists = agentExists;
+
 

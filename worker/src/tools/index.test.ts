@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getTools } from './index';
 import * as mcpModule from '../mcp';
-import * as tenantModule from '../tenants/config';
-import type { TenantConfig } from '../tenants/types';
+import * as agentModule from '../tenants/config';
+import type { AgentConfig } from '../tenants/types';
 
 /**
  * Tools unit tests - testing multiple MCP server integration
@@ -14,9 +14,9 @@ vi.mock('../mcp', () => ({
   getMCPTools: vi.fn(),
 }));
 
-// Mock tenant config
+// Mock agent config
 vi.mock('../tenants/config', () => ({
-  getTenantConfig: vi.fn(),
+  getAgentConfig: vi.fn(),
 }));
 
 describe('Tools', () => {
@@ -26,9 +26,10 @@ describe('Tools', () => {
 
   describe('getTools with single MCP server', () => {
     it('should return built-in tools plus MCP tools from one server', async () => {
-      // Mock tenant config with one MCP server
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with one MCP server
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [
           {
             url: 'http://localhost:3001',
@@ -36,7 +37,7 @@ describe('Tools', () => {
           },
         ],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Mock MCP tools from server
       const mockMCPTools = {
@@ -49,7 +50,7 @@ describe('Tools', () => {
       vi.mocked(mcpModule.getMCPTools).mockResolvedValue(mockMCPTools);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should include built-in tools
       expect(tools.currentTime).toBeDefined();
@@ -71,9 +72,10 @@ describe('Tools', () => {
 
   describe('getTools with multiple MCP servers', () => {
     it('should aggregate tools from multiple MCP servers', async () => {
-      // Mock tenant config with multiple MCP servers
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with multiple MCP servers
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [
           {
             url: 'http://localhost:3001',
@@ -86,7 +88,7 @@ describe('Tools', () => {
           },
         ],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Mock tools from first MCP server
       const mockMCPTools1 = {
@@ -112,7 +114,7 @@ describe('Tools', () => {
         .mockResolvedValueOnce(mockMCPTools2);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should include built-in tools
       expect(tools.currentTime).toBeDefined();
@@ -139,9 +141,10 @@ describe('Tools', () => {
     });
 
     it('should handle tool name conflicts (later server overrides earlier)', async () => {
-      // Mock tenant config with multiple MCP servers
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with multiple MCP servers
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [
           {
             url: 'http://localhost:3001',
@@ -153,7 +156,7 @@ describe('Tools', () => {
           },
         ],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Both servers provide a tool with the same name
       const mockMCPTools1 = {
@@ -177,7 +180,7 @@ describe('Tools', () => {
         .mockResolvedValueOnce(mockMCPTools2);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Later server (server 2) should override earlier one
       expect(tools.conflictingTool).toBeDefined();
@@ -187,9 +190,10 @@ describe('Tools', () => {
     });
 
     it('should continue if one MCP server fails', async () => {
-      // Mock tenant config with multiple MCP servers
-      const mockConfig: TenantConfig = {
-        tenantId: 'test-tenant',
+      // Mock agent config with multiple MCP servers
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
         mcpServers: [
           {
             url: 'http://localhost:3001',
@@ -205,7 +209,7 @@ describe('Tools', () => {
           },
         ],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Server 1 succeeds
       const mockMCPTools1 = {
@@ -232,7 +236,7 @@ describe('Tools', () => {
         .mockResolvedValueOnce(mockMCPTools3);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should include built-in tools
       expect(tools.currentTime).toBeDefined();
@@ -253,10 +257,10 @@ describe('Tools', () => {
         tenantId: 'test-tenant',
         // No mcpServers configured
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should include built-in tools
       expect(tools.currentTime).toBeDefined();
@@ -272,10 +276,10 @@ describe('Tools', () => {
         tenantId: 'test-tenant',
         mcpServers: [],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should include built-in tools
       expect(tools.currentTime).toBeDefined();
@@ -302,7 +306,7 @@ describe('Tools', () => {
           },
         ],
       };
-      vi.mocked(tenantModule.getTenantConfig).mockResolvedValue(mockConfig);
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
 
       const mockMCPTools2 = {
         validTool: {
@@ -315,7 +319,7 @@ describe('Tools', () => {
       vi.mocked(mcpModule.getMCPTools).mockResolvedValue(mockMCPTools2);
 
       // Get tools
-      const tools = await getTools('test-tenant');
+      const tools = await getTools('test-agent');
 
       // Should have built-in tools and tools from valid server
       expect(tools.currentTime).toBeDefined();

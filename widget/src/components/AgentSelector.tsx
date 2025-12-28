@@ -10,16 +10,18 @@ import {
 /**
  * Agent Selector Component
  * 
- * Allows users to switch between different agents/tenants (orgId).
+ * Allows users to switch between different agents.
+ * Each agent belongs to an organization and has its own configuration.
  * The selected agent persists to localStorage.
  */
 
-// Common agent IDs - can be extended or fetched from API
+// Available agents - can be extended or fetched from API
 const COMMON_AGENTS = [
-  { id: 'default', label: 'Default' },
-  { id: 'tenant-1', label: 'Tenant 1' },
-  { id: 'tenant-2', label: 'Tenant 2' },
-  { id: 'acme-support', label: 'ACME Support' },
+  { id: 'default', label: 'Default Assistant' },
+  { id: 'acme-support', label: 'Acme Customer Support' },
+  { id: 'acme-sales', label: 'Acme Sales Assistant' },
+  { id: 'contoso-general', label: 'Contoso Assistant' },
+  { id: 'simplebot-shopping', label: 'Simple Bot Shopping' },
 ];
 
 export function AgentSelector() {
