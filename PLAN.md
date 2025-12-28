@@ -40,34 +40,37 @@ See DATABASE.md for convex and D1 implementation details.
 
 ### Tech Stack
 - **Framework**: TanStack Start (React + file-based routing)
-- **Auth**: Clerk
+- **Auth**: Clerk (deferred)
 - **UI**: shadcn/ui + Tailwind CSS
 - **Data**: TanStack Query
 - **Deploy**: Vercel
 
-### Features
-- Landing page with product overview
+### Phase 1A: MVP (Current Implementation)
+**Implementing Now:**
+- Landing page (simple)
+- Dashboard layout with navigation
+- Agent list page (CRUD operations)
+- Agent configuration: System prompt editor only
+
+**Pages:**
+```
+/                       - Landing page
+/dashboard              - Dashboard home
+/dashboard/agents       - List agents
+/dashboard/agents/new   - Create new agent
+/dashboard/agents/[id]  - Edit agent (prompt only)
+```
+
+**Deferred to Phase 1B:**
 - Clerk authentication (sign up, sign in, org management)
 - Dashboard home with usage overview
-- Agent configuration:
-  - System prompt editor
+- Agent configuration advanced features:
   - Model selection
   - MCP server connections
   - Webhook tool configuration
 - API key management
 - Widget embed code generator
-
-### Pages
-```
-/                  - Landing page
-/sign-in           - Clerk sign-in
-/sign-up           - Clerk sign-up
-/dashboard         - Dashboard home
-/dashboard/agents  - List agents
-/dashboard/agents/[id]  - Agent config
-/dashboard/settings     - Account settings
-/dashboard/api-keys     - API key management
-```
+- Account settings page
 
 ---
 
