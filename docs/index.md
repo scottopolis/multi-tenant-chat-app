@@ -72,7 +72,7 @@ The platform uses [Convex](https://convex.dev) as its backend database for stori
 - **Vector search** - Built-in support for RAG embeddings
 - **Zero infrastructure** - Fully managed, serverless database
 
-The worker fetches agent configurations from Convex via HTTP API, with fallback to hardcoded defaults.
+The worker fetches agent configurations from Convex via HTTP API. Convex is the single source of truth for agent configs.
 
 See the [Convex Guide](./convex.md) for setup and usage details.
 

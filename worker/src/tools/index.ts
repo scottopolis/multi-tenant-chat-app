@@ -1,6 +1,6 @@
 import { builtinTools } from './builtin';
 import { getMCPTools } from '../mcp';
-import { getAgentConfig } from '../tenants/config';
+import { getAgentConfig, type AgentConfigEnv } from '../tenants/config';
 
 /**
  * Tool registry
@@ -28,15 +28,16 @@ import { getAgentConfig } from '../tenants/config';
  * which doesn't work in Cloudflare Workers. We use HTTP-based MCP client instead.
  * 
  * @param agentId - Agent identifier
+ * @param env - Optional environment bindings (for Convex/DB access)
  * @returns Array of tools in OpenAI Agents SDK format
  * 
  * @example
- * const tools = await getTools('acme-support');
+ * const tools = await getTools('acme-support', { CONVEX_URL: env.CONVEX_URL });
  * // Returns: [currentTime, calculator, ...mcpTools]
  */
-export async function getTools(agentId: string) {
-  // 1. Get agent configuration
-  const config = await getAgentConfig(agentId);
+export async function getTools(agentId: string, env?: AgentConfigEnv) {
+  // 1. Get agent configuration (pass env for Convex access)
+  const config = await getAgentConfig(agentId, env);
   
   // 2. Start with built-in tools (now an array)
   const tools: any[] = [...builtinTools];

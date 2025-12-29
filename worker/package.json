@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.1",
+    "@dmitryrechkin/json-schema-to-zod": "^1.0.1",
     "@openai/agents": "^0.3.7",
     "convex": "^1.17.2",
     "hono": "^4.6.14",

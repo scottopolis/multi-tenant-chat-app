@@ -56,7 +56,7 @@ const response = await fetch(`${convexUrl}/api/query`, {
 });
 ```
 
-**Priority:** Convex → D1 → Hardcoded defaults
+Convex is the single source of truth for agent configs. If an agent isn't found, a minimal fallback is used.
 
 ## Available Functions
 
