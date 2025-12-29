@@ -283,11 +283,23 @@ async function fetchFromConvex(
   agentId: string,
   convexUrl: string
 ): Promise<AgentConfig> {
-  const { getConvexClient } = await import('../convex/client');
-  const { api } = await import('../../../convex/_generated/api');
+  // Use Convex HTTP API directly to avoid cross-package import issues
+  const response = await fetch(`${convexUrl}/api/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: 'agents:getByAgentId',
+      args: { agentId },
+    }),
+  });
 
-  const client = getConvexClient(convexUrl);
-  const result = await client.query(api.agents.getByAgentId, { agentId });
+  if (!response.ok) {
+    console.error('Convex query failed:', response.status, await response.text());
+    return AGENT_CONFIGS['default'];
+  }
+
+  const data = await response.json();
+  const result = data.value;
 
   if (!result) {
     return AGENT_CONFIGS['default'];

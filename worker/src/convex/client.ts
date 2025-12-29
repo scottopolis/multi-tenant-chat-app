@@ -1,47 +1,70 @@
-import { ConvexHttpClient } from "convex/browser";
-import type { api } from "../../../convex/_generated/api";
-
 /**
- * Convex HTTP Client for Cloudflare Workers
+ * Convex HTTP helpers for Cloudflare Workers
  *
- * This client is used to query and mutate Convex data from the worker.
- * It's designed for server-side use (not real-time subscriptions).
+ * Uses direct HTTP API calls to avoid cross-package import issues with
+ * Convex's generated files.
  *
  * Usage:
  * ```typescript
- * const client = getConvexClient(env.CONVEX_URL);
- * const agent = await client.query(api.agents.getByAgentId, { agentId: "default" });
+ * const result = await convexQuery(env.CONVEX_URL, 'agents:getByAgentId', { agentId: "default" });
  * ```
  */
 
-/**
- * Get or create a Convex HTTP client
- * Clients are cached per URL for efficiency
- */
-const clientCache = new Map<string, ConvexHttpClient>();
+export interface ConvexQueryResult<T> {
+  value: T;
+  status: 'success' | 'error';
+}
 
-export function getConvexClient(convexUrl: string): ConvexHttpClient {
+/**
+ * Execute a Convex query via HTTP API
+ */
+export async function convexQuery<T>(
+  convexUrl: string,
+  path: string,
+  args: Record<string, unknown> = {}
+): Promise<T | null> {
   if (!convexUrl) {
     throw new Error("CONVEX_URL environment variable is not set");
   }
 
-  // Return cached client if exists
-  if (clientCache.has(convexUrl)) {
-    return clientCache.get(convexUrl)!;
+  const response = await fetch(`${convexUrl}/api/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, args }),
+  });
+
+  if (!response.ok) {
+    console.error('Convex query failed:', response.status, await response.text());
+    return null;
   }
 
-  // Create new client
-  const client = new ConvexHttpClient(convexUrl);
-  clientCache.set(convexUrl, client);
-
-  return client;
+  const data: ConvexQueryResult<T> = await response.json();
+  return data.value;
 }
 
 /**
- * Typed Convex client for better DX
- * Exports the API types for autocomplete
+ * Execute a Convex mutation via HTTP API
  */
-export type ConvexClient = ConvexHttpClient & {
-  query: typeof api;
-  mutation: typeof api;
-};
+export async function convexMutation<T>(
+  convexUrl: string,
+  path: string,
+  args: Record<string, unknown> = {}
+): Promise<T | null> {
+  if (!convexUrl) {
+    throw new Error("CONVEX_URL environment variable is not set");
+  }
+
+  const response = await fetch(`${convexUrl}/api/mutation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, args }),
+  });
+
+  if (!response.ok) {
+    console.error('Convex mutation failed:', response.status, await response.text());
+    return null;
+  }
+
+  const data: ConvexQueryResult<T> = await response.json();
+  return data.value;
+}
