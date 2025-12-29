@@ -1,5 +1,5 @@
 # Convex
-_generated/
+convex/_generated/
 node_modules/
 .env
 .env.local

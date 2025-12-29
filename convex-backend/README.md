@@ -6,7 +6,7 @@ This directory contains the Convex backend for the multi-tenant chat assistant.
 
 ### 1. Install Dependencies
 
-From the `convex/` directory:
+From the `convex-backend/` directory:
 
 ```bash
 npm install
@@ -17,18 +17,18 @@ npm install
 Run the Convex development server:
 
 ```bash
-npx convex dev
+npm run dev
 ```
 
 This will:
 - Authenticate you via GitHub
 - Create a new Convex project (or link to existing)
-- Generate `_generated/` folder with TypeScript types
+- Generate `convex/_generated/` folder with TypeScript types
 - Start watching for changes
 
 ### 3. Get Your Deployment URL
 
-After running `npx convex dev`, you'll see output like:
+After running `npm run dev`, you'll see output like:
 
 ```
 Convex URL: https://your-project-123.convex.cloud
@@ -81,7 +81,7 @@ await api.agents.create({
 
 ## Schema
 
-The schema is defined in `schema.ts` and includes:
+The schema is defined in `convex/schema.ts` and includes:
 
 - **tenants** - Organizations/customers
 - **agents** - Chatbot configurations
@@ -108,7 +108,7 @@ The schema is defined in `schema.ts` and includes:
 
 1. Make changes to schema or functions
 2. Convex automatically deploys changes
-3. TypeScript types in `_generated/` update automatically
+3. TypeScript types in `convex/_generated/` update automatically
 4. Worker can immediately use new functions
 
 ## Production Deployment
@@ -116,7 +116,7 @@ The schema is defined in `schema.ts` and includes:
 When ready to deploy:
 
 ```bash
-npx convex deploy
+npm run deploy
 ```
 
 This creates a production deployment with a separate URL. Update your worker's production environment variables accordingly.
