@@ -4,10 +4,17 @@ compatibility_date = "2024-12-01"
 compatibility_flags = [ "nodejs_compat" ]
 
 # Environment variables
-# Set secrets using: wrangler secret put OPENROUTER_API_KEY
+# Set secrets using: wrangler secret put OPENAI_API_KEY
 # Optional: wrangler secret put LANGFUSE_SECRET_KEY
 # Optional: wrangler secret put LANGFUSE_PUBLIC_KEY
 # Optional: wrangler secret put LANGFUSE_HOST
+
+# Convex deployment URL (set this after running `npx convex dev`)
+# CONVEX_URL = "https://your-deployment.convex.cloud"
+
+[vars]
+# Add non-secret environment variables here
+# Example: CONVEX_URL = "https://your-deployment.convex.cloud"
 
 [env.production]
 # Production-specific configuration can go here

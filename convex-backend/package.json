@@ -1,0 +1,17 @@
+{
+  "name": "multi-tenant-chat-assistant-convex",
+  "version": "0.0.1",
+  "description": "Convex backend for multi-tenant chat assistant",
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "codegen": "convex dev --once"
+  },
+  "dependencies": {
+    "convex": "^1.17.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}

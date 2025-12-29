@@ -8,8 +8,11 @@ A minimal chat assistant platform with a React widget frontend and Cloudflare Wo
 
 ```
 multi-tenant-chat-app/
-├── worker/         # Cloudflare Worker API (Hono + OpenAI Agents SDK)
+├── convex-backend/ # Convex backend (database, functions)
+├── dashboard/      # Dashboard UI
+├── mcp/            # MCP server
 ├── widget/         # React chat widget (Vite + TanStack Query + shadcn/ui)
+├── worker/         # Cloudflare Worker API (Hono + OpenAI Agents SDK)
 ├── docs/           # Documentation
 ├── PLAN.md         # Detailed implementation plan
 ├── QUICKSTART.md   # 5-minute setup guide
