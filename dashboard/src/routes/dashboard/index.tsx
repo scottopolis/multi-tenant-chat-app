@@ -1,12 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useTenant } from '../../lib/tenant'
 
 export const Route = createFileRoute('/dashboard/')({
   component: DashboardHome,
 })
 
 function DashboardHome() {
+  const { tenant } = useTenant()
+
   return (
     <div className="px-4 py-6 sm:px-0">
+      <div className="mb-6 p-4 bg-amber-900/30 border border-amber-600/50 rounded-lg">
+        <p className="text-amber-200 text-sm">
+          <strong>Dev Mode:</strong> Using mock tenant "{tenant.name}" (ID: {tenant.id})
+        </p>
+      </div>
+
       <div className="border-4 border-dashed border-slate-700 rounded-lg h-96 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-white mb-4">

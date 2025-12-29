@@ -3,11 +3,16 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import Header from '../components/Header'
+import { TenantProvider } from '../lib/tenant'
 
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
-  component: () => <Outlet />,
+  component: () => (
+    <TenantProvider>
+      <Outlet />
+    </TenantProvider>
+  ),
   head: () => ({
     meta: [
       {
