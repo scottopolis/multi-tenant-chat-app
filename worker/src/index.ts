@@ -15,6 +15,7 @@ type Bindings = {
   LANGFUSE_SECRET_KEY?: string;
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_HOST?: string;
+  CONVEX_URL?: string; // Convex deployment URL for agent configs
 };
 
 type Variables = {
@@ -70,9 +71,9 @@ app.use('*', async (c, next) => {
   const agentParam = c.req.query('agent');
   const agentId = agentParam && agentParam.trim() !== '' ? agentParam : 'default';
   
-  // Get agent config to extract orgId
+  // Get agent config to extract orgId (pass env for Convex access)
   const { getAgentConfig } = await import('./tenants/config');
-  const agentConfig = await getAgentConfig(agentId);
+  const agentConfig = await getAgentConfig(agentId, { CONVEX_URL: c.env.CONVEX_URL });
   
   c.set('agentId', agentId);
   c.set('orgId', agentConfig.orgId);
@@ -216,6 +217,7 @@ app.post('/api/chats/:chatId/messages', async (c) => {
         LANGFUSE_PUBLIC_KEY: c.env.LANGFUSE_PUBLIC_KEY,
         LANGFUSE_SECRET_KEY: c.env.LANGFUSE_SECRET_KEY,
         LANGFUSE_HOST: c.env.LANGFUSE_HOST,
+        CONVEX_URL: c.env.CONVEX_URL,
       },
     });
 

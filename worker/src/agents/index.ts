@@ -57,6 +57,7 @@ export interface RunAgentOptions {
     LANGFUSE_PUBLIC_KEY?: string;
     LANGFUSE_SECRET_KEY?: string;
     LANGFUSE_HOST?: string;
+    CONVEX_URL?: string; // Convex deployment URL for agent configs
   };
 }
 
@@ -118,8 +119,8 @@ export async function runAgent(options: RunAgentOptions): Promise<any> {
     env = {},
   } = options;
 
-  // 1. Get agent configuration
-  const agentConfig = await getAgentConfig(agentId);
+  // 1. Get agent configuration (pass env for Convex access)
+  const agentConfig = await getAgentConfig(agentId, { CONVEX_URL: env.CONVEX_URL });
 
   // 2. Determine model (priority: request > agent config > default)
   const model = requestedModel || agentConfig.model || DEFAULT_MODEL;
@@ -139,7 +140,7 @@ export async function runAgent(options: RunAgentOptions): Promise<any> {
   setDefaultOpenAIKey(apiKey);
 
   // 5. Get tools for this agent (now returns array)
-  const tools = await getTools(agentId);
+  const tools = await getTools(agentId, { CONVEX_URL: env.CONVEX_URL });
 
   // 6. Create Agent instance
   // If outputSchema is provided, create agent with structured output
