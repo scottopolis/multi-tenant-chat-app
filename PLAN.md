@@ -364,7 +364,6 @@ This enables Node.js API support needed by the Agents SDK (Buffer, Crypto, Strea
 ```
 
 **Deferred to Phase 1B:**
-- Clerk authentication (sign up, sign in, org management)
 - Dashboard home with usage overview
 - Agent configuration advanced features:
   - Model selection
@@ -434,11 +433,28 @@ Upload Doc → Store in Convex Files → Chunk Text → Generate Embeddings → 
 
 **Goal**: Secure the platform with proper authentication for both dashboard and widget.
 
-### Dashboard Auth (Clerk)
-- User authentication
-- Organization management
-- Role-based access (admin, member)
-- SSO support (future)
+### Current: Mock Tenant Mode (Dev Only)
+For development, we use a hardcoded mock tenant context:
+- `TenantProvider` wraps the app with a dev tenant (ID: `dev-tenant-001`)
+- `useTenant()` hook provides tenant info to components
+- No login required - dashboard works immediately
+- Dev mode banner shown on dashboard pages
+
+### Future: Dashboard Auth Options
+
+**Option A: API-Key Login (Simpler)**
+- Tenant's API key serves as login credential
+- Store key in localStorage, send with Worker requests
+- Worker validates key → resolves to tenantId
+- Single secret for both widget and dashboard access
+- No user accounts, just tenant-level admin access
+
+**Option B: Convex Auth (Full User Auth)**
+- Real user accounts with email/OAuth
+- Multiple users per tenant with roles (owner, editor, viewer)
+- `users` + `tenantMembers` tables in Convex
+- Better for enterprise/team features
+- More setup work
 
 ### Widget Auth (API Keys)
 - Tenants generate API keys in dashboard
