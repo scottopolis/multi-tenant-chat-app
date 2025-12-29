@@ -26,17 +26,40 @@ export const getByAgentId = query({
     // Parse MCP servers and output schema from JSON strings
     return {
       ...agent,
-      mcpServers: agent.mcpServers ? JSON.parse(agent.mcpServers) : undefined,
-      outputSchema: agent.outputSchema ? JSON.parse(agent.outputSchema) : undefined,
-      langfuse: agent.langfusePublicKey
-        ? {
-            publicKey: agent.langfusePublicKey,
-            secretKey: agent.langfuseSecretKey!,
-            host: agent.langfuseHost,
-            promptName: agent.langfusePromptName,
-            label: agent.langfuseLabel,
-          }
-        : undefined,
+      mcpServers: agent.mcpServers ? JSON.parse(agent.mcpServers) : [],
+      outputSchema: agent.outputSchema ?? "",
+      langfuse: {
+        publicKey: agent.langfusePublicKey,
+        secretKey: agent.langfuseSecretKey,
+        host: agent.langfuseHost,
+        promptName: agent.langfusePromptName,
+        label: agent.langfuseLabel,
+      },
+    };
+  },
+});
+
+/**
+ * Get agent by internal ID
+ * Used by the dashboard for editing
+ */
+export const getById = query({
+  args: { id: v.id("agents") },
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.id);
+    if (!agent) return null;
+
+    return {
+      ...agent,
+      mcpServers: agent.mcpServers ? JSON.parse(agent.mcpServers) : [],
+      outputSchema: agent.outputSchema ?? "",
+      langfuse: {
+        publicKey: agent.langfusePublicKey,
+        secretKey: agent.langfuseSecretKey,
+        host: agent.langfuseHost,
+        promptName: agent.langfusePromptName,
+        label: agent.langfuseLabel,
+      },
     };
   },
 });
