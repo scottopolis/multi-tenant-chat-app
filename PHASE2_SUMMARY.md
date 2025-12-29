@@ -62,7 +62,7 @@ Created functions for:
 
 ### 6. Documentation
 - ✅ Created `convex/README.md` - Convex backend overview
-- ✅ Created `CONVEX_SETUP.md` - Step-by-step setup guide
+- ✅ Created `docs/convex.md` - Setup and usage guide
 - ✅ Updated `worker/wrangler.toml` with CONVEX_URL config
 - ✅ Created `convex/tsconfig.json` for TypeScript support
 - ✅ Created `convex/package.json` with scripts
@@ -84,7 +84,7 @@ worker/src/convex/
 └── client.ts                 # Convex HTTP client wrapper
 
 (root)/
-├── CONVEX_SETUP.md           # Step-by-step setup guide
+├── docs/convex.md            # Convex setup and usage guide
 └── PHASE2_SUMMARY.md         # This file
 ```
 

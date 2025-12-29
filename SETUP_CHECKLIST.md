@@ -171,5 +171,5 @@ After completing this checklist:
 
 - [Convex Dashboard](https://dashboard.convex.dev)
 - [Convex Documentation](https://docs.convex.dev)
-- [Setup Guide](./CONVEX_SETUP.md)
+- [Setup Guide](./docs/convex.md)
 - [Phase 2 Summary](./PHASE2_SUMMARY.md)

@@ -28,9 +28,30 @@ This is a minimal chat assistant platform with a React widget frontend and Cloud
 │ Cloudflare Worker API               │
 │  • Hono framework for routing       │
 │  • AI SDK + OpenRouter              │
-│  • In-memory storage (temporary)    │
+│  • Multi-tenant agent configs       │
+└──────────────┬──────────────────────┘
+               │ HTTP API
+               ▼
+┌─────────────────────────────────────┐
+│ Convex Backend                      │
+│  • Real-time database               │
+│  • Agent & tenant configuration     │
+│  • Vector search for RAG            │
 └─────────────────────────────────────┘
 ```
+
+### Convex Backend
+
+The platform uses [Convex](https://convex.dev) as its backend database for storing tenant and agent configurations. Convex provides:
+
+- **Real-time sync** - Changes to agent configs are instantly available
+- **Type-safe queries** - Full TypeScript support with generated types
+- **Vector search** - Built-in support for RAG embeddings
+- **Zero infrastructure** - Fully managed, serverless database
+
+The worker fetches agent configurations from Convex via HTTP API, with fallback to hardcoded defaults.
+
+See the [Convex Guide](./convex.md) for setup and usage details.
 
 ## Quick Links
 
@@ -63,8 +84,8 @@ chat-assistant/
 - ✅ Tool/function calling support
 - ✅ Modular tool system (built-in + webhook-based)
 - ✅ Modern React UI with Tailwind CSS
+- ✅ Convex backend for persistent storage
 - 🚧 Authentication (prepared but not implemented)
-- 🚧 Persistent storage (currently in-memory)
 - 🚧 Langfuse integration (prepared for future use)
 
 ## Roadmap
