@@ -1,30 +1,41 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import { useQuery } from 'convex/react'
+import { api } from '../../../convex-backend/convex/_generated/api'
 
 export interface Tenant {
   id: string
   name: string
-  apiKey: string
+  clerkOrgId: string
+  plan: string
 }
 
 interface TenantContextValue {
-  tenant: Tenant
-  isLoading: false
+  tenant: Tenant | null
+  isLoading: boolean
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null)
 
-const DEV_TENANT: Tenant = {
-  id: 'dev-tenant-001',
-  name: 'Development Tenant',
-  apiKey: 'dev-api-key-placeholder',
-}
+const DEV_CLERK_ORG_ID = 'org_acme_corp'
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  return (
-    <TenantContext.Provider value={{ tenant: DEV_TENANT, isLoading: false }}>
-      {children}
-    </TenantContext.Provider>
-  )
+  const tenant = useQuery(api.tenants.getByClerkOrgId, {
+    clerkOrgId: DEV_CLERK_ORG_ID,
+  })
+
+  const value: TenantContextValue = {
+    tenant: tenant
+      ? {
+          id: tenant._id,
+          name: tenant.name,
+          clerkOrgId: tenant.clerkOrgId,
+          plan: tenant.plan,
+        }
+      : null,
+    isLoading: tenant === undefined,
+  }
+
+  return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
 }
 
 export function useTenant(): TenantContextValue {
