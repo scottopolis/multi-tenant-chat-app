@@ -1,5 +1,28 @@
 # Multi-Tenant Chat Assistant - Documentation
 
+A white-label AI chat platform that lets businesses embed customizable chat widgets on their websites. Each tenant can configure their own AI agents with custom system prompts, tools, and branding—all powered by a serverless Cloudflare Worker backend and Convex real-time database.
+
+## Quick Start
+
+This is an npm workspaces monorepo. From the root directory:
+
+```bash
+npm install        # Install all dependencies
+npm run dev        # Start all services (convex, dashboard, mcp, widget, worker)
+```
+
+You can also run individual services:
+
+```bash
+npm run dev:widget      # Just the chat widget
+npm run dev:dashboard   # Just the admin dashboard
+npm run dev:worker      # Just the Cloudflare worker
+npm run dev:convex      # Just the Convex backend
+npm run dev:mcp         # Just the MCP server
+```
+
+---
+
 Welcome to the Multi-Tenant Chat Assistant documentation!
 
 ## Overview

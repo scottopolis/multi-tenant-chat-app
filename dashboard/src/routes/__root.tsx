@@ -1,4 +1,4 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
@@ -7,6 +7,7 @@ import Header from '../components/Header'
 import appCss from '../styles.css?url'
 
 export const Route = createRootRoute({
+  component: () => <Outlet />,
   head: () => ({
     meta: [
       {
