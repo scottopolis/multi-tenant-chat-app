@@ -184,10 +184,10 @@ We query OpenAI directly instead of storing metadata in Convex.
 
 ### Phase 3: Worker API Endpoints
 
-#### Task 5: Create upload endpoint
+#### Task 5: Create upload endpoint ✅ COMPLETED
 API endpoint to handle file upload from dashboard.
 
-**Files:** `worker/src/routes/documents.ts`
+**Files:** `worker/src/routes/documents.ts`, `worker/src/routes/documents.test.ts`
 
 **Endpoint:** `POST /api/documents/upload`
 
@@ -199,16 +199,17 @@ API endpoint to handle file upload from dashboard.
 5. Return success (cache auto-invalidates)
 
 **Verify:**
-- [ ] Can upload file via API endpoint
-- [ ] File appears in OpenAI Vector Store (via `listVectorStoreFiles()`)
-- [ ] vectorStoreId stored in agent record
+- [x] Can upload file via API endpoint
+- [x] File appears in OpenAI Vector Store (via `listVectorStoreFiles()`)
+- [x] vectorStoreId stored in agent record
+- [x] File size validation (10MB limit)
 
 ---
 
-#### Task 6: Create delete endpoint
+#### Task 6: Create delete endpoint ✅ COMPLETED
 API endpoint to delete a document.
 
-**Files:** `worker/src/routes/documents.ts`
+**Files:** `worker/src/routes/documents.ts`, `worker/src/routes/documents.test.ts`
 
 **Endpoint:** `DELETE /api/documents/:fileId`
 
@@ -218,9 +219,11 @@ API endpoint to delete a document.
 3. Return success (cache auto-invalidates)
 
 **Verify:**
-- [ ] Can delete file via API endpoint
-- [ ] File removed from OpenAI Vector Store
-- [ ] Cache invalidated, file no longer in list
+- [x] Can delete file via API endpoint
+- [x] File removed from OpenAI Vector Store
+- [x] Cache invalidated, file no longer in list
+
+**Also added:** `GET /api/documents` endpoint to list files
 
 ---
 
@@ -313,11 +316,11 @@ Full flow test from upload to retrieval.
 |-------|-------|-------------|
 | 1. Vector Store Setup | 1-2 ✅ | OpenAI Vector Store utilities |
 | 2. Convex Schema | 3 ✅ | Add vectorStoreId + caching |
-| 3. Worker API | 5-6 | Upload/delete endpoints |
+| 3. Worker API | 5-6 ✅ | Upload/delete/list endpoints |
 | 4. Dashboard UI | 7-9 | Upload and list components |
 | 5. Agent Integration | 10-11 | Enable file_search tool |
 
-**Total: 10 tasks (~Task 4 removed) × ~15 min = ~2.5 hours**
+**Completed: 5 tasks** | **Remaining: 5 tasks (UI + Agent integration)**
 
 ---
 
