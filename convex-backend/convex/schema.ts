@@ -8,7 +8,7 @@ import { v } from "convex/values";
  * - Multi-tenant isolation via tenantId
  * - Agent configurations with Langfuse integration
  * - API key management
- * - Document storage and vector embeddings for RAG
+ * - RAG knowledgebase via OpenAI Vector Stores (vectorStoreId in agents)
  *
  * Security: All queries MUST filter by tenantId to prevent cross-tenant data access
  */
@@ -54,6 +54,9 @@ export default defineSchema({
     // Stored as JSON-serialized Zod schema definition
     outputSchema: v.optional(v.string()),
 
+    // OpenAI Vector Store for RAG knowledgebase (optional)
+    vectorStoreId: v.optional(v.string()), // OpenAI Vector Store ID
+
     createdAt: v.number(), // Unix timestamp
     updatedAt: v.number(), // Unix timestamp
   })
@@ -75,41 +78,4 @@ export default defineSchema({
   })
     .index("by_hash", ["keyHash"]) // Lookup for validation
     .index("by_tenant", ["tenantId"]), // List keys for tenant
-
-  /**
-   * Documents
-   * Uploaded files for agent knowledge base (RAG)
-   */
-  documents: defineTable({
-    tenantId: v.id("tenants"), // Reference to tenant
-    agentId: v.optional(v.id("agents")), // Optional: scope to specific agent
-    storageId: v.id("_storage"), // Convex file storage ID
-    filename: v.string(), // Original filename
-    mimeType: v.string(), // File MIME type
-    status: v.string(), // "processing" | "ready" | "failed"
-    createdAt: v.number(), // Unix timestamp
-  })
-    .index("by_tenant", ["tenantId"]) // List docs for tenant
-    .index("by_agent", ["agentId"]), // List docs for agent
-
-  /**
-   * Embeddings
-   * Vector embeddings for RAG knowledgebase
-   * Each document is chunked and embedded separately
-   */
-  embeddings: defineTable({
-    documentId: v.id("documents"), // Reference to source document
-    tenantId: v.id("tenants"), // Denormalized for efficient filtering
-    agentId: v.optional(v.id("agents")), // Optional: scope to specific agent
-    chunkIndex: v.number(), // Position in document (0, 1, 2, ...)
-    text: v.string(), // Chunk text content
-    embedding: v.array(v.float64()), // Vector embedding (e.g., 1536 dimensions)
-  })
-    .index("by_tenant", ["tenantId"]) // Vector search scoped to tenant
-    .index("by_document", ["documentId"]) // Get all chunks for document
-    .vectorIndex("by_embedding", {
-      vectorField: "embedding",
-      dimensions: 1536, // OpenAI text-embedding-3-small
-      filterFields: ["tenantId"], // Always filter by tenant for multi-tenant isolation
-    }),
 });

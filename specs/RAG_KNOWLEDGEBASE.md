@@ -63,25 +63,18 @@ Upload file      →    Call worker to upload
 
 ## Data Model
 
-### `documents` table (Convex - metadata only)
-| Field | Type | Description |
-|-------|------|-------------|
-| tenantId | string | Tenant reference |
-| openaiFileId | string | OpenAI file ID |
-| fileName | string | Original file name |
-| fileType | string | pdf, txt, md, csv |
-| fileSize | number | Size in bytes |
-| status | string | uploading, ready, error |
-| createdAt | number | Upload timestamp |
-| errorMessage | string? | Error details if failed |
-
 ### `agents` table (existing - add field)
 | Field | Type | Description |
 |-------|------|-------------|
 | ... | ... | Existing fields |
 | vectorStoreId | string? | OpenAI Vector Store ID for this agent |
 
-**Note**: No `documentChunks` table needed - OpenAI manages chunks internally.
+**Simplified Approach:**
+- ✅ No `documents` table - query OpenAI directly via `listVectorStoreFiles()`
+- ✅ No `embeddings` table - OpenAI manages chunks internally
+- ✅ 30-second in-memory cache to reduce API calls
+- ✅ Single source of truth (OpenAI Vector Stores)
+- ✅ Cache invalidation on upload/delete operations
 
 ---
 
@@ -162,75 +155,75 @@ export async function deleteFileFromVectorStore(
 
 ---
 
-### Phase 2: Convex Data Layer
+### Phase 2: Convex Schema Update
 
-#### Task 3: Update Convex schema
-Add `documents` table and `vectorStoreId` to agents.
+#### Task 3: Update Convex schema ✅ COMPLETED
+Add `vectorStoreId` to agents table. Add caching to vector store utilities.
 
-**Files:** `convex/schema.ts`
+**Files:**
+- `convex-backend/convex/schema.ts`
+- `worker/src/lib/vectorStore.ts`
+
+**Changes:**
+- Added `vectorStoreId: v.optional(v.string())` to agents table
+- Removed `documents` and `embeddings` tables (not needed)
+- Added `listVectorStoreFiles()` with 30-second cache
+- Cache invalidation on upload/delete operations
 
 **Verify:**
-- [ ] `npx convex dev` runs without schema errors
-- [ ] Tables visible in Convex dashboard
+- [x] Schema updated with vectorStoreId field
+- [x] Caching implemented and tested
+- [x] Cache invalidates on mutations
 
 ---
 
-#### Task 4: Create document CRUD operations
-Add mutations/queries for document metadata.
-
-**Files:** `convex/documents.ts`
-
-**Functions:**
-- `documents.create` - Store document metadata after upload
-- `documents.list` - List documents for a tenant/agent
-- `documents.delete` - Remove document metadata
-
-**Verify:**
-- [ ] Can create document record
-- [ ] Can list documents filtered by tenantId
-- [ ] Can delete document record
+#### Task 4: ~~Create document CRUD operations~~ (NOT NEEDED)
+We query OpenAI directly instead of storing metadata in Convex.
 
 ---
 
 ### Phase 3: Worker API Endpoints
 
-#### Task 5: Create upload endpoint
+#### Task 5: Create upload endpoint ✅ COMPLETED
 API endpoint to handle file upload from dashboard.
 
-**Files:** `worker/src/routes/documents.ts`
+**Files:** `worker/src/routes/documents.ts`, `worker/src/routes/documents.test.ts`
 
 **Endpoint:** `POST /api/documents/upload`
 
 **Flow:**
 1. Receive file from dashboard
-2. Get or create vector store for tenant
-3. Upload file to OpenAI
-4. Store metadata in Convex
-5. Return success
+2. Get agent from Convex (check vectorStoreId)
+3. Create vector store if needed, update agent
+4. Upload file to OpenAI Vector Store
+5. Return success (cache auto-invalidates)
 
 **Verify:**
-- [ ] Can upload file via API endpoint
-- [ ] File appears in OpenAI Vector Store
-- [ ] Metadata stored in Convex
+- [x] Can upload file via API endpoint
+- [x] File appears in OpenAI Vector Store (via `listVectorStoreFiles()`)
+- [x] vectorStoreId stored in agent record
+- [x] File size validation (10MB limit)
 
 ---
 
-#### Task 6: Create delete endpoint
+#### Task 6: Create delete endpoint ✅ COMPLETED
 API endpoint to delete a document.
 
-**Files:** `worker/src/routes/documents.ts`
+**Files:** `worker/src/routes/documents.ts`, `worker/src/routes/documents.test.ts`
 
-**Endpoint:** `DELETE /api/documents/:id`
+**Endpoint:** `DELETE /api/documents/:fileId`
 
 **Flow:**
-1. Get document metadata from Convex
-2. Delete file from OpenAI Vector Store
-3. Delete metadata from Convex
+1. Get agent from Convex (get vectorStoreId)
+2. Delete file from OpenAI Vector Store via `deleteFileFromVectorStore()`
+3. Return success (cache auto-invalidates)
 
 **Verify:**
-- [ ] Can delete file via API endpoint
-- [ ] File removed from OpenAI
-- [ ] Metadata removed from Convex
+- [x] Can delete file via API endpoint
+- [x] File removed from OpenAI Vector Store
+- [x] Cache invalidated, file no longer in list
+
+**Also added:** `GET /api/documents` endpoint to list files
 
 ---
 
@@ -321,27 +314,29 @@ Full flow test from upload to retrieval.
 
 | Phase | Tasks | Description |
 |-------|-------|-------------|
-| 1. Vector Store Setup | 1-2 | OpenAI Vector Store utilities |
-| 2. Convex Data Layer | 3-4 | Document metadata storage |
-| 3. Worker API | 5-6 | Upload/delete endpoints |
+| 1. Vector Store Setup | 1-2 ✅ | OpenAI Vector Store utilities |
+| 2. Convex Schema | 3 ✅ | Add vectorStoreId + caching |
+| 3. Worker API | 5-6 ✅ | Upload/delete/list endpoints |
 | 4. Dashboard UI | 7-9 | Upload and list components |
 | 5. Agent Integration | 10-11 | Enable file_search tool |
 
-**Total: 11 tasks × ~15 min = ~3 hours**
+**Completed: 5 tasks** | **Remaining: 5 tasks (UI + Agent integration)**
 
 ---
 
 ## API Endpoints
 
 ### Worker Routes
-- `POST /api/documents/upload` - Upload file to knowledge base
-- `DELETE /api/documents/:id` - Delete document
-- `GET /api/documents` - List documents (optional, can use Convex directly)
+- `POST /api/documents/upload` - Upload file to vector store
+- `DELETE /api/documents/:fileId` - Delete file from vector store
+- `GET /api/documents/:agentId` - List documents for agent (uses cached `listVectorStoreFiles()`)
 
-### Convex Functions
-- `documents.create` - Store document metadata
-- `documents.list` - List tenant documents
-- `documents.delete` - Delete document metadata
+### Vector Store Utilities (worker/src/lib/vectorStore.ts)
+- `createVectorStore(name)` - Create new OpenAI Vector Store
+- `deleteVectorStore(id)` - Delete Vector Store
+- `uploadFileToVectorStore(storeId, file, filename)` - Upload file and attach to store
+- `deleteFileFromVectorStore(storeId, fileId)` - Delete file from store
+- `listVectorStoreFiles(storeId, options?)` - List files with caching
 
 ---
 
