@@ -2,7 +2,25 @@
 
 ## Overview
 
-Allow tenants to upload documents that are embedded and stored in a vector database. The agent retrieves relevant chunks via tool call to augment responses with tenant-specific knowledge.
+Allow tenants to upload documents to a knowledge base. OpenAI File Search handles parsing, chunking, embedding, and retrieval automatically. The agent uses the built-in `file_search` tool to query the knowledge base.
+
+---
+
+## Approach: OpenAI File Search
+
+We use OpenAI's managed File Search instead of building custom RAG infrastructure:
+
+| What | How |
+|------|-----|
+| File parsing | OpenAI (automatic) |
+| Chunking | OpenAI (automatic) |
+| Embeddings | OpenAI (automatic) |
+| Vector storage | OpenAI Vector Stores |
+| Retrieval | Built-in `file_search` tool |
+
+**Benefits**: ~90% less code, no PDF parsing libraries, no embedding logic, battle-tested retrieval.
+
+**Costs**: ~$0.10/GB/day storage (first 1GB free) + retrieved chunks count as input tokens.
 
 ---
 
@@ -14,18 +32,11 @@ Allow tenants to upload documents that are embedded and stored in a vector datab
 - Markdown (.md)
 - CSV (.csv)
 
+OpenAI also supports: .docx, .html, .json, and more.
+
 ### Storage Limits
-- Max file size: 10 MB per file
+- Max file size: 10 MB per file (OpenAI limit: 512 MB)
 - Max total storage per tenant: 100 MB
-
-### Embedding
-- Model: OpenAI `text-embedding-3-small` (1536 dimensions)
-- Vector storage: Convex vector search
-
-### Chunking
-- Strategy: Fixed-size with overlap
-- Chunk size: 1000 characters
-- Overlap: 200 characters
 
 ---
 
@@ -34,46 +45,43 @@ Allow tenants to upload documents that are embedded and stored in a vector datab
 ```
 Dashboard                    Convex                         Worker
 ─────────────────────────────────────────────────────────────────────
-Upload file      →    Store in Convex File Storage
-                      Extract text (parse PDF/CSV/MD/TXT)
-                      Chunk text
-                      Generate embeddings (OpenAI)
-                      Store chunks + vectors in documents table
-
+Upload file      →    Call worker to upload
+                                                    Upload to OpenAI Vector Store
+                                                    Return file ID
+                      Store metadata (fileId, name, size)
                       ← List/delete documents
 
-                                                    Agent calls search_knowledge tool
+                                                    Agent with file_search tool
+                                                    attached to tenant's vector store
                                                               ↓
-                                        Vector search → Return top chunks
+                                                    OpenAI retrieves relevant chunks
                                                               ↓
-                                                    Inject into agent context
+                                                    Agent responds with context
 ```
 
 ---
 
 ## Data Model
 
-### `documents` table
+### `documents` table (Convex - metadata only)
 | Field | Type | Description |
 |-------|------|-------------|
 | tenantId | string | Tenant reference |
-| fileId | string | Convex file storage ID |
+| openaiFileId | string | OpenAI file ID |
 | fileName | string | Original file name |
 | fileType | string | pdf, txt, md, csv |
 | fileSize | number | Size in bytes |
-| status | string | pending, processing, ready, error |
-| chunkCount | number | Number of chunks created |
+| status | string | uploading, ready, error |
 | createdAt | number | Upload timestamp |
 | errorMessage | string? | Error details if failed |
 
-### `documentChunks` table
+### `agents` table (existing - add field)
 | Field | Type | Description |
 |-------|------|-------------|
-| tenantId | string | Tenant reference (for filtering) |
-| documentId | string | Parent document reference |
-| chunkIndex | number | Order within document |
-| content | string | Text content of chunk |
-| embedding | vector(1536) | OpenAI embedding vector |
+| ... | ... | Existing fields |
+| vectorStoreId | string? | OpenAI Vector Store ID for this agent |
+
+**Note**: No `documentChunks` table needed - OpenAI manages chunks internally.
 
 ---
 
@@ -83,10 +91,81 @@ Each task is ~15 minutes. Complete verification before proceeding to next task.
 
 ---
 
-### Phase 1: Data Layer
+### Phase 1: OpenAI Vector Store Setup
 
-#### Task 1: Create Convex schema
-Add `documents` and `documentChunks` tables to Convex schema.
+#### Task 1: Create Vector Store management utilities
+Add functions to create/delete OpenAI Vector Stores.
+
+**Files:** `worker/src/lib/vectorStore.ts`
+
+**Code:**
+```typescript
+import OpenAI from 'openai';
+
+const openai = new OpenAI();
+
+export async function createVectorStore(name: string): Promise<string> {
+  const store = await openai.vectorStores.create({ name });
+  return store.id;
+}
+
+export async function deleteVectorStore(id: string): Promise<void> {
+  await openai.vectorStores.del(id);
+}
+```
+
+**Verify:**
+- [ ] Can create a vector store via OpenAI API
+- [ ] Vector store appears in OpenAI dashboard
+
+---
+
+#### Task 2: Create file upload to Vector Store
+Add function to upload files to an OpenAI Vector Store.
+
+**Files:** `worker/src/lib/vectorStore.ts`
+
+**Code:**
+```typescript
+export async function uploadFileToVectorStore(
+  vectorStoreId: string,
+  file: File,
+  filename: string
+): Promise<string> {
+  // Upload file to OpenAI
+  const uploadedFile = await openai.files.create({
+    file,
+    purpose: 'assistants',
+  });
+
+  // Attach to vector store
+  await openai.vectorStores.files.create(vectorStoreId, {
+    file_id: uploadedFile.id,
+  });
+
+  return uploadedFile.id;
+}
+
+export async function deleteFileFromVectorStore(
+  vectorStoreId: string,
+  fileId: string
+): Promise<void> {
+  await openai.vectorStores.files.del(vectorStoreId, fileId);
+  await openai.files.del(fileId);
+}
+```
+
+**Verify:**
+- [ ] Can upload a .txt file to vector store
+- [ ] File appears in OpenAI Vector Store
+- [ ] Can delete file from vector store
+
+---
+
+### Phase 2: Convex Data Layer
+
+#### Task 3: Update Convex schema
+Add `documents` table and `vectorStoreId` to agents.
 
 **Files:** `convex/schema.ts`
 
@@ -96,105 +175,69 @@ Add `documents` and `documentChunks` tables to Convex schema.
 
 ---
 
-#### Task 2: Create document mutations
-Add `generateUploadUrl` and `create` mutations for documents.
+#### Task 4: Create document CRUD operations
+Add mutations/queries for document metadata.
 
 **Files:** `convex/documents.ts`
 
+**Functions:**
+- `documents.create` - Store document metadata after upload
+- `documents.list` - List documents for a tenant/agent
+- `documents.delete` - Remove document metadata
+
 **Verify:**
-- [ ] Can call `generateUploadUrl` from Convex dashboard → returns URL
-- [ ] Can call `create` with test data → document appears in table
+- [ ] Can create document record
+- [ ] Can list documents filtered by tenantId
+- [ ] Can delete document record
 
 ---
 
-#### Task 3: Create list and delete operations
-Add `list` query and `delete` mutation for documents.
+### Phase 3: Worker API Endpoints
 
-**Files:** `convex/documents.ts`
+#### Task 5: Create upload endpoint
+API endpoint to handle file upload from dashboard.
+
+**Files:** `worker/src/routes/documents.ts`
+
+**Endpoint:** `POST /api/documents/upload`
+
+**Flow:**
+1. Receive file from dashboard
+2. Get or create vector store for tenant
+3. Upload file to OpenAI
+4. Store metadata in Convex
+5. Return success
 
 **Verify:**
-- [ ] `list` query returns documents filtered by tenantId
-- [ ] `delete` mutation removes document record
-- [ ] Deleting document also removes associated file from storage
+- [ ] Can upload file via API endpoint
+- [ ] File appears in OpenAI Vector Store
+- [ ] Metadata stored in Convex
 
 ---
 
-### Phase 2: Text Processing
+#### Task 6: Create delete endpoint
+API endpoint to delete a document.
 
-#### Task 4: Create chunking utility
-Implement fixed-size chunking with overlap (1000 chars, 200 overlap).
+**Files:** `worker/src/routes/documents.ts`
 
-**Files:** `convex/lib/chunking.ts`
+**Endpoint:** `DELETE /api/documents/:id`
 
-**Verify:**
-- [ ] Unit test: 2500 char string → 3 chunks
-- [ ] Unit test: chunks overlap by 200 chars
-- [ ] Unit test: empty string → empty array
-
----
-
-#### Task 5: Create text extraction for TXT/MD
-Extract plain text from .txt and .md files.
-
-**Files:** `convex/lib/extractText.ts`
+**Flow:**
+1. Get document metadata from Convex
+2. Delete file from OpenAI Vector Store
+3. Delete metadata from Convex
 
 **Verify:**
-- [ ] Unit test: extracts text from .txt buffer
-- [ ] Unit test: extracts text from .md buffer (preserves formatting)
-
----
-
-#### Task 6: Create text extraction for CSV
-Convert CSV to readable text format.
-
-**Files:** `convex/lib/extractText.ts`
-
-**Verify:**
-- [ ] Unit test: CSV with headers → readable row-based text
-- [ ] Unit test: handles quoted fields with commas
-
----
-
-#### Task 7: Create text extraction for PDF
-Parse PDF files to extract text content.
-
-**Files:** `convex/lib/extractText.ts`, `package.json` (add pdf-parse)
-
-**Verify:**
-- [ ] Unit test: extracts text from simple PDF
-- [ ] Unit test: handles multi-page PDF
-
----
-
-### Phase 3: Document Processing
-
-#### Task 8: Create processDocument action (without embeddings)
-Background job that extracts text and creates chunks (no vectors yet).
-
-**Files:** `convex/documents.ts`
-
-**Verify:**
-- [ ] Upload test .txt file → status changes: pending → processing → ready
-- [ ] Chunks appear in `documentChunks` table with correct content
-- [ ] Error in processing → status = "error" with message
-
----
-
-#### Task 9: Add OpenAI embeddings to processDocument
-Generate embeddings for each chunk and store vectors.
-
-**Files:** `convex/documents.ts`, `.env` (OPENAI_API_KEY)
-
-**Verify:**
-- [ ] Chunks have `embedding` field populated (1536 dimensions)
-- [ ] `chunkCount` on document matches actual chunk count
+- [ ] Can delete file via API endpoint
+- [ ] File removed from OpenAI
+- [ ] Metadata removed from Convex
 
 ---
 
 ### Phase 4: Dashboard UI
 
-#### Task 10: Create KnowledgeBase component shell
-Basic component with upload zone and empty document list.
+#### Task 7: Create KnowledgeBase component
+Basic component with upload zone and document list.
 
 **Files:** `dashboard/app/components/KnowledgeBase.tsx`
 
@@ -205,63 +248,72 @@ Basic component with upload zone and empty document list.
 
 ---
 
-#### Task 11: Wire up file upload
-Connect upload UI to Convex file storage and document creation.
+#### Task 8: Wire up file upload
+Connect upload UI to worker API.
 
 **Files:** `dashboard/app/components/KnowledgeBase.tsx`
 
 **Verify:**
-- [ ] Select file → uploads to Convex
-- [ ] Document record created with status "pending"
-- [ ] Processing starts automatically
+- [ ] Select file → uploads via API
+- [ ] Shows uploading state
+- [ ] Document appears in list when ready
 
 ---
 
-#### Task 12: Display document list with status
-Show documents with name, size, status, and delete button.
+#### Task 9: Add delete functionality
+Add delete button to document list.
 
 **Files:** `dashboard/app/components/KnowledgeBase.tsx`
 
 **Verify:**
-- [ ] Documents display in list after upload
-- [ ] Status updates reactively (pending → processing → ready)
-- [ ] Delete button removes document
+- [ ] Delete button calls API
+- [ ] Document removed from list
+- [ ] Confirmation before delete
 
 ---
 
 ### Phase 5: Agent Integration
 
-#### Task 13: Create vector search action
-Implement `documentChunks.search` with vector similarity search.
+#### Task 10: Enable file_search tool on agent
+Attach vector store to agent and enable file_search.
 
-**Files:** `convex/documentChunks.ts`
+**Files:** `worker/src/agent.ts`
+
+**Code:**
+```typescript
+const agent = new Agent({
+  // ... existing config
+  tools: [
+    { type: 'file_search' },
+    // ... other tools
+  ],
+  tool_resources: {
+    file_search: {
+      vector_store_ids: [tenant.vectorStoreId],
+    },
+  },
+});
+```
 
 **Verify:**
-- [ ] Search with test embedding returns relevant chunks
-- [ ] Results filtered by tenantId
-- [ ] Returns top 5 chunks with document metadata
+- [ ] Agent has file_search tool enabled
+- [ ] Agent can retrieve from uploaded documents
+- [ ] Response includes relevant context from docs
 
 ---
 
-#### Task 14: Add search_knowledge tool to worker
-Define tool in agent configuration.
+#### Task 11: End-to-end test
+Full flow test from upload to retrieval.
 
-**Files:** `worker/src/tools/searchKnowledge.ts`, `worker/src/agent.ts`
-
-**Verify:**
-- [ ] Tool appears in agent tool list
-- [ ] Tool schema validates correctly
-
----
-
-#### Task 15: Implement search_knowledge handler
-Complete tool implementation with embedding generation and Convex search.
-
-**Files:** `worker/src/tools/searchKnowledge.ts`
+**Test Steps:**
+1. Upload a document with known content
+2. Ask agent a question about that content
+3. Verify agent uses file_search and returns correct info
 
 **Verify:**
-- [ ] E2E test: upload doc, ask agent question → agent uses tool → returns relevant info
-- [ ] Response includes source attribution (document name)
+- [ ] Upload → agent can answer questions about document
+- [ ] Agent cites source in response
+- [ ] Delete document → agent no longer has access
 
 ---
 
@@ -269,35 +321,27 @@ Complete tool implementation with embedding generation and Convex search.
 
 | Phase | Tasks | Description |
 |-------|-------|-------------|
-| 1. Data Layer | 1-3 | Convex schema and CRUD operations |
-| 2. Text Processing | 4-7 | Chunking and file parsing utilities |
-| 3. Document Processing | 8-9 | Background job with embeddings |
-| 4. Dashboard UI | 10-12 | Upload and list components |
-| 5. Agent Integration | 13-15 | Vector search and tool implementation |
+| 1. Vector Store Setup | 1-2 | OpenAI Vector Store utilities |
+| 2. Convex Data Layer | 3-4 | Document metadata storage |
+| 3. Worker API | 5-6 | Upload/delete endpoints |
+| 4. Dashboard UI | 7-9 | Upload and list components |
+| 5. Agent Integration | 10-11 | Enable file_search tool |
 
-**Total: 15 tasks × ~15 min = ~4 hours**
-
----
-
-## File Parsing
-
-| Type | Parsing Approach |
-|------|------------------|
-| .txt | Direct read |
-| .md | Direct read (keep formatting) |
-| .csv | Convert to readable text (row-based) |
-| .pdf | Use `pdf-parse` or similar library |
+**Total: 11 tasks × ~15 min = ~3 hours**
 
 ---
 
 ## API Endpoints
 
-### Convex Mutations/Queries
-- `documents.generateUploadUrl` - Get signed upload URL
-- `documents.create` - Create document record after upload
+### Worker Routes
+- `POST /api/documents/upload` - Upload file to knowledge base
+- `DELETE /api/documents/:id` - Delete document
+- `GET /api/documents` - List documents (optional, can use Convex directly)
+
+### Convex Functions
+- `documents.create` - Store document metadata
 - `documents.list` - List tenant documents
-- `documents.delete` - Delete document and chunks
-- `documentChunks.search` - Vector search for chunks
+- `documents.delete` - Delete document metadata
 
 ---
 
@@ -309,36 +353,59 @@ Complete tool implementation with embedding generation and Convex search.
 │ Knowledge Base                                  │
 ├─────────────────────────────────────────────────┤
 │ ┌─────────────────────────────────────────────┐ │
-│ │  📄 Drop files here or click to upload      │ │
+│ │  Drop files here or click to upload         │ │
 │ │     PDF, TXT, MD, CSV (max 10MB)            │ │
 │ └─────────────────────────────────────────────┘ │
 │                                                 │
-│ Documents (3 of 100MB used)                     │
+│ Documents (3 files)                             │
 │ ┌─────────────────────────────────────────────┐ │
-│ │ 📄 product-guide.pdf    2.3 MB   ✓ Ready  🗑│ │
-│ │ 📄 faq.md               45 KB    ✓ Ready  🗑│ │
-│ │ 📄 pricing.csv          12 KB    ⏳ Processing│ │
+│ │ product-guide.pdf       2.3 MB   Ready    X │ │
+│ │ faq.md                  45 KB    Ready    X │ │
+│ │ pricing.csv             12 KB    Ready    X │ │
 │ └─────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────┘
 ```
 
 ---
 
+## OpenAI File Search Details
+
+### How It Works
+1. Files uploaded to Vector Store are automatically parsed
+2. Content is chunked (OpenAI uses smart chunking)
+3. Chunks are embedded and indexed
+4. When agent uses `file_search`, OpenAI:
+   - Embeds the query
+   - Finds relevant chunks via vector similarity
+   - Returns chunks as context to the model
+
+### Supported File Types (OpenAI)
+.pdf, .md, .txt, .csv, .docx, .html, .json, .pptx, .tex, .c, .cpp, .java, .js, .py, .rb, .ts, and more.
+
+### Pricing
+- Storage: $0.10/GB/day (first 1GB free)
+- Retrieval: Chunks returned count as input tokens
+
+---
+
 ## Open Questions (Resolved)
 
-- ~~Embedding model?~~ → OpenAI text-embedding-3-small
-- ~~Vector DB?~~ → Convex built-in vector search
-- ~~File storage?~~ → Convex File Storage
+- ~~Embedding model?~~ → OpenAI (automatic)
+- ~~Vector DB?~~ → OpenAI Vector Stores
+- ~~File storage?~~ → OpenAI Files API
+- ~~Chunking strategy?~~ → OpenAI (automatic)
+- ~~Custom RAG vs managed?~~ → Managed (OpenAI File Search)
 
 ---
 
 ## Future Enhancements (Out of Scope)
 - Web page URL ingestion
 - Folder organization
-- Re-embedding on model upgrade
-- Chunk preview/editing
+- Custom chunking strategies
 - Usage analytics per document
+- Migrate to AWS Bedrock (cost optimization)
 
 ---
 
 *Created: December 2024*
+*Updated: December 2024 - Switched to OpenAI File Search*
