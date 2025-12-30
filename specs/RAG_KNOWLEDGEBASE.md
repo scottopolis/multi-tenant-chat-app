@@ -77,48 +77,205 @@ Upload file      →    Store in Convex File Storage
 
 ---
 
-## Implementation
+## Implementation Tasks
 
-### Phase 1: Document Upload & Processing
+Each task is ~15 minutes. Complete verification before proceeding to next task.
 
-#### Dashboard
-- Add "Knowledge Base" section to agent config
-- File upload component (drag & drop or click)
-- Document list with name, size, status, delete button
-- Show simple status: uploading → processing → ready (or error)
+---
 
-#### Convex
-- `documents.upload` mutation: store file, create document record
-- `documents.list` query: get documents for tenant
-- `documents.delete` mutation: remove document, chunks, and file
-- Background job: `processDocument`
-  - Extract text based on file type
-  - Chunk text (1000 chars, 200 overlap)
-  - Call OpenAI embeddings API
-  - Store chunks with vectors
+### Phase 1: Data Layer
 
-### Phase 2: Agent Integration
+#### Task 1: Create Convex schema
+Add `documents` and `documentChunks` tables to Convex schema.
 
-#### Worker
-- Add `search_knowledge` tool to agent:
-  ```typescript
-  {
-    name: "search_knowledge",
-    description: "Search the knowledge base for relevant information",
-    parameters: {
-      query: { type: "string", description: "Search query" }
-    }
-  }
-  ```
-- Tool implementation:
-  - Generate embedding for query
-  - Call Convex vector search (top 5 chunks)
-  - Return formatted context with source attribution
+**Files:** `convex/schema.ts`
 
-#### Convex
-- `documentChunks.search` action:
-  - Vector similarity search filtered by tenantId
-  - Return top K chunks with document metadata
+**Verify:**
+- [ ] `npx convex dev` runs without schema errors
+- [ ] Tables visible in Convex dashboard
+
+---
+
+#### Task 2: Create document mutations
+Add `generateUploadUrl` and `create` mutations for documents.
+
+**Files:** `convex/documents.ts`
+
+**Verify:**
+- [ ] Can call `generateUploadUrl` from Convex dashboard → returns URL
+- [ ] Can call `create` with test data → document appears in table
+
+---
+
+#### Task 3: Create list and delete operations
+Add `list` query and `delete` mutation for documents.
+
+**Files:** `convex/documents.ts`
+
+**Verify:**
+- [ ] `list` query returns documents filtered by tenantId
+- [ ] `delete` mutation removes document record
+- [ ] Deleting document also removes associated file from storage
+
+---
+
+### Phase 2: Text Processing
+
+#### Task 4: Create chunking utility
+Implement fixed-size chunking with overlap (1000 chars, 200 overlap).
+
+**Files:** `convex/lib/chunking.ts`
+
+**Verify:**
+- [ ] Unit test: 2500 char string → 3 chunks
+- [ ] Unit test: chunks overlap by 200 chars
+- [ ] Unit test: empty string → empty array
+
+---
+
+#### Task 5: Create text extraction for TXT/MD
+Extract plain text from .txt and .md files.
+
+**Files:** `convex/lib/extractText.ts`
+
+**Verify:**
+- [ ] Unit test: extracts text from .txt buffer
+- [ ] Unit test: extracts text from .md buffer (preserves formatting)
+
+---
+
+#### Task 6: Create text extraction for CSV
+Convert CSV to readable text format.
+
+**Files:** `convex/lib/extractText.ts`
+
+**Verify:**
+- [ ] Unit test: CSV with headers → readable row-based text
+- [ ] Unit test: handles quoted fields with commas
+
+---
+
+#### Task 7: Create text extraction for PDF
+Parse PDF files to extract text content.
+
+**Files:** `convex/lib/extractText.ts`, `package.json` (add pdf-parse)
+
+**Verify:**
+- [ ] Unit test: extracts text from simple PDF
+- [ ] Unit test: handles multi-page PDF
+
+---
+
+### Phase 3: Document Processing
+
+#### Task 8: Create processDocument action (without embeddings)
+Background job that extracts text and creates chunks (no vectors yet).
+
+**Files:** `convex/documents.ts`
+
+**Verify:**
+- [ ] Upload test .txt file → status changes: pending → processing → ready
+- [ ] Chunks appear in `documentChunks` table with correct content
+- [ ] Error in processing → status = "error" with message
+
+---
+
+#### Task 9: Add OpenAI embeddings to processDocument
+Generate embeddings for each chunk and store vectors.
+
+**Files:** `convex/documents.ts`, `.env` (OPENAI_API_KEY)
+
+**Verify:**
+- [ ] Chunks have `embedding` field populated (1536 dimensions)
+- [ ] `chunkCount` on document matches actual chunk count
+
+---
+
+### Phase 4: Dashboard UI
+
+#### Task 10: Create KnowledgeBase component shell
+Basic component with upload zone and empty document list.
+
+**Files:** `dashboard/app/components/KnowledgeBase.tsx`
+
+**Verify:**
+- [ ] Component renders in agent edit page
+- [ ] Shows upload dropzone with accepted file types
+- [ ] Shows "No documents" empty state
+
+---
+
+#### Task 11: Wire up file upload
+Connect upload UI to Convex file storage and document creation.
+
+**Files:** `dashboard/app/components/KnowledgeBase.tsx`
+
+**Verify:**
+- [ ] Select file → uploads to Convex
+- [ ] Document record created with status "pending"
+- [ ] Processing starts automatically
+
+---
+
+#### Task 12: Display document list with status
+Show documents with name, size, status, and delete button.
+
+**Files:** `dashboard/app/components/KnowledgeBase.tsx`
+
+**Verify:**
+- [ ] Documents display in list after upload
+- [ ] Status updates reactively (pending → processing → ready)
+- [ ] Delete button removes document
+
+---
+
+### Phase 5: Agent Integration
+
+#### Task 13: Create vector search action
+Implement `documentChunks.search` with vector similarity search.
+
+**Files:** `convex/documentChunks.ts`
+
+**Verify:**
+- [ ] Search with test embedding returns relevant chunks
+- [ ] Results filtered by tenantId
+- [ ] Returns top 5 chunks with document metadata
+
+---
+
+#### Task 14: Add search_knowledge tool to worker
+Define tool in agent configuration.
+
+**Files:** `worker/src/tools/searchKnowledge.ts`, `worker/src/agent.ts`
+
+**Verify:**
+- [ ] Tool appears in agent tool list
+- [ ] Tool schema validates correctly
+
+---
+
+#### Task 15: Implement search_knowledge handler
+Complete tool implementation with embedding generation and Convex search.
+
+**Files:** `worker/src/tools/searchKnowledge.ts`
+
+**Verify:**
+- [ ] E2E test: upload doc, ask agent question → agent uses tool → returns relevant info
+- [ ] Response includes source attribution (document name)
+
+---
+
+## Summary
+
+| Phase | Tasks | Description |
+|-------|-------|-------------|
+| 1. Data Layer | 1-3 | Convex schema and CRUD operations |
+| 2. Text Processing | 4-7 | Chunking and file parsing utilities |
+| 3. Document Processing | 8-9 | Background job with embeddings |
+| 4. Dashboard UI | 10-12 | Upload and list components |
+| 5. Agent Integration | 13-15 | Vector search and tool implementation |
+
+**Total: 15 tasks × ~15 min = ~4 hours**
 
 ---
 
