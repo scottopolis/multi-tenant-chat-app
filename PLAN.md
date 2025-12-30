@@ -49,9 +49,10 @@ See [DATABASE.md](DATABASE.md) for database implementation details.
 - [ ] Build eval runner
 
 ### RAG Knowledgebase
-- [ ] Document upload in dashboard
-- [ ] Vector embeddings in Convex
-- [ ] Retrieval-augmented generation in worker
+See [specs/RAG_KNOWLEDGEBASE.md](specs/RAG_KNOWLEDGEBASE.md) for full specification.
+- [ ] Document upload in dashboard (PDF, TXT, MD, CSV)
+- [ ] Vector embeddings in Convex (OpenAI text-embedding-3-small)
+- [ ] `search_knowledge` tool in worker
 
 ### Future
 - Agent handoffs
@@ -75,7 +76,6 @@ End Users → Widget/Voice → Cloudflare Worker → OpenAI API
 
 ## Open Questions
 
-- Embedding model for RAG?
 - Self-hosted vs cloud Langfuse?
 
 ---
