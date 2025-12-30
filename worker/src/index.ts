@@ -5,6 +5,7 @@ import { createChat, getChat, listChats, addMessage, getMessages, updateChatConv
 import { runAgent, isValidModel } from './agents/index';
 import { z } from 'zod';
 import { getTools } from './tools';
+import documentRoutes from './routes/documents';
 
 /**
  * Cloudflare Worker environment bindings
@@ -87,6 +88,11 @@ app.use('*', async (c, next) => {
 app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+/**
+ * Document routes (RAG knowledge base)
+ */
+app.route('/api/documents', documentRoutes);
 
 
 /**
