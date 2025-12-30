@@ -10,6 +10,15 @@ function getOpenAIClient(): OpenAI {
   return openaiClient;
 }
 
+// Simple in-memory cache for Vector Store file listings
+interface CacheEntry {
+  data: OpenAI.VectorStoreFile[];
+  timestamp: number;
+}
+
+const fileListCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 30000; // 30 seconds
+
 export async function createVectorStore(name: string): Promise<string> {
   const openai = getOpenAIClient();
   const store = await openai.vectorStores.create({ name });
@@ -39,6 +48,9 @@ export async function uploadFileToVectorStore(
     file_id: uploadedFile.id,
   });
 
+  // Invalidate cache after upload
+  fileListCache.delete(vectorStoreId);
+
   return uploadedFile.id;
 }
 
@@ -49,4 +61,39 @@ export async function deleteFileFromVectorStore(
   const openai = getOpenAIClient();
   await openai.vectorStores.files.del(vectorStoreId, fileId);
   await openai.files.del(fileId);
+
+  // Invalidate cache after deletion
+  fileListCache.delete(vectorStoreId);
+}
+
+/**
+ * List files in a Vector Store with caching
+ * Cache TTL: 30 seconds
+ */
+export async function listVectorStoreFiles(
+  vectorStoreId: string,
+  options?: { forceRefresh?: boolean }
+): Promise<OpenAI.VectorStoreFile[]> {
+  const now = Date.now();
+
+  // Check cache unless force refresh
+  if (!options?.forceRefresh) {
+    const cached = fileListCache.get(vectorStoreId);
+    if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+      return cached.data;
+    }
+  }
+
+  // Fetch from OpenAI
+  const openai = getOpenAIClient();
+  const response = await openai.vectorStores.files.list(vectorStoreId);
+  const files = response.data;
+
+  // Update cache
+  fileListCache.set(vectorStoreId, {
+    data: files,
+    timestamp: now,
+  });
+
+  return files;
 }
