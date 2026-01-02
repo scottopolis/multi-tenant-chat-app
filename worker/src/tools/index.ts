@@ -75,7 +75,6 @@ export async function getTools(agentId: string, env?: AgentConfigEnv) {
   // 4. Add file_search tool if agent has a vector store (RAG knowledge base)
   if (config?.vectorStoreId) {
     tools.push(fileSearchTool([config.vectorStoreId]));
-    console.log(`[Tools] Added file_search for vector store: ${config.vectorStoreId}`);
   }
   
   // TODO: Add webhook tools here
