@@ -21,6 +21,11 @@ class_name = "VoiceCallSession"
 tag = "v1"
 new_sqlite_classes = ["VoiceCallSession"]
 
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+
 [vars]
 # Add non-secret environment variables here
 # Example: CONVEX_URL = "https://your-deployment.convex.cloud"
