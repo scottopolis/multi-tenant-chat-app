@@ -1,68 +1,70 @@
 import { describe, it, expect } from 'vitest';
-import { getAgentConfig } from './config';
-import { z } from 'zod';
+import { getAgentConfig, invalidateAgentCache } from './config';
 
 /**
- * Agent Configuration Tests - Structured Output
- * Focus: Verify outputSchema is properly configured for agents
+ * Agent Configuration Tests
+ * 
+ * Tests for the agent configuration system.
+ * Configs are now fetched from Convex, so we test the fallback behavior
+ * when CONVEX_URL is not set.
  */
 
-describe('Agent Configuration - Structured Output', () => {
-  it('should have outputSchema configured for calendar-extractor', async () => {
-    const config = await getAgentConfig('calendar-extractor');
-    
-    expect(config).toBeDefined();
-    expect(config.agentId).toBe('calendar-extractor');
-    expect(config.outputSchema).toBeDefined();
-    
-    // Verify the schema is a valid Zod schema
-    expect(config.outputSchema).toBeInstanceOf(z.ZodObject);
+describe('Agent Configuration', () => {
+  describe('Fallback behavior', () => {
+    it('should return fallback config when CONVEX_URL is not set', async () => {
+      const config = await getAgentConfig('test-agent');
+      
+      expect(config).toBeDefined();
+      expect(config.agentId).toBe('test-agent');
+      expect(config.name).toBe('Default Assistant');
+      expect(config.model).toBe('gpt-4.1-mini');
+      expect(config.orgId).toBe('unknown');
+    });
+
+    it('should preserve agentId in fallback config', async () => {
+      const config = await getAgentConfig('my-custom-agent');
+      
+      expect(config.agentId).toBe('my-custom-agent');
+    });
+
+    it('should not have outputSchema in fallback config', async () => {
+      const config = await getAgentConfig('calendar-extractor');
+      
+      expect(config).toBeDefined();
+      expect(config.agentId).toBe('calendar-extractor');
+      expect(config.outputSchema).toBeUndefined();
+    });
   });
 
-  it('should NOT have outputSchema for default agent', async () => {
-    const config = await getAgentConfig('default');
-    
-    expect(config).toBeDefined();
-    expect(config.agentId).toBe('default');
-    expect(config.outputSchema).toBeUndefined();
-  });
+  describe('Cache behavior', () => {
+    it('should cache config after first fetch', async () => {
+      invalidateAgentCache('cache-test-agent');
+      
+      const config1 = await getAgentConfig('cache-test-agent');
+      const config2 = await getAgentConfig('cache-test-agent');
+      
+      expect(config1).toEqual(config2);
+    });
 
-  it('calendar-extractor schema should validate correct data', async () => {
-    const config = await getAgentConfig('calendar-extractor');
-    
-    // Valid calendar event data
-    const validData = {
-      events: [
-        {
-          name: 'Team Meeting',
-          date: '2024-12-30',
-          time: '2:00 PM',
-          participants: ['Alice', 'Bob'],
-          location: 'Conference Room A',
-        },
-      ],
-    };
+    it('should invalidate cache for specific agent', async () => {
+      await getAgentConfig('agent-to-invalidate');
+      invalidateAgentCache('agent-to-invalidate');
+      
+      const config = await getAgentConfig('agent-to-invalidate');
+      expect(config).toBeDefined();
+    });
 
-    // Should not throw
-    expect(() => config.outputSchema!.parse(validData)).not.toThrow();
-  });
-
-  it('calendar-extractor schema should reject invalid data', async () => {
-    const config = await getAgentConfig('calendar-extractor');
-    
-    // Invalid data (missing required fields)
-    const invalidData = {
-      events: [
-        {
-          // Missing 'name' and 'date'
-          time: '2:00 PM',
-        },
-      ],
-    };
-
-    // Should throw validation error
-    expect(() => config.outputSchema!.parse(invalidData)).toThrow();
+    it('should clear all cache when no agentId provided', async () => {
+      await getAgentConfig('agent-1');
+      await getAgentConfig('agent-2');
+      
+      invalidateAgentCache();
+      
+      const config1 = await getAgentConfig('agent-1');
+      const config2 = await getAgentConfig('agent-2');
+      
+      expect(config1).toBeDefined();
+      expect(config2).toBeDefined();
+    });
   });
 });
-
-

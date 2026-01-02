@@ -5,62 +5,32 @@ import { getLangfuseClient, isLangfuseConfigured } from './index';
 /**
  * Langfuse Configuration Tests
  * 
- * These tests validate that tenant configs are properly set up with Langfuse credentials.
- * 
- * Note: We don't test actual API calls here due to SSL issues in Node.js test environment.
- * Real integration testing happens via E2E tests with the actual Worker running.
+ * These tests validate Langfuse client functionality and configuration detection.
+ * Agent configs are now fetched from Convex, so we test the fallback behavior
+ * and the Langfuse utility functions rather than specific tenant configs.
  */
 describe('Langfuse Configuration', () => {
-  describe('Default agent config', () => {
-    it('should load default agent config with Langfuse credentials', async () => {
+  describe('Default agent config (fallback)', () => {
+    it('should load fallback config when CONVEX_URL is not set', async () => {
       const config = await getAgentConfig('default');
       
       expect(config).toBeDefined();
       expect(config.agentId).toBe('default');
-      expect(config.name).toBe('Default Organization');
+      expect(config.name).toBe('Default Assistant');
+      expect(config.model).toBe('gpt-4.1-mini');
     });
 
-    it('should have valid Langfuse credentials configured', async () => {
-      const config = await getAgentConfig('default');
+    it('should return fallback for any unknown agent', async () => {
+      const config = await getAgentConfig('unknown-agent-xyz');
       
-      // Check Langfuse config exists
-      expect(config.langfuse).toBeDefined();
-      expect(config.langfuse?.publicKey).toBeDefined();
-      expect(config.langfuse?.secretKey).toBeDefined();
-      expect(config.langfuse?.host).toBeDefined();
-      expect(config.langfuse?.promptName).toBeDefined();
-      
-      // Validate key formats
-      expect(config.langfuse!.publicKey).toMatch(/^pk-lf-/);
-      expect(config.langfuse!.secretKey).toMatch(/^sk-lf-/);
-      expect(config.langfuse!.host).toMatch(/^https:\/\//);
-      
-      // Check configured prompt name
-      expect(config.langfuse!.promptName).toBe('pirate');
-      
-      console.log('✓ Default tenant has valid Langfuse config:', {
-        publicKey: config.langfuse!.publicKey.substring(0, 15) + '...',
-        host: config.langfuse!.host,
-        promptName: config.langfuse!.promptName,
-      });
+      expect(config).toBeDefined();
+      expect(config.agentId).toBe('unknown-agent-xyz');
+      expect(config.name).toBe('Default Assistant');
     });
+  });
 
-    it('should create Langfuse client with agent credentials', async () => {
-      const config = await getAgentConfig('default');
-      
-      expect(config.langfuse).toBeDefined();
-      
-      const client = getLangfuseClient({
-        publicKey: config.langfuse!.publicKey,
-        secretKey: config.langfuse!.secretKey,
-        host: config.langfuse!.host,
-      });
-      
-      expect(client).toBeDefined();
-      expect(typeof client).toBe('object');
-    });
-
-    it('should detect Langfuse as configured', () => {
+  describe('Langfuse configuration detection', () => {
+    it('should detect Langfuse as configured when both keys present', () => {
       const env = {
         LANGFUSE_PUBLIC_KEY: 'pk-lf-test',
         LANGFUSE_SECRET_KEY: 'sk-lf-test',
@@ -76,92 +46,47 @@ describe('Langfuse Configuration', () => {
     });
   });
 
-  describe('Agent tenant-1 config', () => {
-    it('should load tenant-1 config with Langfuse credentials', async () => {
-      const config = await getAgentConfig('tenant-1');
-      
-      expect(config).toBeDefined();
-      expect(config.agentId).toBe('tenant-1');
-      expect(config.name).toBe('Acme Corp');
-    });
-
-    it('should have customer-support prompt configured', async () => {
-      const config = await getAgentConfig('tenant-1');
-      
-      expect(config.langfuse).toBeDefined();
-      expect(config.langfuse?.promptName).toBe('customer-support');
-      expect(config.langfuse?.publicKey).toMatch(/^pk-lf-/);
-      expect(config.langfuse?.secretKey).toMatch(/^sk-lf-/);
-    });
-  });
-
-  describe('Agent tenant-2 config (platform keys)', () => {
-    it('should have PLATFORM_KEY marker for using platform credentials', async () => {
-      const config = await getAgentConfig('tenant-2');
-      
-      expect(config).toBeDefined();
-      expect(config.agentId).toBe('tenant-2');
-      expect(config.langfuse).toBeDefined();
-      expect(config.langfuse?.publicKey).toBe('PLATFORM_KEY');
-      expect(config.langfuse?.secretKey).toBe('PLATFORM_KEY');
-      expect(config.langfuse?.promptName).toBe('sales-assistant');
-      expect(config.langfuse?.label).toBe('tenant-2');
-    });
-  });
-
-  describe('Client caching', () => {
-    it('should cache Langfuse clients for same credentials', async () => {
-      const config = await getAgentConfig('default');
-      
-      const client1 = getLangfuseClient({
-        publicKey: config.langfuse!.publicKey,
-        secretKey: config.langfuse!.secretKey,
-        host: config.langfuse!.host,
+  describe('Langfuse client creation', () => {
+    it('should create Langfuse client with valid credentials', () => {
+      const client = getLangfuseClient({
+        publicKey: 'pk-lf-test-key',
+        secretKey: 'sk-lf-test-key',
+        host: 'https://langfuse.example.com',
       });
       
-      const client2 = getLangfuseClient({
-        publicKey: config.langfuse!.publicKey,
-        secretKey: config.langfuse!.secretKey,
-        host: config.langfuse!.host,
-      });
+      expect(client).toBeDefined();
+      expect(typeof client).toBe('object');
+    });
+
+    it('should cache Langfuse clients for same credentials', () => {
+      const credentials = {
+        publicKey: 'pk-lf-cache-test',
+        secretKey: 'sk-lf-cache-test',
+        host: 'https://langfuse.example.com',
+      };
+      
+      const client1 = getLangfuseClient(credentials);
+      const client2 = getLangfuseClient(credentials);
       
       // Should return the same cached instance
       expect(client1).toBe(client2);
-      console.log('✓ Langfuse client caching works correctly');
     });
 
-    it('should create different clients for different credentials', async () => {
-      const defaultConfig = await getAgentConfig('default');
-      const tenant1Config = await getAgentConfig('tenant-1');
-      
-      const defaultClient = getLangfuseClient({
-        publicKey: defaultConfig.langfuse!.publicKey,
-        secretKey: defaultConfig.langfuse!.secretKey,
-        host: defaultConfig.langfuse!.host,
+    it('should create different clients for different credentials', () => {
+      const client1 = getLangfuseClient({
+        publicKey: 'pk-lf-different-1',
+        secretKey: 'sk-lf-different-1',
+        host: 'https://langfuse.example.com',
       });
       
-      const tenant1Client = getLangfuseClient({
-        publicKey: tenant1Config.langfuse!.publicKey,
-        secretKey: tenant1Config.langfuse!.secretKey,
-        host: tenant1Config.langfuse!.host,
+      const client2 = getLangfuseClient({
+        publicKey: 'pk-lf-different-2',
+        secretKey: 'sk-lf-different-2',
+        host: 'https://langfuse.example.com',
       });
       
-      // Both use same credentials, so should be same client
-      expect(defaultClient).toBe(tenant1Client);
-    });
-  });
-
-  describe('Model configuration', () => {
-    it('should have model configured for each agent', async () => {
-      const defaultConfig = await getAgentConfig('default');
-      const tenant1Config = await getAgentConfig('tenant-1');
-      const tenant2Config = await getAgentConfig('tenant-2');
-      
-      expect(defaultConfig.model).toBe('gpt-4.1-mini');
-      expect(tenant1Config.model).toBe('gpt-4.1-mini');
-      expect(tenant2Config.model).toBe('claude-3.5-sonnet');
-      
-      console.log('✓ All tenants have model configurations');
+      // Different credentials should create different clients
+      expect(client1).not.toBe(client2);
     });
   });
 });
