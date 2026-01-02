@@ -465,11 +465,11 @@ Add a "Voice" tab to the agent detail page:
 - [x] Phone number → agent lookup
 - [x] Twilio signature verification
 
-### Phase 3: Dashboard UI (M)
-- [ ] Voice tab on agent detail page
-- [ ] Voice settings form
-- [ ] Phone number management
-- [ ] Integration instructions display
+### Phase 3: Dashboard UI (M) ✅
+- [x] Voice tab on agent detail page
+- [x] Voice settings form
+- [x] Phone number management
+- [x] Integration instructions display
 
 ### Phase 4: Polish & Billing (S)
 - [ ] Call status callbacks

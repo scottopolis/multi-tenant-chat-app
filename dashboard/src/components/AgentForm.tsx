@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { KnowledgeBase } from './KnowledgeBase'
+import { VoiceSettings } from './VoiceSettings'
+import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
 
 export interface McpServer {
   url: string
@@ -15,6 +17,18 @@ export interface LangfuseConfig {
   label?: string
 }
 
+export interface AgentCapabilities {
+  web: boolean
+  voice: boolean
+}
+
+export interface VoiceConfig {
+  voiceModel: string
+  voiceName: string
+  locale: string
+  bargeInEnabled: boolean
+}
+
 export interface AgentFormData {
   name: string
   systemPrompt: string
@@ -22,6 +36,8 @@ export interface AgentFormData {
   mcpServers: McpServer[]
   outputSchema: string
   langfuse: LangfuseConfig
+  capabilities: AgentCapabilities
+  voiceConfig?: VoiceConfig
 }
 
 interface AgentFormProps {
@@ -31,11 +47,12 @@ interface AgentFormProps {
   onDelete?: () => void
   isSubmitting?: boolean
   submitLabel?: string
-  agentId?: string // For existing agents - enables Knowledge Base tab
+  agentId?: string // For existing agents - enables Knowledge Base and Voice tabs
+  agentDbId?: Id<'agents'> // Convex document ID for existing agents
 }
 
 const BASE_TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
-const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base'] as const
+const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base', 'Voice'] as const
 type Tab = (typeof ALL_TABS)[number]
 
 const MODELS = [
@@ -43,6 +60,35 @@ const MODELS = [
   { value: 'gpt-4.1', label: 'GPT-4.1' },
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+]
+
+const VOICE_MODELS = [
+  { value: 'gpt-realtime', label: 'GPT Realtime' },
+  { value: 'gpt-4o-realtime-preview', label: 'GPT-4o Realtime Preview' },
+]
+
+const VOICE_PERSONAS = [
+  { value: 'verse', label: 'Verse' },
+  { value: 'alloy', label: 'Alloy' },
+  { value: 'echo', label: 'Echo' },
+  { value: 'fable', label: 'Fable' },
+  { value: 'onyx', label: 'Onyx' },
+  { value: 'nova', label: 'Nova' },
+  { value: 'shimmer', label: 'Shimmer' },
+]
+
+const LOCALES = [
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'en-GB', label: 'English (UK)' },
+  { value: 'es-ES', label: 'Spanish (Spain)' },
+  { value: 'es-MX', label: 'Spanish (Mexico)' },
+  { value: 'fr-FR', label: 'French' },
+  { value: 'de-DE', label: 'German' },
+  { value: 'it-IT', label: 'Italian' },
+  { value: 'pt-BR', label: 'Portuguese (Brazil)' },
+  { value: 'ja-JP', label: 'Japanese' },
+  { value: 'ko-KR', label: 'Korean' },
+  { value: 'zh-CN', label: 'Chinese (Simplified)' },
 ]
 
 export function AgentForm({
@@ -53,6 +99,7 @@ export function AgentForm({
   isSubmitting = false,
   submitLabel = 'Save',
   agentId,
+  agentDbId,
 }: AgentFormProps) {
   // Only show Knowledge Base tab for existing agents
   const tabs = agentId ? ALL_TABS : BASE_TABS
@@ -65,6 +112,16 @@ export function AgentForm({
   const [mcpServers, setMcpServers] = useState<McpServer[]>(initialData?.mcpServers ?? [])
   const [outputSchema, setOutputSchema] = useState(initialData?.outputSchema ?? '')
   const [langfuse, setLangfuse] = useState<LangfuseConfig>(initialData?.langfuse ?? {})
+  const [capabilities, setCapabilities] = useState<AgentCapabilities>(initialData?.capabilities ?? {
+    web: true,
+    voice: false,
+  })
+  const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(initialData?.voiceConfig ?? {
+    voiceModel: 'gpt-realtime',
+    voiceName: 'verse',
+    locale: 'en-US',
+    bargeInEnabled: true,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,6 +135,8 @@ export function AgentForm({
         mcpServers,
         outputSchema,
         langfuse,
+        capabilities,
+        voiceConfig: capabilities.voice ? voiceConfig : undefined,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -128,6 +187,66 @@ export function AgentForm({
       <div className="bg-slate-800 shadow rounded-lg p-6">
         {activeTab === 'Basic' && (
           <div className="space-y-6">
+            {/* Agent Capabilities - only show for new agents */}
+            {!agentId && (
+              <div>
+                <label className="block text-sm font-medium text-white mb-3">
+                  Capabilities
+                </label>
+                <p className="text-sm text-gray-400 mb-4">
+                  Select how users can interact with this agent. You can enable both.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <label
+                    className={`p-4 rounded-lg border-2 text-left transition-colors cursor-pointer ${
+                      capabilities.web
+                        ? 'border-cyan-500 bg-cyan-500/10'
+                        : 'border-slate-600 bg-slate-900 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={capabilities.web}
+                        onChange={(e) => setCapabilities({ ...capabilities, web: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                      />
+                      <svg className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-white">Web Chat</p>
+                        <p className="text-sm text-gray-400">Embed in websites via widget</p>
+                      </div>
+                    </div>
+                  </label>
+                  <label
+                    className={`p-4 rounded-lg border-2 text-left transition-colors cursor-pointer ${
+                      capabilities.voice
+                        ? 'border-cyan-500 bg-cyan-500/10'
+                        : 'border-slate-600 bg-slate-900 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={capabilities.voice}
+                        onChange={(e) => setCapabilities({ ...capabilities, voice: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                      />
+                      <svg className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-white">Voice</p>
+                        <p className="text-sm text-gray-400">Phone calls via Twilio</p>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-white">
                 Agent Name
@@ -163,6 +282,73 @@ export function AgentForm({
                 Define how your agent should behave. Can be overridden by Langfuse prompt.
               </p>
             </div>
+
+            {/* Voice Configuration - only show for new agents with voice capability */}
+            {!agentId && capabilities.voice && (
+              <div className="border-t border-slate-700 pt-6">
+                <h4 className="text-md font-medium text-white mb-4">Voice Configuration</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="voiceModel" className="block text-sm font-medium text-white">
+                      Model
+                    </label>
+                    <select
+                      id="voiceModel"
+                      value={voiceConfig.voiceModel}
+                      onChange={(e) => setVoiceConfig({ ...voiceConfig, voiceModel: e.target.value })}
+                      className="mt-2 block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                    >
+                      {VOICE_MODELS.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="voiceName" className="block text-sm font-medium text-white">
+                      Voice
+                    </label>
+                    <select
+                      id="voiceName"
+                      value={voiceConfig.voiceName}
+                      onChange={(e) => setVoiceConfig({ ...voiceConfig, voiceName: e.target.value })}
+                      className="mt-2 block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                    >
+                      {VOICE_PERSONAS.map((v) => (
+                        <option key={v.value} value={v.value}>{v.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label htmlFor="locale" className="block text-sm font-medium text-white">
+                      Locale
+                    </label>
+                    <select
+                      id="locale"
+                      value={voiceConfig.locale}
+                      onChange={(e) => setVoiceConfig({ ...voiceConfig, locale: e.target.value })}
+                      className="mt-2 block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                    >
+                      {LOCALES.map((l) => (
+                        <option key={l.value} value={l.value}>{l.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-3 pb-2">
+                      <input
+                        type="checkbox"
+                        checked={voiceConfig.bargeInEnabled}
+                        onChange={(e) => setVoiceConfig({ ...voiceConfig, bargeInEnabled: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                      />
+                      <span className="text-white text-sm">Allow barge-in (interruptions)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -376,6 +562,10 @@ export function AgentForm({
 
         {activeTab === 'Knowledge Base' && agentId && (
           <KnowledgeBase agentId={agentId} />
+        )}
+
+        {activeTab === 'Voice' && agentId && agentDbId && (
+          <VoiceSettings agentId={agentId} agentDbId={agentDbId} />
         )}
       </div>
 

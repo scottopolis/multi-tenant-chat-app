@@ -4,6 +4,7 @@ import { useMutation } from 'convex/react'
 import { api } from '../../../../../convex-backend/convex/_generated/api'
 import { useTenant } from '../../../lib/tenant'
 import { AgentForm, type AgentFormData } from '../../../components/AgentForm'
+import type { Id } from '../../../../../convex-backend/convex/_generated/dataModel'
 
 export const Route = createFileRoute('/dashboard/agents/new')({
   component: NewAgent,
@@ -13,6 +14,7 @@ function NewAgent() {
   const navigate = useNavigate()
   const { tenant, isLoading: tenantLoading } = useTenant()
   const createAgent = useMutation(api.agents.create)
+  const createVoiceAgent = useMutation(api.voiceAgents.create)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (data: AgentFormData) => {
@@ -21,9 +23,9 @@ function NewAgent() {
     setIsSubmitting(true)
     try {
       const agentId = data.name.toLowerCase().replace(/\s+/g, '-')
-      await createAgent({
+      const newAgentId = await createAgent({
         agentId,
-        tenantId: tenant.id as any,
+        tenantId: tenant.id as Id<'tenants'>,
         orgId: tenant.clerkOrgId,
         name: data.name,
         systemPrompt: data.systemPrompt,
@@ -36,6 +38,19 @@ function NewAgent() {
         langfusePromptName: data.langfuse.promptName || undefined,
         langfuseLabel: data.langfuse.label || undefined,
       })
+
+      if (data.capabilities.voice && data.voiceConfig) {
+        await createVoiceAgent({
+          tenantId: tenant.id as Id<'tenants'>,
+          agentId: newAgentId,
+          voiceModel: data.voiceConfig.voiceModel,
+          voiceName: data.voiceConfig.voiceName,
+          locale: data.voiceConfig.locale,
+          bargeInEnabled: data.voiceConfig.bargeInEnabled,
+          enabled: true,
+        })
+      }
+
       navigate({ to: '/dashboard/agents' })
     } finally {
       setIsSubmitting(false)

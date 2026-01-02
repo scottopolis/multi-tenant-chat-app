@@ -95,6 +95,7 @@ function EditAgent() {
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
         agentId={agent.agentId}
+        agentDbId={agent._id}
       />
     </div>
   )
