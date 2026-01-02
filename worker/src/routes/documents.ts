@@ -10,6 +10,7 @@ import { invalidateAgentCache } from '../tenants/config';
 
 type Bindings = {
   CONVEX_URL?: string;
+  OPENAI_API_KEY?: string;
 };
 
 type Variables = {
@@ -58,7 +59,7 @@ async function getAgentData(convexUrl: string, agentId: string): Promise<any> {
     throw new Error(`Failed to get agent: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { value: any };
   return data.value;
 }
 
@@ -91,19 +92,24 @@ async function patchAgent(
 app.post('/upload', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
+    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
+    }
+    if (!openaiApiKey) {
+      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
     }
 
     const agentId = c.get('agentId');
 
     // Get the uploaded file from form data
     const formData = await c.req.formData();
-    const file = formData.get('file') as File;
+    const fileEntry = formData.get('file');
 
-    if (!file) {
+    if (!fileEntry || typeof fileEntry === 'string') {
       return c.json({ error: 'No file provided' }, 400);
     }
+    const file = fileEntry as File;
 
     // Validate file size (max 10MB as per spec)
     const maxSize = 10 * 1024 * 1024; // 10MB
@@ -125,7 +131,7 @@ app.post('/upload', async (c) => {
     // Create vector store if it doesn't exist
     if (!vectorStoreId) {
       console.log(`[Documents] Creating vector store for agent: ${agentId}`);
-      vectorStoreId = await createVectorStore(`${agentId}-knowledge-base`);
+      vectorStoreId = await createVectorStore(openaiApiKey, `${agentId}-knowledge-base`);
 
       // Update agent with new vectorStoreId
       await patchAgent(convexUrl, agentData._id, { vectorStoreId });
@@ -137,7 +143,7 @@ app.post('/upload', async (c) => {
     }
 
     // Upload file to OpenAI Vector Store
-    const fileId = await uploadFileToVectorStore(vectorStoreId, file, file.name);
+    const fileId = await uploadFileToVectorStore(openaiApiKey, vectorStoreId, file, file.name);
 
     console.log(`[Documents] Uploaded file ${file.name} (${fileId}) to vector store ${vectorStoreId}`);
 
@@ -164,8 +170,12 @@ app.post('/upload', async (c) => {
 app.delete('/:fileId', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
+    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
+    }
+    if (!openaiApiKey) {
+      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
     }
 
     const agentId = c.get('agentId');
@@ -187,7 +197,7 @@ app.delete('/:fileId', async (c) => {
     }
 
     // Delete file from OpenAI Vector Store
-    await deleteFileFromVectorStore(vectorStoreId, fileId);
+    await deleteFileFromVectorStore(openaiApiKey, vectorStoreId, fileId);
 
     console.log(`[Documents] Deleted file ${fileId} from vector store ${vectorStoreId}`);
 
@@ -211,8 +221,12 @@ app.delete('/:fileId', async (c) => {
 app.get('/', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
+    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
+    }
+    if (!openaiApiKey) {
+      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
     }
 
     const agentId = c.get('agentId');
@@ -230,7 +244,7 @@ app.get('/', async (c) => {
     }
 
     // List files from OpenAI Vector Store (cached)
-    const files = await listVectorStoreFiles(vectorStoreId);
+    const files = await listVectorStoreFiles(openaiApiKey, vectorStoreId);
 
     return c.json({
       files: files.map((file) => ({

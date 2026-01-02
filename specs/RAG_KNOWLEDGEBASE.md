@@ -227,41 +227,30 @@ API endpoint to delete a document.
 
 ---
 
-### Phase 4: Dashboard UI
+### Phase 4: Dashboard UI ✅ COMPLETED
 
-#### Task 7: Create KnowledgeBase component
-Basic component with upload zone and document list.
+#### Task 7-9: KnowledgeBase component with upload/list/delete
 
-**Files:** `dashboard/app/components/KnowledgeBase.tsx`
+**Files:**
+- `dashboard/src/components/KnowledgeBase.tsx` - New component
+- `dashboard/src/components/AgentForm.tsx` - Added "Knowledge Base" tab
+- `dashboard/src/routes/dashboard/agents/$agentId.tsx` - Passes agentId prop
 
-**Verify:**
-- [ ] Component renders in agent edit page
-- [ ] Shows upload dropzone with accepted file types
-- [ ] Shows "No documents" empty state
-
----
-
-#### Task 8: Wire up file upload
-Connect upload UI to worker API.
-
-**Files:** `dashboard/app/components/KnowledgeBase.tsx`
+**Implementation:**
+- Created `KnowledgeBase` component with upload dropzone, file list, and delete functionality
+- Added "Knowledge Base" tab to `AgentForm` (only visible for existing agents, not new)
+- Component calls worker API endpoints (`/api/documents?agent=...`)
+- Shows upload progress, status badges, and delete confirmation
+- Supports PDF, TXT, MD, CSV up to 10MB
 
 **Verify:**
-- [ ] Select file → uploads via API
-- [ ] Shows uploading state
-- [ ] Document appears in list when ready
-
----
-
-#### Task 9: Add delete functionality
-Add delete button to document list.
-
-**Files:** `dashboard/app/components/KnowledgeBase.tsx`
-
-**Verify:**
-- [ ] Delete button calls API
-- [ ] Document removed from list
-- [ ] Confirmation before delete
+- [x] Component renders in agent edit page as new tab
+- [x] Shows upload dropzone with accepted file types
+- [x] Shows "No documents" empty state
+- [x] Select file → uploads via API with loading state
+- [x] Document appears in list when ready
+- [x] Delete button calls API with confirmation
+- [x] Document removed from list after delete
 
 ---
 
@@ -317,10 +306,10 @@ Full flow test from upload to retrieval.
 | 1. Vector Store Setup | 1-2 ✅ | OpenAI Vector Store utilities |
 | 2. Convex Schema | 3 ✅ | Add vectorStoreId + caching |
 | 3. Worker API | 5-6 ✅ | Upload/delete/list endpoints |
-| 4. Dashboard UI | 7-9 | Upload and list components |
+| 4. Dashboard UI | 7-9 ✅ | Upload and list components |
 | 5. Agent Integration | 10-11 | Enable file_search tool |
 
-**Completed: 5 tasks** | **Remaining: 5 tasks (UI + Agent integration)**
+**Completed: 8 tasks** | **Remaining: 2 tasks (Agent integration)**
 
 ---
 

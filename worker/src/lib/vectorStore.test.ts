@@ -25,7 +25,7 @@ describe('Vector Store Management', () => {
     }
 
     // Create a vector store
-    const vectorStoreId = await createVectorStore('test-knowledge-base');
+    const vectorStoreId = await createVectorStore(apiKey!, 'test-knowledge-base');
     expect(vectorStoreId).toBeDefined();
     expect(typeof vectorStoreId).toBe('string');
     expect(vectorStoreId.startsWith('vs_')).toBe(true);
@@ -33,7 +33,7 @@ describe('Vector Store Management', () => {
     console.log(`✅ Created vector store: ${vectorStoreId}`);
 
     // Clean up - delete the vector store
-    await deleteVectorStore(vectorStoreId);
+    await deleteVectorStore(apiKey!, vectorStoreId);
     console.log(`✅ Deleted vector store: ${vectorStoreId}`);
   }, 15000);
 
@@ -44,7 +44,7 @@ describe('Vector Store Management', () => {
     }
 
     // Create a test vector store
-    const vectorStoreId = await createVectorStore('test-file-upload');
+    const vectorStoreId = await createVectorStore(apiKey!, 'test-file-upload');
     expect(vectorStoreId).toBeDefined();
 
     // Create a test file (simple text content)
@@ -53,7 +53,7 @@ describe('Vector Store Management', () => {
     const file = new File([blob], 'test.txt', { type: 'text/plain' });
 
     // Upload file to vector store
-    const fileId = await uploadFileToVectorStore(vectorStoreId, file, 'test.txt');
+    const fileId = await uploadFileToVectorStore(apiKey!, vectorStoreId, file, 'test.txt');
     expect(fileId).toBeDefined();
     expect(typeof fileId).toBe('string');
     expect(fileId.startsWith('file-')).toBe(true);
@@ -61,11 +61,11 @@ describe('Vector Store Management', () => {
     console.log(`✅ Uploaded file: ${fileId} to vector store: ${vectorStoreId}`);
 
     // Delete the file from vector store
-    await deleteFileFromVectorStore(vectorStoreId, fileId);
+    await deleteFileFromVectorStore(apiKey!, vectorStoreId, fileId);
     console.log(`✅ Deleted file: ${fileId} from vector store`);
 
     // Clean up - delete the vector store
-    await deleteVectorStore(vectorStoreId);
+    await deleteVectorStore(apiKey!, vectorStoreId);
     console.log(`✅ Cleaned up vector store: ${vectorStoreId}`);
   }, 30000);
 
@@ -76,11 +76,11 @@ describe('Vector Store Management', () => {
     }
 
     // Create a test vector store
-    const vectorStoreId = await createVectorStore('test-cache');
+    const vectorStoreId = await createVectorStore(apiKey!, 'test-cache');
     expect(vectorStoreId).toBeDefined();
 
     // Initially should be empty
-    const files1 = await listVectorStoreFiles(vectorStoreId);
+    const files1 = await listVectorStoreFiles(apiKey!, vectorStoreId);
     expect(files1).toEqual([]);
     console.log(`✅ Initial list: 0 files`);
 
@@ -88,40 +88,40 @@ describe('Vector Store Management', () => {
     const content = 'Test content for caching';
     const blob = new Blob([content], { type: 'text/plain' });
     const file = new File([blob], 'cache-test.txt', { type: 'text/plain' });
-    const fileId = await uploadFileToVectorStore(vectorStoreId, file, 'cache-test.txt');
+    const fileId = await uploadFileToVectorStore(apiKey!, vectorStoreId, file, 'cache-test.txt');
     console.log(`✅ Uploaded file: ${fileId}`);
 
     // List should show 1 file (cache invalidated by upload)
-    const files2 = await listVectorStoreFiles(vectorStoreId);
+    const files2 = await listVectorStoreFiles(apiKey!, vectorStoreId);
     expect(files2.length).toBe(1);
     expect(files2[0].id).toBe(fileId);
     console.log(`✅ After upload: 1 file in list`);
 
     // List again - should use cache (same result, faster)
     const startTime = Date.now();
-    const files3 = await listVectorStoreFiles(vectorStoreId);
+    const files3 = await listVectorStoreFiles(apiKey!, vectorStoreId);
     const cachedTime = Date.now() - startTime;
     expect(files3.length).toBe(1);
     console.log(`✅ Cached list returned in ${cachedTime}ms`);
 
     // Force refresh
     const refreshStart = Date.now();
-    const files4 = await listVectorStoreFiles(vectorStoreId, { forceRefresh: true });
+    const files4 = await listVectorStoreFiles(apiKey!, vectorStoreId, { forceRefresh: true });
     const refreshTime = Date.now() - refreshStart;
     expect(files4.length).toBe(1);
     console.log(`✅ Force refresh returned in ${refreshTime}ms`);
 
     // Delete file - should invalidate cache
-    await deleteFileFromVectorStore(vectorStoreId, fileId);
+    await deleteFileFromVectorStore(apiKey!, vectorStoreId, fileId);
     console.log(`✅ Deleted file: ${fileId}`);
 
     // List should be empty again
-    const files5 = await listVectorStoreFiles(vectorStoreId);
+    const files5 = await listVectorStoreFiles(apiKey!, vectorStoreId);
     expect(files5.length).toBe(0);
     console.log(`✅ After delete: 0 files in list`);
 
     // Clean up
-    await deleteVectorStore(vectorStoreId);
+    await deleteVectorStore(apiKey!, vectorStoreId);
     console.log(`✅ Cleaned up vector store: ${vectorStoreId}`);
   }, 60000);
 });

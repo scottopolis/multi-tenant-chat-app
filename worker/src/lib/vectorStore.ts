@@ -1,41 +1,40 @@
 import OpenAI from 'openai';
 
-// Lazy initialization to avoid requiring API key at module import time
-let openaiClient: OpenAI | null = null;
-
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    openaiClient = new OpenAI();
-  }
-  return openaiClient;
+// In Cloudflare Workers, env vars come from context, not process.env
+// We need to pass the API key to each function
+function getOpenAIClient(apiKey: string): OpenAI {
+  return new OpenAI({ apiKey });
 }
 
 // Simple in-memory cache for Vector Store file listings
+type VectorStoreFile = Awaited<ReturnType<InstanceType<typeof OpenAI>['vectorStores']['files']['list']>>['data'][number];
+
 interface CacheEntry {
-  data: OpenAI.VectorStoreFile[];
+  data: VectorStoreFile[];
   timestamp: number;
 }
 
 const fileListCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 30000; // 30 seconds
 
-export async function createVectorStore(name: string): Promise<string> {
-  const openai = getOpenAIClient();
+export async function createVectorStore(apiKey: string, name: string): Promise<string> {
+  const openai = getOpenAIClient(apiKey);
   const store = await openai.vectorStores.create({ name });
   return store.id;
 }
 
-export async function deleteVectorStore(id: string): Promise<void> {
-  const openai = getOpenAIClient();
-  await openai.vectorStores.del(id);
+export async function deleteVectorStore(apiKey: string, id: string): Promise<void> {
+  const openai = getOpenAIClient(apiKey);
+  await openai.vectorStores.delete(id);
 }
 
 export async function uploadFileToVectorStore(
+  apiKey: string,
   vectorStoreId: string,
   file: File,
   filename: string
 ): Promise<string> {
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClient(apiKey);
 
   // Upload file to OpenAI
   const uploadedFile = await openai.files.create({
@@ -55,12 +54,13 @@ export async function uploadFileToVectorStore(
 }
 
 export async function deleteFileFromVectorStore(
+  apiKey: string,
   vectorStoreId: string,
   fileId: string
 ): Promise<void> {
-  const openai = getOpenAIClient();
-  await openai.vectorStores.files.del(vectorStoreId, fileId);
-  await openai.files.del(fileId);
+  const openai = getOpenAIClient(apiKey);
+  await openai.vectorStores.files.delete(fileId, { vector_store_id: vectorStoreId });
+  await openai.files.delete(fileId);
 
   // Invalidate cache after deletion
   fileListCache.delete(vectorStoreId);
@@ -71,9 +71,10 @@ export async function deleteFileFromVectorStore(
  * Cache TTL: 30 seconds
  */
 export async function listVectorStoreFiles(
+  apiKey: string,
   vectorStoreId: string,
   options?: { forceRefresh?: boolean }
-): Promise<OpenAI.VectorStoreFile[]> {
+): Promise<VectorStoreFile[]> {
   const now = Date.now();
 
   // Check cache unless force refresh
@@ -85,7 +86,7 @@ export async function listVectorStoreFiles(
   }
 
   // Fetch from OpenAI
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClient(apiKey);
   const response = await openai.vectorStores.files.list(vectorStoreId);
   const files = response.data;
 

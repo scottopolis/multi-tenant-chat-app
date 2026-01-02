@@ -89,9 +89,9 @@ describe('Document Routes', () => {
     if (shouldSkip) return;
 
     // Clean up: delete test vector store if created
-    if (testVectorStoreId) {
+    if (testVectorStoreId && apiKey) {
       try {
-        await deleteVectorStore(testVectorStoreId);
+        await deleteVectorStore(apiKey, testVectorStoreId);
         console.log(`✅ Cleaned up test vector store: ${testVectorStoreId}`);
       } catch (error) {
         console.warn('Failed to clean up vector store:', error);
@@ -113,9 +113,9 @@ describe('Document Routes', () => {
 
       // Mock middleware to set variables
       app.use('*', async (c, next) => {
-        c.set('agentId', testAgentId);
-        c.set('orgId', 'test-org');
-        c.env = { CONVEX_URL: mockConvexUrl };
+        c.set('agentId' as any, testAgentId);
+        c.set('orgId' as any, 'test-org');
+        c.env = { CONVEX_URL: mockConvexUrl, OPENAI_API_KEY: apiKey };
         await next();
       });
 
@@ -139,7 +139,7 @@ describe('Document Routes', () => {
 
       expect(uploadRes.status).toBe(201);
 
-      const uploadData = await uploadRes.json();
+      const uploadData = await uploadRes.json() as { success: boolean; fileId: string; vectorStoreId: string; fileName: string };
       expect(uploadData.success).toBe(true);
       expect(uploadData.fileId).toBeDefined();
       expect(uploadData.vectorStoreId).toBeDefined();
@@ -172,9 +172,9 @@ describe('Document Routes', () => {
 
       const app = new Hono();
       app.use('*', async (c, next) => {
-        c.set('agentId', testAgentId);
-        c.set('orgId', 'test-org');
-        c.env = { CONVEX_URL: mockConvexUrl };
+        c.set('agentId' as any, testAgentId);
+        c.set('orgId' as any, 'test-org');
+        c.env = { CONVEX_URL: mockConvexUrl, OPENAI_API_KEY: apiKey };
         await next();
       });
       app.route('/api/documents', documentRoutes);
@@ -213,9 +213,9 @@ describe('Document Routes', () => {
 
       const app = new Hono();
       app.use('*', async (c, next) => {
-        c.set('agentId', testAgentId);
-        c.set('orgId', 'test-org');
-        c.env = { CONVEX_URL: mockConvexUrl };
+        c.set('agentId' as any, testAgentId);
+        c.set('orgId' as any, 'test-org');
+        c.env = { CONVEX_URL: mockConvexUrl, OPENAI_API_KEY: apiKey };
         await next();
       });
       app.route('/api/documents', documentRoutes);
@@ -261,9 +261,9 @@ describe('Document Routes', () => {
     try {
       const app = new Hono();
       app.use('*', async (c, next) => {
-        c.set('agentId', testAgentId);
-        c.set('orgId', 'test-org');
-        c.env = { CONVEX_URL: mockConvexUrl };
+        c.set('agentId' as any, testAgentId);
+        c.set('orgId' as any, 'test-org');
+        c.env = { CONVEX_URL: mockConvexUrl, OPENAI_API_KEY: apiKey };
         await next();
       });
       app.route('/api/documents', documentRoutes);

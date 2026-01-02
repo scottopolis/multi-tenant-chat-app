@@ -94,6 +94,7 @@ function EditAgent() {
         onDelete={handleDelete}
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
+        agentId={agent.agentId}
       />
     </div>
   )

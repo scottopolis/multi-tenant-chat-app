@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { KnowledgeBase } from './KnowledgeBase'
 
 export interface McpServer {
   url: string
@@ -30,10 +31,12 @@ interface AgentFormProps {
   onDelete?: () => void
   isSubmitting?: boolean
   submitLabel?: string
+  agentId?: string // For existing agents - enables Knowledge Base tab
 }
 
-const TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
-type Tab = (typeof TABS)[number]
+const BASE_TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
+const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base'] as const
+type Tab = (typeof ALL_TABS)[number]
 
 const MODELS = [
   { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
@@ -49,7 +52,10 @@ export function AgentForm({
   onDelete,
   isSubmitting = false,
   submitLabel = 'Save',
+  agentId,
 }: AgentFormProps) {
+  // Only show Knowledge Base tab for existing agents
+  const tabs = agentId ? ALL_TABS : BASE_TABS
   const [activeTab, setActiveTab] = useState<Tab>('Basic')
   const [error, setError] = useState<string | null>(null)
 
@@ -101,7 +107,7 @@ export function AgentForm({
       {/* Tabs */}
       <div className="border-b border-slate-700">
         <nav className="-mb-px flex space-x-8">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab}
               type="button"
@@ -366,6 +372,10 @@ export function AgentForm({
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'Knowledge Base' && agentId && (
+          <KnowledgeBase agentId={agentId} />
         )}
       </div>
 
