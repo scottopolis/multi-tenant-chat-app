@@ -110,7 +110,15 @@ async function fetchFromConvex(
   let outputSchema;
   if (result.outputSchema) {
     try {
-      outputSchema = JSONSchemaToZod.convert(result.outputSchema);
+      // Parse if it's a string, otherwise use as-is
+      const schemaObj = typeof result.outputSchema === 'string' 
+        ? JSON.parse(result.outputSchema) 
+        : result.outputSchema;
+      
+      if (schemaObj && typeof schemaObj === 'object' && Object.keys(schemaObj).length > 0) {
+        outputSchema = JSONSchemaToZod.convert(schemaObj);
+        console.log(`[AgentConfig] Converted outputSchema for ${agentId}:`, outputSchema?._def?.typeName);
+      }
     } catch (error) {
       console.error(`[AgentConfig] Failed to convert outputSchema for ${agentId}:`, error);
     }
