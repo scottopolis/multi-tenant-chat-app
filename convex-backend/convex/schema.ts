@@ -78,4 +78,71 @@ export default defineSchema({
   })
     .index("by_hash", ["keyHash"]) // Lookup for validation
     .index("by_tenant", ["tenantId"]), // List keys for tenant
+
+  /**
+   * Voice Agents
+   * Per-agent voice configuration. Extends existing agents with voice capabilities.
+   */
+  voiceAgents: defineTable({
+    tenantId: v.id("tenants"),
+    agentId: v.id("agents"),
+    voiceModel: v.string(), // "gpt-4o-realtime-preview"
+    voiceName: v.optional(v.string()), // TTS voice persona: "verse", "alloy", etc.
+    locale: v.string(), // "en-US"
+    bargeInEnabled: v.boolean(), // Allow interruptions
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_agent", ["agentId"])
+    .index("by_tenant", ["tenantId"]),
+
+  /**
+   * Twilio Numbers
+   * Maps Twilio phone numbers to voice agents.
+   */
+  twilioNumbers: defineTable({
+    tenantId: v.id("tenants"),
+    agentId: v.id("agents"),
+    voiceAgentId: v.id("voiceAgents"),
+    phoneNumber: v.string(), // E.164: "+15551234567"
+    description: v.optional(v.string()),
+    twilioSid: v.optional(v.string()), // Twilio IncomingPhoneNumber SID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_tenant", ["tenantId"])
+    .index("by_phone", ["phoneNumber"]) // unique lookup
+    .index("by_agent", ["agentId"]),
+
+  /**
+   * Voice Calls
+   * Call logs for analytics and billing.
+   */
+  voiceCalls: defineTable({
+    tenantId: v.id("tenants"),
+    agentId: v.id("agents"),
+    voiceAgentId: v.id("voiceAgents"),
+    twilioNumberId: v.id("twilioNumbers"),
+    twilioCallSid: v.string(),
+    fromNumber: v.string(),
+    toNumber: v.string(),
+    status: v.union(
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    durationSec: v.optional(v.number()),
+    // Usage tracking
+    openaiInputTokens: v.optional(v.number()),
+    openaiOutputTokens: v.optional(v.number()),
+    openaiCostUsd: v.optional(v.number()),
+    twilioDurationSec: v.optional(v.number()),
+    twilioCostUsd: v.optional(v.number()),
+  })
+    .index("by_tenant", ["tenantId", "startedAt"])
+    .index("by_agent", ["agentId", "startedAt"])
+    .index("by_callSid", ["twilioCallSid"]),
 });

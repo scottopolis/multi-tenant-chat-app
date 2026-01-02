@@ -1,28 +1,41 @@
 import { DurableObject } from 'cloudflare:workers';
 import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
 import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
+import { convexQuery, convexMutation } from '../convex/client';
 
 export interface VoiceCallSessionEnv {
   OPENAI_API_KEY: string;
+  CONVEX_URL: string;
 }
 
-interface HardcodedAgentConfig {
-  name: string;
-  systemPrompt: string;
+export interface VoiceConfig {
+  numberId: string;
+  tenantId: string;
+  agentId: string;
+  voiceAgentId: string;
+  phoneNumber: string;
   voiceModel: string;
-  voiceName: string;
+  voiceName?: string;
+  locale: string;
+  bargeInEnabled: boolean;
+  agentName: string;
+  systemPrompt: string;
 }
 
-const HARDCODED_AGENT_CONFIG: HardcodedAgentConfig = {
-  name: 'Voice Assistant',
-  systemPrompt: 'You are a helpful voice assistant. Keep responses brief and conversational.',
+const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | 'voiceAgentId' | 'phoneNumber'> = {
   voiceModel: 'gpt-4o-realtime-preview',
   voiceName: 'verse',
+  locale: 'en-US',
+  bargeInEnabled: true,
+  agentName: 'Voice Assistant',
+  systemPrompt: 'You are a helpful voice assistant. Keep responses brief and conversational.',
 };
 
 export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
   private session?: RealtimeSession;
   private callSid?: string;
+  private numberId?: string;
+  private voiceConfig?: VoiceConfig;
   private twilioTransport?: TwilioRealtimeTransportLayer;
 
   async fetch(request: Request): Promise<Response> {
@@ -34,7 +47,7 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     }
 
     this.callSid = url.searchParams.get('callSid') || undefined;
-    const numberId = url.searchParams.get('numberId');
+    this.numberId = url.searchParams.get('numberId') || undefined;
 
     if (!this.callSid) {
       return new Response('Missing callSid', { status: 400 });
@@ -45,7 +58,7 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
 
     this.ctx.acceptWebSocket(server);
 
-    console.log(`[VoiceCallSession] Accepted WebSocket for callSid=${this.callSid}`);
+    console.log(`[VoiceCallSession] Accepted WebSocket for callSid=${this.callSid}, numberId=${this.numberId}`);
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -74,17 +87,43 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
         console.error('[VoiceCallSession] Error closing session:', error);
       }
     }
+
+    // Update call status to completed
+    if (this.callSid && this.env.CONVEX_URL) {
+      try {
+        await convexMutation(this.env.CONVEX_URL, 'voiceCalls:updateStatus', {
+          twilioCallSid: this.callSid,
+          status: 'completed',
+        });
+        console.log(`[VoiceCallSession] Updated call status to completed: ${this.callSid}`);
+      } catch (error) {
+        console.error('[VoiceCallSession] Failed to update call status:', error);
+      }
+    }
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error('[VoiceCallSession] WebSocket error:', error);
+
+    // Update call status to failed
+    if (this.callSid && this.env.CONVEX_URL) {
+      try {
+        await convexMutation(this.env.CONVEX_URL, 'voiceCalls:updateStatus', {
+          twilioCallSid: this.callSid,
+          status: 'failed',
+        });
+      } catch (err) {
+        console.error('[VoiceCallSession] Failed to update call status:', err);
+      }
+    }
   }
 
   private async initializeSession(twilioSocket: WebSocket): Promise<void> {
-    const config = HARDCODED_AGENT_CONFIG;
+    // Load voice config from Convex
+    const config = await this.loadVoiceConfig();
 
     const agent = new RealtimeAgent({
-      name: config.name,
+      name: config.agentName,
       instructions: config.systemPrompt,
     });
 
@@ -97,7 +136,7 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
       model: config.voiceModel as 'gpt-4o-realtime-preview',
       config: {
         audio: {
-          output: { voice: config.voiceName as 'verse' },
+          output: { voice: (config.voiceName || 'verse') as 'verse' },
         },
       },
     });
@@ -111,5 +150,37 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     });
 
     console.log(`[VoiceCallSession] Connected to OpenAI Realtime API for callSid=${this.callSid}`);
+  }
+
+  private async loadVoiceConfig(): Promise<typeof FALLBACK_CONFIG & Partial<VoiceConfig>> {
+    if (!this.numberId || !this.env.CONVEX_URL) {
+      console.log('[VoiceCallSession] No numberId or CONVEX_URL, using fallback config');
+      return FALLBACK_CONFIG;
+    }
+
+    try {
+      // Query voice config by numberId (Convex ID)
+      const config = await convexQuery<VoiceConfig>(
+        this.env.CONVEX_URL,
+        'twilioNumbers:getById',
+        { id: this.numberId }
+      );
+
+      if (!config) {
+        console.log(`[VoiceCallSession] No config found for numberId=${this.numberId}, using fallback`);
+        return FALLBACK_CONFIG;
+      }
+
+      this.voiceConfig = config;
+      console.log(`[VoiceCallSession] Loaded voice config for agent: ${config.agentName}`);
+
+      return {
+        ...FALLBACK_CONFIG,
+        ...config,
+      };
+    } catch (error) {
+      console.error('[VoiceCallSession] Failed to load voice config:', error);
+      return FALLBACK_CONFIG;
+    }
   }
 }

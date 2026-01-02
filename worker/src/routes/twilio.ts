@@ -1,20 +1,59 @@
 import { Hono } from 'hono';
 import type { DurableObjectNamespace } from '@cloudflare/workers-types';
+import { convexQuery, convexMutation } from '../convex/client';
+import { verifyTwilioSignature, formDataToObject } from '../voice/twilioSignature';
 
 type Bindings = {
   OPENAI_API_KEY: string;
+  CONVEX_URL: string;
   VOICE_CALL_SESSION: DurableObjectNamespace;
+  TWILIO_AUTH_TOKEN?: string;
 };
+
+export interface TwilioNumberConfig {
+  numberId: string;
+  tenantId: string;
+  agentId: string;
+  voiceAgentId: string;
+  phoneNumber: string;
+  voiceModel: string;
+  voiceName?: string;
+  locale: string;
+  bargeInEnabled: boolean;
+  agentName: string;
+  systemPrompt: string;
+}
 
 const twilioRoutes = new Hono<{ Bindings: Bindings }>();
 
 twilioRoutes.post('/voice', async (c) => {
   const formData = await c.req.formData();
-  const to = formData.get('To') as string;
-  const from = formData.get('From') as string;
-  const callSid = formData.get('CallSid') as string;
+  const params = formDataToObject(formData);
+  const to = params['To'] || '';
+  const from = params['From'] || '';
+  const callSid = params['CallSid'] || '';
 
   console.log(`[Twilio] Incoming call: from=${from}, to=${to}, callSid=${callSid}`);
+
+  // Verify Twilio signature if auth token is configured
+  if (c.env.TWILIO_AUTH_TOKEN) {
+    const signature = c.req.header('X-Twilio-Signature') || '';
+    const protocol = c.req.header('X-Forwarded-Proto') || 'https';
+    const host = c.req.header('Host') || '';
+    const url = `${protocol}://${host}/twilio/voice`;
+
+    const isValid = await verifyTwilioSignature(
+      c.env.TWILIO_AUTH_TOKEN,
+      signature,
+      url,
+      params
+    );
+
+    if (!isValid) {
+      console.warn('[Twilio] Invalid signature, rejecting request');
+      return c.text('Forbidden', 403);
+    }
+  }
 
   if (!callSid) {
     return c.text(
@@ -28,17 +67,61 @@ twilioRoutes.post('/voice', async (c) => {
     );
   }
 
+  // Look up phone number → agent mapping from Convex
+  let numberConfig: TwilioNumberConfig | null = null;
+
+  if (c.env.CONVEX_URL && to) {
+    try {
+      numberConfig = await convexQuery<TwilioNumberConfig>(
+        c.env.CONVEX_URL,
+        'twilioNumbers:getByPhoneNumber',
+        { phoneNumber: to }
+      );
+    } catch (error) {
+      console.error('[Twilio] Failed to lookup phone number:', error);
+    }
+  }
+
+  if (!numberConfig) {
+    console.log(`[Twilio] No config found for number ${to}`);
+    return c.text(
+      `<?xml version="1.0"?>
+<Response>
+  <Say>Sorry, this number is not configured.</Say>
+  <Hangup/>
+</Response>`,
+      200,
+      { 'Content-Type': 'text/xml' }
+    );
+  }
+
+  // Create voice call record in Convex
+  if (c.env.CONVEX_URL) {
+    try {
+      await convexMutation(c.env.CONVEX_URL, 'voiceCalls:create', {
+        tenantId: numberConfig.tenantId,
+        agentId: numberConfig.agentId,
+        voiceAgentId: numberConfig.voiceAgentId,
+        twilioNumberId: numberConfig.numberId,
+        twilioCallSid: callSid,
+        fromNumber: from,
+        toNumber: to,
+      });
+      console.log(`[Twilio] Created voice call record for ${callSid}`);
+    } catch (error) {
+      console.error('[Twilio] Failed to create voice call record:', error);
+    }
+  }
+
   const host = c.req.header('Host');
   const protocol = c.req.header('X-Forwarded-Proto') || 'https';
   const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
-
-  const numberId = 'hardcoded-number';
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Hello! Please wait while I connect you to the assistant.</Say>
   <Connect>
-    <Stream url="${wsProtocol}://${host}/twilio/media?callSid=${encodeURIComponent(callSid)}&amp;numberId=${encodeURIComponent(numberId)}"/>
+    <Stream url="${wsProtocol}://${host}/twilio/media?callSid=${encodeURIComponent(callSid)}&amp;numberId=${encodeURIComponent(numberConfig.numberId)}"/>
   </Connect>
 </Response>`;
 
@@ -81,6 +164,36 @@ twilioRoutes.post('/status', async (c) => {
   console.log(
     `[Twilio] Call status update: callSid=${callSid}, status=${callStatus}, duration=${callDuration}`
   );
+
+  // Update call record in Convex
+  if (c.env.CONVEX_URL && callSid) {
+    try {
+      const status =
+        callStatus === 'completed'
+          ? 'completed'
+          : callStatus === 'failed' || callStatus === 'busy' || callStatus === 'no-answer'
+            ? 'failed'
+            : 'completed';
+
+      await convexMutation(c.env.CONVEX_URL, 'voiceCalls:updateStatus', {
+        twilioCallSid: callSid,
+        status,
+        durationSec: callDuration ? parseInt(callDuration, 10) : undefined,
+      });
+
+      // Update Twilio-specific usage
+      if (callDuration) {
+        await convexMutation(c.env.CONVEX_URL, 'voiceCalls:updateUsage', {
+          twilioCallSid: callSid,
+          twilioDurationSec: parseInt(callDuration, 10),
+        });
+      }
+
+      console.log(`[Twilio] Updated call status for ${callSid}`);
+    } catch (error) {
+      console.error('[Twilio] Failed to update call status:', error);
+    }
+  }
 
   return c.text('OK', 200);
 });

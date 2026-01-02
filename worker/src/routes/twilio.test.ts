@@ -2,11 +2,36 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import twilioRoutes from './twilio';
 
+// Mock convex client
+vi.mock('../convex/client', () => ({
+  convexQuery: vi.fn(),
+  convexMutation: vi.fn(),
+}));
+
+// Mock twilio signature verification
+vi.mock('../voice/twilioSignature', () => ({
+  verifyTwilioSignature: vi.fn().mockResolvedValue(true),
+  formDataToObject: vi.fn((formData: FormData) => {
+    const result: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === 'string') {
+        result[key] = value;
+      }
+    }
+    return result;
+  }),
+}));
+
+import { convexQuery, convexMutation } from '../convex/client';
+import { verifyTwilioSignature } from '../voice/twilioSignature';
+
 describe('Twilio Routes', () => {
   let app: Hono;
   let mockDoNamespace: any;
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
     mockDoNamespace = {
       idFromName: vi.fn().mockReturnValue('mock-do-id'),
       get: vi.fn().mockReturnValue({
@@ -18,7 +43,9 @@ describe('Twilio Routes', () => {
     app.use('*', async (c, next) => {
       c.env = {
         OPENAI_API_KEY: 'test-api-key',
+        CONVEX_URL: 'https://test.convex.cloud',
         VOICE_CALL_SESSION: mockDoNamespace,
+        TWILIO_AUTH_TOKEN: 'test-auth-token',
       };
       await next();
     });
@@ -26,7 +53,24 @@ describe('Twilio Routes', () => {
   });
 
   describe('POST /twilio/voice', () => {
-    it('should return TwiML with Media Stream URL', async () => {
+    it('should return TwiML with Media Stream URL when number is configured', async () => {
+      const mockConfig = {
+        numberId: 'num123',
+        tenantId: 'tenant123',
+        agentId: 'agent123',
+        voiceAgentId: 'va123',
+        phoneNumber: '+15551234567',
+        voiceModel: 'gpt-4o-realtime-preview',
+        voiceName: 'verse',
+        locale: 'en-US',
+        bargeInEnabled: true,
+        agentName: 'Test Agent',
+        systemPrompt: 'You are helpful.',
+      };
+
+      vi.mocked(convexQuery).mockResolvedValue(mockConfig);
+      vi.mocked(convexMutation).mockResolvedValue('call123');
+
       const formData = new FormData();
       formData.append('To', '+15551234567');
       formData.append('From', '+15559876543');
@@ -46,8 +90,45 @@ describe('Twilio Routes', () => {
       const body = await res.text();
       expect(body).toContain('<?xml version="1.0"');
       expect(body).toContain('<Response>');
-      expect(body).toContain('<Stream url="wss://worker.example.com/twilio/media?callSid=CA1234567890');
+      expect(body).toContain('<Stream url="wss://worker.example.com/twilio/media?callSid=CA1234567890&amp;numberId=num123"');
       expect(body).toContain('</Response>');
+
+      expect(convexQuery).toHaveBeenCalledWith(
+        'https://test.convex.cloud',
+        'twilioNumbers:getByPhoneNumber',
+        { phoneNumber: '+15551234567' }
+      );
+      expect(convexMutation).toHaveBeenCalledWith(
+        'https://test.convex.cloud',
+        'voiceCalls:create',
+        expect.objectContaining({
+          twilioCallSid: 'CA1234567890',
+          fromNumber: '+15559876543',
+          toNumber: '+15551234567',
+        })
+      );
+    });
+
+    it('should return not configured TwiML when number is not found', async () => {
+      vi.mocked(convexQuery).mockResolvedValue(null);
+
+      const formData = new FormData();
+      formData.append('To', '+15551234567');
+      formData.append('From', '+15559876543');
+      formData.append('CallSid', 'CA1234567890');
+
+      const req = new Request('http://localhost/twilio/voice', {
+        method: 'POST',
+        body: formData,
+        headers: { Host: 'worker.example.com' },
+      });
+
+      const res = await app.fetch(req);
+
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('<Say>Sorry, this number is not configured.</Say>');
+      expect(body).toContain('<Hangup/>');
     });
 
     it('should return error TwiML when CallSid is missing', async () => {
@@ -68,22 +149,27 @@ describe('Twilio Routes', () => {
       expect(body).toContain('<Hangup/>');
     });
 
-    it('should encode CallSid properly in TwiML', async () => {
+    it('should reject request with invalid Twilio signature', async () => {
+      vi.mocked(verifyTwilioSignature).mockResolvedValue(false);
+
       const formData = new FormData();
       formData.append('To', '+15551234567');
       formData.append('From', '+15559876543');
-      formData.append('CallSid', 'CA123&456=789');
+      formData.append('CallSid', 'CA1234567890');
 
       const req = new Request('http://localhost/twilio/voice', {
         method: 'POST',
         body: formData,
-        headers: { Host: 'worker.example.com' },
+        headers: {
+          Host: 'worker.example.com',
+          'X-Twilio-Signature': 'invalid-signature',
+        },
       });
 
       const res = await app.fetch(req);
-      const body = await res.text();
 
-      expect(body).toContain('callSid=CA123%26456%3D789');
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe('Forbidden');
     });
   });
 
@@ -134,8 +220,8 @@ describe('Twilio Routes', () => {
   });
 
   describe('POST /twilio/status', () => {
-    it('should log call status and return OK', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    it('should update call status in Convex and return OK', async () => {
+      vi.mocked(convexMutation).mockResolvedValue('call123');
 
       const formData = new FormData();
       formData.append('CallSid', 'CA1234567890');
@@ -151,21 +237,72 @@ describe('Twilio Routes', () => {
 
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('OK');
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('callSid=CA1234567890')
+      expect(convexMutation).toHaveBeenCalledWith(
+        'https://test.convex.cloud',
+        'voiceCalls:updateStatus',
+        {
+          twilioCallSid: 'CA1234567890',
+          status: 'completed',
+          durationSec: 120,
+        }
       );
+      expect(convexMutation).toHaveBeenCalledWith(
+        'https://test.convex.cloud',
+        'voiceCalls:updateUsage',
+        {
+          twilioCallSid: 'CA1234567890',
+          twilioDurationSec: 120,
+        }
+      );
+    });
 
-      consoleSpy.mockRestore();
+    it('should handle failed call status', async () => {
+      vi.mocked(convexMutation).mockResolvedValue('call123');
+
+      const formData = new FormData();
+      formData.append('CallSid', 'CA1234567890');
+      formData.append('CallStatus', 'failed');
+
+      const req = new Request('http://localhost/twilio/status', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const res = await app.fetch(req);
+
+      expect(res.status).toBe(200);
+      expect(convexMutation).toHaveBeenCalledWith(
+        'https://test.convex.cloud',
+        'voiceCalls:updateStatus',
+        {
+          twilioCallSid: 'CA1234567890',
+          status: 'failed',
+          durationSec: undefined,
+        }
+      );
     });
   });
 });
 
 describe('TwiML Generation', () => {
   it('should generate valid XML structure', async () => {
+    vi.mocked(convexQuery).mockResolvedValue({
+      numberId: 'num123',
+      tenantId: 'tenant123',
+      agentId: 'agent123',
+      voiceAgentId: 'va123',
+      phoneNumber: '+15551234567',
+      voiceModel: 'gpt-4o-realtime-preview',
+      agentName: 'Test',
+      systemPrompt: 'Test',
+    });
+    vi.mocked(convexMutation).mockResolvedValue('call123');
+
     const app = new Hono();
     app.use('*', async (c, next) => {
       c.env = {
         OPENAI_API_KEY: 'test-api-key',
+        CONVEX_URL: 'https://test.convex.cloud',
         VOICE_CALL_SESSION: {
           idFromName: vi.fn(),
           get: vi.fn(),

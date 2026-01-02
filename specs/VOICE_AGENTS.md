@@ -459,11 +459,11 @@ Add a "Voice" tab to the agent detail page:
 - [x] Basic DO ↔ OpenAI Realtime bridge
 - [x] Test with hardcoded agent config
 
-### Phase 2: Multi-Tenant Support (M)
-- [ ] Add `voiceAgents`, `twilioNumbers`, `voiceCalls` tables
-- [ ] Dynamic config loading in DO
-- [ ] Phone number → agent lookup
-- [ ] Twilio signature verification
+### Phase 2: Multi-Tenant Support (M) ✅
+- [x] Add `voiceAgents`, `twilioNumbers`, `voiceCalls` tables
+- [x] Dynamic config loading in DO
+- [x] Phone number → agent lookup
+- [x] Twilio signature verification
 
 ### Phase 3: Dashboard UI (M)
 - [ ] Voice tab on agent detail page
