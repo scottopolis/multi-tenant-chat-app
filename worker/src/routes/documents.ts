@@ -130,7 +130,6 @@ app.post('/upload', async (c) => {
 
     // Create vector store if it doesn't exist
     if (!vectorStoreId) {
-      console.log(`[Documents] Creating vector store for agent: ${agentId}`);
       vectorStoreId = await createVectorStore(openaiApiKey, `${agentId}-knowledge-base`);
 
       // Update agent with new vectorStoreId
@@ -139,13 +138,11 @@ app.post('/upload', async (c) => {
       // Invalidate cache so next request gets updated config
       invalidateAgentCache(agentId);
 
-      console.log(`[Documents] Created vector store: ${vectorStoreId}`);
     }
 
     // Upload file to OpenAI Vector Store
     const fileId = await uploadFileToVectorStore(openaiApiKey, vectorStoreId, file, file.name);
 
-    console.log(`[Documents] Uploaded file ${file.name} (${fileId}) to vector store ${vectorStoreId}`);
 
     return c.json({
       success: true,
@@ -199,8 +196,6 @@ app.delete('/:fileId', async (c) => {
     // Delete file from OpenAI Vector Store
     await deleteFileFromVectorStore(openaiApiKey, vectorStoreId, fileId);
 
-    console.log(`[Documents] Deleted file ${fileId} from vector store ${vectorStoreId}`);
-
     return c.json({
       success: true,
       fileId,
@@ -230,21 +225,26 @@ app.get('/', async (c) => {
     }
 
     const agentId = c.get('agentId');
+    console.log(`[Documents] GET list for agentId: ${agentId}`);
 
     // Get agent data from Convex
     const agentData = await getAgentData(convexUrl, agentId);
+    console.log(`[Documents] Agent data:`, JSON.stringify(agentData, null, 2));
     if (!agentData) {
       return c.json({ error: 'Agent not found' }, 404);
     }
 
     const vectorStoreId = agentData.vectorStoreId;
+    console.log(`[Documents] vectorStoreId: ${vectorStoreId}`);
     if (!vectorStoreId) {
       // No vector store = no documents
+      console.log(`[Documents] No vectorStoreId found, returning empty files`);
       return c.json({ files: [] });
     }
 
     // List files from OpenAI Vector Store (cached)
     const files = await listVectorStoreFiles(openaiApiKey, vectorStoreId);
+    console.log(`[Documents] Files from OpenAI:`, files.length);
 
     return c.json({
       files: files.map((file) => ({
