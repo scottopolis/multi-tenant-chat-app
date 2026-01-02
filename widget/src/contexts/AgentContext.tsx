@@ -15,7 +15,7 @@ interface AgentContextType {
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'chat-assistant-agent-id';
-const DEFAULT_AGENT_ID = import.meta.env.VITE_AGENT_ID || 'default';
+const DEFAULT_AGENT_ID = import.meta.env.VITE_AGENT_ID || 'new-agent';
 
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [agentId, setAgentIdState] = useState<string>(() => {

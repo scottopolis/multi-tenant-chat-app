@@ -17,6 +17,7 @@ import {
 
 // Available agents - can be extended or fetched from API
 const COMMON_AGENTS = [
+  { id: 'new-agent', label: 'New Agent' },
   { id: 'default', label: 'Default Assistant' },
   { id: 'acme-support', label: 'Acme Customer Support' },
   { id: 'acme-sales', label: 'Acme Sales Assistant' },

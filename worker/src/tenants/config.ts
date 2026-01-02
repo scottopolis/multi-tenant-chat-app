@@ -133,6 +133,7 @@ async function fetchFromConvex(
     model: result.model,
     mcpServers: result.mcpServers,
     outputSchema,
+    vectorStoreId: result.vectorStoreId,
   };
 }
 

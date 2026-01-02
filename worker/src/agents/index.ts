@@ -139,7 +139,7 @@ export async function runAgent(options: RunAgentOptions): Promise<any> {
   // The Agents SDK requires the API key to be set before creating/running agents
   setDefaultOpenAIKey(apiKey);
 
-  // 5. Get tools for this agent (now returns array)
+  // 5. Get tools for this agent (includes file_search if vector store exists)
   const tools = await getTools(agentId, { CONVEX_URL: env.CONVEX_URL });
 
   // 6. Create Agent instance

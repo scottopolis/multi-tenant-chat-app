@@ -69,8 +69,8 @@ export async function resolveSystemPrompt(
         promptLabel = label; // Only use label if explicitly configured
         console.log(`[Agent] Using platform Langfuse with custom prompt: ${promptName}${label ? ` (label: ${label})` : ''}`);
       }
-    } else {
-      // Use agent's own Langfuse credentials
+    } else if (publicKey && secretKey) {
+      // Use agent's own Langfuse credentials (only if both keys are provided)
       langfuseCredentials = {
         publicKey,
         secretKey,

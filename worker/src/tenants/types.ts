@@ -88,6 +88,12 @@ export interface AgentConfig {
    */
   outputSchema?: any; // Zod schema type
   
+  /**
+   * OpenAI Vector Store ID for RAG knowledge base
+   * When provided, the file_search tool is attached to the agent
+   */
+  vectorStoreId?: string;
+  
   // Future additions:
   // webhookTools?: WebhookToolConfig[];
   // enabledBuiltinTools?: string[];
