@@ -6,7 +6,15 @@ export const Route = createFileRoute('/dashboard/')({
 })
 
 function DashboardHome() {
-  const { tenant } = useTenant()
+  const { tenant, isLoading } = useTenant()
+
+  if (isLoading || !tenant) {
+    return (
+      <div className="px-4 py-6 sm:px-0">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 py-6 sm:px-0">
