@@ -19,7 +19,7 @@ class_name = "VoiceCallSession"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["VoiceCallSession"]
+new_sqlite_classes = ["VoiceCallSession"]
 
 [vars]
 # Add non-secret environment variables here
