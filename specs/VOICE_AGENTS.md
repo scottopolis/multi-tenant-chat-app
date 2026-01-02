@@ -341,6 +341,200 @@ app.get('/twilio/media', async (c) => {
 
 ---
 
+## Web Voice Preview
+
+Enable testing voice agents directly in the browser without requiring a Twilio phone number.
+
+### Architecture
+
+```
+┌─────────────────┐      ┌─────────────────────────────────────────────────────────┐
+│    Dashboard    │      │                   Cloudflare Workers                    │
+│   (Browser)     │      │                                                         │
+└────────┬────────┘      │  ┌─────────────────┐    ┌─────────────────────────────┐ │
+         │               │  │   Main Worker   │    │   WebVoiceSession (DO)      │ │
+         │ 1. Click      │  │   (Hono)        │    │   - One per sessionId       │ │
+         │    "Preview"  │  │                 │    │   - Browser ↔ OpenAI bridge │ │
+         ▼               │  │ /voice/preview  │────│                             │ │
+   getUserMedia()        │  │                 │    │ WebRTC/WebSocket Audio      │ │
+         │               │  └─────────────────┘    │         ↕                   │ │
+         │ 2. Audio WS   │                         │ RealtimeSession (Agent)     │ │
+         └───────────────┼─────────────────────────│                             │ │
+                         │                         └─────────────────────────────┘ │
+                         └─────────────────────────────────────────────────────────┘
+                                                              │
+                                                              │ 3. Audio/Events
+                                                              ▼
+                                                    ┌─────────────────┐
+                                                    │ OpenAI Realtime │
+                                                    │      API        │
+                                                    └─────────────────┘
+```
+
+### Flow
+
+1. User clicks "Preview Voice" button in dashboard
+2. Browser requests microphone access via `getUserMedia()`
+3. Dashboard opens WebSocket to `/voice/preview?agentId=xxx&token=xxx`
+4. Worker creates `WebVoiceSession` Durable Object
+5. DO connects to OpenAI Realtime API with agent config
+6. Browser streams audio chunks over WebSocket (PCM16/24kHz)
+7. DO bridges audio bidirectionally to OpenAI
+8. User speaks and hears AI responses in real-time
+
+### New Worker Route
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/voice/preview` | WS | WebSocket for browser-based voice preview |
+
+### WebVoiceSession Durable Object
+
+```typescript
+// worker/src/voice/WebVoiceSession.ts
+import { DurableObject } from 'cloudflare:workers';
+import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
+
+export class WebVoiceSession extends DurableObject {
+  private session?: RealtimeSession;
+
+  async fetch(req: Request) {
+    const url = new URL(req.url);
+    const upgradeHeader = req.headers.get('Upgrade') || '';
+    
+    if (upgradeHeader.toLowerCase() !== 'websocket') {
+      return new Response('Expected WebSocket', { status: 400 });
+    }
+
+    const agentId = url.searchParams.get('agentId')!;
+    
+    // Create WebSocket pair
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+
+    this.ctx.acceptWebSocket(server);
+    await this.initializeSession(server, agentId);
+    
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private async initializeSession(browserSocket: WebSocket, agentId: string) {
+    // 1. Load voice config from Convex
+    const voiceConfig = await this.loadVoiceConfig(agentId);
+    
+    // 2. Create agent with tenant's config
+    const agent = new RealtimeAgent({
+      name: voiceConfig.agentName,
+      instructions: voiceConfig.systemPrompt,
+      tools: voiceConfig.tools,
+    });
+
+    // 3. Create session - use direct WebSocket transport for browser audio
+    this.session = new RealtimeSession(agent, {
+      model: voiceConfig.voiceModel,
+      config: {
+        audio: {
+          input: { format: 'pcm16', sampleRate: 24000 },
+          output: { format: 'pcm16', sampleRate: 24000, voice: voiceConfig.voiceName || 'verse' },
+        },
+      },
+    });
+
+    // 4. Bridge browser WebSocket ↔ OpenAI Realtime
+    await this.session.connect();
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    // Forward browser audio to OpenAI
+    if (message instanceof ArrayBuffer) {
+      this.session?.sendAudio(new Uint8Array(message));
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    this.session?.disconnect();
+  }
+}
+```
+
+### Dashboard UI Component
+
+```tsx
+// dashboard/src/components/VoicePreview.tsx
+function VoicePreview({ agentId }: { agentId: string }) {
+  const [isActive, setIsActive] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const startPreview = async () => {
+    // 1. Get microphone access
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // 2. Set up audio processing
+    audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+    const source = audioContextRef.current.createMediaStreamSource(stream);
+    const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
+    
+    // 3. Connect to worker
+    const token = await getPreviewToken(agentId);
+    wsRef.current = new WebSocket(
+      `wss://${WORKER_HOST}/voice/preview?agentId=${agentId}&token=${token}`
+    );
+    
+    // 4. Stream audio to server
+    processor.onaudioprocess = (e) => {
+      const pcm16 = float32ToPcm16(e.inputBuffer.getChannelData(0));
+      wsRef.current?.send(pcm16.buffer);
+    };
+    
+    // 5. Play received audio
+    wsRef.current.onmessage = (e) => {
+      if (e.data instanceof ArrayBuffer) {
+        playAudio(e.data, audioContextRef.current!);
+      }
+    };
+    
+    source.connect(processor);
+    processor.connect(audioContextRef.current.destination);
+    setIsActive(true);
+  };
+
+  const stopPreview = () => {
+    wsRef.current?.close();
+    audioContextRef.current?.close();
+    setIsActive(false);
+  };
+
+  return (
+    <Button onClick={isActive ? stopPreview : startPreview}>
+      {isActive ? <MicOff /> : <Mic />}
+      {isActive ? 'End Preview' : 'Preview Voice'}
+    </Button>
+  );
+}
+```
+
+### Security
+
+- Require valid dashboard session token in WebSocket query param
+- Validate user has access to the agent's tenant
+- Rate limit preview sessions per user (e.g., 5 concurrent max)
+- Auto-disconnect after timeout (e.g., 10 minutes)
+
+### Additions to wrangler.toml
+
+```toml
+[[durable_objects.bindings]]
+name = "WEB_VOICE_SESSION"
+class_name = "WebVoiceSession"
+
+[[migrations]]
+tag = "v2"
+new_classes = ["WebVoiceSession"]
+```
+
+---
+
 ## Dashboard UI
 
 ### Agent Voice Tab
@@ -400,6 +594,15 @@ Add a "Voice" tab to the agent detail page:
 │ │ Configure this URL in Twilio Console:               │ │
 │ │ Phone Numbers → Your Number → Voice Configuration   │ │
 │ │ → "A Call Comes In" → Webhook → POST                │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ Preview                                                  │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Test your voice agent directly in the browser.      │ │
+│ │                                                     │ │
+│ │          [🎤 Preview Voice]                         │ │
+│ │                                                     │ │
+│ │ No phone number required. Uses your microphone.     │ │
 │ └─────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -471,7 +674,15 @@ Add a "Voice" tab to the agent detail page:
 - [x] Phone number management
 - [x] Integration instructions display
 
-### Phase 4: Polish & Billing (S)
+### Phase 4: Web Voice Preview (M)
+- [ ] Add `WebVoiceSession` Durable Object
+- [ ] Add `/voice/preview` WebSocket route
+- [ ] Dashboard VoicePreview component with mic access
+- [ ] Browser audio capture (PCM16/24kHz)
+- [ ] Audio playback from OpenAI responses
+- [ ] Session token auth for preview endpoint
+
+### Phase 5: Polish & Billing (S)
 - [ ] Call status callbacks
 - [ ] Usage tracking in `voiceCalls`
 - [ ] Rate limiting per tenant
