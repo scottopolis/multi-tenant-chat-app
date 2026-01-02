@@ -6,6 +6,9 @@ import { runAgent, isValidModel } from './agents/index';
 import { z } from 'zod';
 import { getTools } from './tools';
 import documentRoutes from './routes/documents';
+import twilioRoutes from './routes/twilio';
+
+export { VoiceCallSession } from './voice/VoiceCallSession';
 
 /**
  * Cloudflare Worker environment bindings
@@ -17,6 +20,7 @@ type Bindings = {
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_HOST?: string;
   CONVEX_URL?: string; // Convex deployment URL for agent configs
+  VOICE_CALL_SESSION: import('@cloudflare/workers-types').DurableObjectNamespace; // Durable Object for voice calls
 };
 
 type Variables = {
@@ -93,6 +97,11 @@ app.get('/health', (c) => {
  * Document routes (RAG knowledge base)
  */
 app.route('/api/documents', documentRoutes);
+
+/**
+ * Twilio voice routes (Voice Agents)
+ */
+app.route('/twilio', twilioRoutes);
 
 
 /**

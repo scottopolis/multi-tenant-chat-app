@@ -12,6 +12,15 @@ compatibility_flags = [ "nodejs_compat" ]
 # Convex deployment URL (set this after running `npx convex dev`)
 # CONVEX_URL = "https://your-deployment.convex.cloud"
 
+# Durable Objects for Voice Call Sessions
+[[durable_objects.bindings]]
+name = "VOICE_CALL_SESSION"
+class_name = "VoiceCallSession"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["VoiceCallSession"]
+
 [vars]
 # Add non-secret environment variables here
 # Example: CONVEX_URL = "https://your-deployment.convex.cloud"
