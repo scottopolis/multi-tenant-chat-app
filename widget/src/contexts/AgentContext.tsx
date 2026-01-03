@@ -3,41 +3,138 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 /**
  * Agent Context - Manages the current agent/org ID
  * 
- * This context provides a way to switch between different tenants/orgs
- * which maps to the backend's orgId parameter.
+ * Priority for agent ID:
+ * 1. URL param ?agent=xxx (for iframe embedding)
+ * 2. postMessage from parent (for embed.js integration)
+ * 3. localStorage (for persistence across sessions)
+ * 4. VITE_AGENT_ID env var
+ * 5. 'default' fallback
  */
 
 interface AgentContextType {
   agentId: string;
   setAgentId: (id: string) => void;
+  isEmbedded: boolean;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
 
+interface EmbedContextType {
+  requestClose: () => void;
+}
+
+const EmbedContext = createContext<EmbedContextType | undefined>(undefined);
+
 const STORAGE_KEY = 'chat-assistant-agent-id';
-const DEFAULT_AGENT_ID = import.meta.env.VITE_AGENT_ID || 'new-agent';
+const DEFAULT_AGENT_ID = import.meta.env.VITE_AGENT_ID || 'default';
+const NAMESPACE = 'mychat-widget';
+
+/**
+ * Get agent ID from URL params
+ */
+function getAgentFromUrl(): string | null {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('agent');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if we're in an iframe
+ */
+function isInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true; // If we can't access window.top, we're in an iframe
+  }
+}
 
 export function AgentProvider({ children }: { children: ReactNode }) {
+  const isEmbedded = isInIframe();
+  
   const [agentId, setAgentIdState] = useState<string>(() => {
-    // Try to load from localStorage first
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored || DEFAULT_AGENT_ID;
+    // Priority: URL param > localStorage > env var > default
+    const urlAgent = getAgentFromUrl();
+    if (urlAgent) return urlAgent;
+    
+    // Only use localStorage if not embedded
+    if (!isEmbedded) {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return stored;
+    }
+    
+    return DEFAULT_AGENT_ID;
   });
 
-  // Persist to localStorage whenever it changes
+  const [parentOrigin, setParentOrigin] = useState<string | null>(null);
+
+  // Persist to localStorage whenever it changes (only if not embedded)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, agentId);
-  }, [agentId]);
+    if (!isEmbedded) {
+      localStorage.setItem(STORAGE_KEY, agentId);
+    }
+  }, [agentId, isEmbedded]);
+
+  // Listen for postMessage from parent window (embed.js)
+  useEffect(() => {
+    if (!isEmbedded) return;
+
+    function handleMessage(event: MessageEvent) {
+      const data = event.data;
+      if (!data || data.source !== NAMESPACE) return;
+
+      // Store parent origin on first valid message
+      if (data.type === 'INIT' && !parentOrigin) {
+        setParentOrigin(event.origin);
+      }
+
+      // Only accept messages from known parent origin after INIT
+      if (parentOrigin && event.origin !== parentOrigin) return;
+
+      switch (data.type) {
+        case 'INIT':
+          if (data.payload?.agentId) {
+            setAgentIdState(data.payload.agentId);
+          }
+          break;
+      }
+    }
+
+    window.addEventListener('message', handleMessage);
+    
+    // Notify parent that widget is ready
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        { source: NAMESPACE, version: 1, type: 'WIDGET_READY' },
+        '*' // Use * initially, parent should verify source
+      );
+    }
+
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isEmbedded, parentOrigin]);
 
   const setAgentId = (id: string) => {
     setAgentIdState(id);
-    // Invalidate all queries when agent changes
-    // This will be handled by the App component
+  };
+
+  // Function to request parent to close the widget
+  const requestClose = () => {
+    if (isEmbedded && window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        { source: NAMESPACE, version: 1, type: 'REQUEST_CLOSE' },
+        parentOrigin || '*'
+      );
+    }
   };
 
   return (
-    <AgentContext.Provider value={{ agentId, setAgentId }}>
-      {children}
+    <AgentContext.Provider value={{ agentId, setAgentId, isEmbedded }}>
+      <EmbedContext.Provider value={{ requestClose }}>
+        {children}
+      </EmbedContext.Provider>
     </AgentContext.Provider>
   );
 }
@@ -50,6 +147,11 @@ export function useAgent() {
   return context;
 }
 
-
-
+export function useEmbed() {
+  const context = useContext(EmbedContext);
+  if (context === undefined) {
+    throw new Error('useEmbed must be used within an AgentProvider');
+  }
+  return context;
+}
 

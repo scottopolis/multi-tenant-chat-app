@@ -50,13 +50,13 @@ See [DATABASE.md](DATABASE.md) for database implementation details.
 
 ### RAG Knowledgebase
 See [specs/RAG_KNOWLEDGEBASE.md](specs/RAG_KNOWLEDGEBASE.md) for full specification.
-- [ ] Document upload in dashboard (PDF, TXT, MD, CSV)
-- [ ] Vector embeddings in Convex (OpenAI text-embedding-3-small)
-- [ ] `search_knowledge` tool in worker
+- [x] Document upload in dashboard (PDF, TXT, MD, CSV)
+- [x] Vector embeddings in Convex (OpenAI text-embedding-3-small)
+- [x] `search_knowledge` tool in worker
 
 ### Future
 - Agent handoffs
-- Voice agents (Realtime API)
+- Voice agents (Realtime API) - DONE
 - Human-in-the-loop approval flows
 - Analytics & billing
 

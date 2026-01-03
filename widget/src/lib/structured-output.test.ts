@@ -42,7 +42,7 @@ describe('Structured Output Utils', () => {
       const result = parseMessageContent('Hello, world!');
       expect(result.isStructured).toBe(false);
       expect(result.displayText).toBe('Hello, world!');
-      expect(result.metadata).toBeUndefined();
+      expect(result.rawData).toBeUndefined();
     });
 
     it('should extract response field from structured JSON', () => {
