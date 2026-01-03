@@ -7,8 +7,10 @@ import { z } from 'zod';
 import { getTools } from './tools';
 import documentRoutes from './routes/documents';
 import twilioRoutes from './routes/twilio';
+import voiceRoutes from './routes/voice';
 
 export { VoiceCallSession } from './voice/VoiceCallSession';
+export { WebVoiceSession } from './voice/WebVoiceSession';
 
 /**
  * Cloudflare Worker environment bindings
@@ -21,6 +23,7 @@ type Bindings = {
   LANGFUSE_HOST?: string;
   CONVEX_URL?: string; // Convex deployment URL for agent configs
   VOICE_CALL_SESSION: import('@cloudflare/workers-types').DurableObjectNamespace; // Durable Object for voice calls
+  WEB_VOICE_SESSION: import('@cloudflare/workers-types').DurableObjectNamespace; // Durable Object for web voice preview
 };
 
 type Variables = {
@@ -102,6 +105,11 @@ app.route('/api/documents', documentRoutes);
  * Twilio voice routes (Voice Agents)
  */
 app.route('/twilio', twilioRoutes);
+
+/**
+ * Voice preview routes (Web Voice)
+ */
+app.route('/voice', voiceRoutes);
 
 
 /**

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../convex-backend/convex/_generated/api'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
 import { useTenant } from '../lib/tenant'
+import { VoicePreview } from './VoicePreview'
 
 interface VoiceSettingsProps {
   agentId: string // Human-readable agent ID (for display/logging)
@@ -467,6 +468,11 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                 </ol>
               </div>
             </div>
+          )}
+
+          {/* Voice Preview Section */}
+          {voiceAgent && (
+            <VoicePreview agentDbId={agentDbId} />
           )}
         </>
       )}

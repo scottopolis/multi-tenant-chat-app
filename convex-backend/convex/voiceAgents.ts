@@ -122,3 +122,42 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+/**
+ * Get full voice config by agent database ID
+ * Used by the web voice preview worker to load agent settings
+ */
+export const getConfigByAgentDbId = query({
+  args: { agentDbId: v.string() },
+  handler: async (ctx, args) => {
+    // agentDbId comes as a string from the worker, need to parse it as an ID
+    const agentId = args.agentDbId as unknown as import("./_generated/dataModel").Id<"agents">;
+    
+    // Get the voice agent config
+    const voiceAgent = await ctx.db
+      .query("voiceAgents")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .first();
+
+    if (!voiceAgent || !voiceAgent.enabled) {
+      return null;
+    }
+
+    // Get the parent agent for name and system prompt
+    const agent = await ctx.db.get(agentId);
+    if (!agent) {
+      return null;
+    }
+
+    return {
+      agentDbId: args.agentDbId,
+      tenantId: voiceAgent.tenantId,
+      agentName: agent.name,
+      systemPrompt: agent.systemPrompt || "You are a helpful voice assistant.",
+      voiceModel: voiceAgent.voiceModel,
+      voiceName: voiceAgent.voiceName,
+      locale: voiceAgent.locale,
+      bargeInEnabled: voiceAgent.bargeInEnabled,
+    };
+  },
+});

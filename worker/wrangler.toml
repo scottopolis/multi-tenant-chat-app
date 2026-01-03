@@ -17,9 +17,17 @@ compatibility_flags = [ "nodejs_compat" ]
 name = "VOICE_CALL_SESSION"
 class_name = "VoiceCallSession"
 
+[[durable_objects.bindings]]
+name = "WEB_VOICE_SESSION"
+class_name = "WebVoiceSession"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["VoiceCallSession"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["WebVoiceSession"]
 
 [observability.logs]
 enabled = true

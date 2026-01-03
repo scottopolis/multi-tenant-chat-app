@@ -196,6 +196,32 @@ Voice call records are stored in Convex (`voiceCalls` table) with:
 
 View call history in the Dashboard (coming in Phase 4).
 
+## Web Voice Preview
+
+You can test your voice agent directly in the browser without needing a phone number.
+
+### Using the Preview
+
+1. Navigate to Dashboard → Agents → Select your voice-enabled agent
+2. Click the **Voice** tab
+3. Under **Preview**, click **Preview Voice**
+4. Allow microphone access when prompted
+5. Speak to test the voice agent
+6. Click **End Preview** when done
+
+### Technical Details
+
+- Uses WebSocket connection to the worker's `/voice/preview` endpoint
+- Audio is captured at 24kHz mono PCM16
+- Sessions auto-disconnect after 10 minutes
+- Requires a valid session token (automatically generated)
+
+### Limitations
+
+- Browser must support `getUserMedia` API
+- Works best in Chrome, Firefox, and Safari
+- Requires HTTPS in production (microphone access)
+
 ## Next Steps
 
 - [API Reference](./api-reference.md) - Voice-related API endpoints

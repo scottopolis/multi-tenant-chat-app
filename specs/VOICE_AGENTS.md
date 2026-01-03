@@ -487,15 +487,23 @@ function VoicePreview({ agentId }: { agentId: string }) {
       wsRef.current?.send(pcm16.buffer);
     };
     
-    // 5. Play received audio
+    // 5. Play received audio - queue chunks sequentially to avoid overlap
+    let nextPlayTime = 0;
     wsRef.current.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer) {
-        playAudio(e.data, audioContextRef.current!);
+        const currentTime = audioContextRef.current!.currentTime;
+        const startTime = Math.max(currentTime, nextPlayTime);
+        playAudio(e.data, audioContextRef.current!, startTime);
+        nextPlayTime = startTime + (e.data.byteLength / 2 / 24000); // PCM16 duration
       }
     };
     
     source.connect(processor);
-    processor.connect(audioContextRef.current.destination);
+    // Connect to silent gain node (processor must be in audio graph, but gain=0 prevents echo)
+    const silentGain = audioContextRef.current.createGain();
+    silentGain.gain.value = 0;
+    silentGain.connect(audioContextRef.current.destination);
+    processor.connect(silentGain);
     setIsActive(true);
   };
 
@@ -674,13 +682,13 @@ Add a "Voice" tab to the agent detail page:
 - [x] Phone number management
 - [x] Integration instructions display
 
-### Phase 4: Web Voice Preview (M)
-- [ ] Add `WebVoiceSession` Durable Object
-- [ ] Add `/voice/preview` WebSocket route
-- [ ] Dashboard VoicePreview component with mic access
-- [ ] Browser audio capture (PCM16/24kHz)
-- [ ] Audio playback from OpenAI responses
-- [ ] Session token auth for preview endpoint
+### Phase 4: Web Voice Preview (M) ✅
+- [x] Add `WebVoiceSession` Durable Object
+- [x] Add `/voice/preview` WebSocket route
+- [x] Dashboard VoicePreview component with mic access
+- [x] Browser audio capture (PCM16/24kHz)
+- [x] Audio playback from OpenAI responses
+- [x] Session token auth for preview endpoint
 
 ### Phase 5: Polish & Billing (S)
 - [ ] Call status callbacks
