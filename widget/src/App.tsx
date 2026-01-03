@@ -104,7 +104,14 @@ function AppContent() {
 
       {/* Chat */}
       <div className="flex-1 overflow-hidden">
-        <Chat chatId={chatId} agentId={agentId} />
+        <Chat 
+          chatId={chatId} 
+          agentId={agentId} 
+          onChatNotFound={() => {
+            // Chat doesn't exist on server (e.g., worker restarted) - create a new one
+            setChatId(null);
+          }}
+        />
       </div>
     </div>
   );

@@ -6,15 +6,17 @@ import { Loader2, AlertCircle } from 'lucide-react';
 interface ChatProps {
   chatId: string;
   agentId: string;
+  onChatNotFound?: () => void;
 }
 
-export function Chat({ chatId, agentId }: ChatProps) {
+export function Chat({ chatId, agentId, onChatNotFound }: ChatProps) {
   const { messages, sendMessage, isLoading, isStreaming, error } = useChat({
     chatId,
     agentId,
     onError: (err) => {
       console.error('Chat error:', err);
     },
+    onChatNotFound,
   });
 
   if (isLoading) {

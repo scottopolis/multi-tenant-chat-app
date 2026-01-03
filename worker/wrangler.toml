@@ -36,7 +36,7 @@ invocation_logs = true
 
 [vars]
 # Add non-secret environment variables here
-# Example: CONVEX_URL = "https://your-deployment.convex.cloud"
+CONVEX_URL = "https://keen-crow-645.convex.cloud"
 
 [env.production]
 # Production-specific configuration can go here

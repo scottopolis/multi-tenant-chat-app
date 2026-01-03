@@ -15,6 +15,7 @@ export interface UseChatOptions {
   chatId: string;
   agentId: string;
   onError?: (error: Error) => void;
+  onChatNotFound?: () => void;
 }
 
 /**
@@ -26,18 +27,32 @@ export interface UseChatOptions {
  * - isLoading: Whether initial data is loading
  * - error: Any error that occurred
  */
-export function useChat({ chatId, agentId, onError }: UseChatOptions) {
+export function useChat({ chatId, agentId, onError, onChatNotFound }: UseChatOptions) {
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch initial chat data
-  const { data: chatData, isLoading } = useQuery({
+  const { data: chatData, isLoading, error: queryError } = useQuery({
     queryKey: ['chat', chatId, agentId],
     queryFn: () => getChat(chatId, agentId),
     enabled: !!chatId,
+    retry: (failureCount, error) => {
+      // Don't retry 404s - chat doesn't exist
+      if (error instanceof Error && error.message.includes('404')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
+
+  // Handle chat not found - trigger recreation
+  useEffect(() => {
+    if (queryError instanceof Error && queryError.message.includes('404')) {
+      onChatNotFound?.();
+    }
+  }, [queryError, onChatNotFound]);
 
   // Update messages when chat data loads
   useEffect(() => {
