@@ -366,13 +366,25 @@ mathReasoningTool.on('*', (event) => {
  * Note: Agent-based tools will automatically stream events if handlers are attached.
  * If no handlers are present, they run in non-streaming mode.
  */
-export const builtinTools = [
-  currentTime,
-  calculator,
-  weatherLookup,
-  getUserInfo,
-  deleteUserData,
-  fetchExternalData,
-  mathReasoningTool, // Agent-based tool with streaming
-];
+/**
+ * Built-in tools exported for use by agents.
+ * Currently empty - the example tools above are kept as reference implementations.
+ * 
+ * Tools available to agents come from:
+ * - MCP servers configured per-agent
+ * - file_search tool (if agent has a vectorStoreId)
+ * - Webhook tools (future)
+ */
+export const builtinTools: any[] = [];
+
+/**
+ * Example tools for reference (not exported to agents):
+ * - currentTime: Simple tool with no parameters
+ * - calculator: Tool with multiple required parameters
+ * - weatherLookup: Tool with optional parameters pattern
+ * - getUserInfo: Tool returning structured data
+ * - deleteUserData: Confirmation-based tool
+ * - fetchExternalData: Tool with custom error handling
+ * - mathReasoningTool: Agent-based tool with streaming
+ */
 

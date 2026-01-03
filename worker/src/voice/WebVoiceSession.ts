@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
 import { CloudflareRealtimeTransportLayer } from '@openai/agents-extensions';
 import { convexQuery } from '../convex/client';
+import { getTools } from '../tools';
 
 export interface WebVoiceSessionEnv {
   OPENAI_API_KEY: string;
@@ -10,6 +11,7 @@ export interface WebVoiceSessionEnv {
 
 export interface WebVoiceConfig {
   agentDbId: string;
+  agentId?: string; // String identifier used for tool lookup (optional for fallback)
   tenantId: string;
   agentName: string;
   systemPrompt: string;
@@ -126,9 +128,18 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
   private async initializeSession(browserSocket: WebSocket): Promise<void> {
     const config = await this.loadVoiceConfig();
 
+    // Load tools for the agent (forVoice: true ensures only function tools are returned)
+    const tools = config.agentId 
+      ? await getTools(config.agentId, { CONVEX_URL: this.env.CONVEX_URL }, { 
+          forVoice: true, 
+          openaiApiKey: this.env.OPENAI_API_KEY 
+        })
+      : [];
+
     const agent = new RealtimeAgent({
       name: config.agentName,
       instructions: config.systemPrompt,
+      tools,
     });
 
     // Create Cloudflare transport to connect to OpenAI Realtime API

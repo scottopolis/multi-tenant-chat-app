@@ -2,6 +2,7 @@ import { fileSearchTool } from '@openai/agents';
 import { builtinTools } from './builtin';
 import { getMCPTools } from '../mcp';
 import { getAgentConfig, type AgentConfigEnv } from '../tenants/config';
+import { createVectorSearchTool } from './vectorSearch';
 
 /**
  * Tool registry
@@ -17,26 +18,49 @@ import { getAgentConfig, type AgentConfigEnv } from '../tenants/config';
  * - Cache tool configurations per agent (with TTL)
  */
 
+export interface GetToolsOptions {
+  /** 
+   * If true, only returns function tools compatible with RealtimeAgent.
+   * Hosted tools (like fileSearchTool) are replaced with function equivalents.
+   */
+  forVoice?: boolean;
+  /**
+   * OpenAI API key - required when forVoice is true and agent has a vectorStoreId.
+   * Used to query the vector store directly via function tool.
+   */
+  openaiApiKey?: string;
+}
+
 /**
  * Get all available tools for an agent
  * 
  * Combines:
- * 1. Built-in tools (currentTime, calculator, etc.)
+ * 1. Built-in tools (currently empty - examples kept as reference)
  * 2. MCP server tools via HTTP (workaround for Cloudflare Workers)
- * 3. Future: Webhook tools, selective built-in tool filtering
+ * 3. Vector store search (hosted file_search or function tool for voice)
  * 
  * Note: Native MCP support via Agent.mcpServers uses stdio (subprocess spawning)
  * which doesn't work in Cloudflare Workers. We use HTTP-based MCP client instead.
  * 
+ * For voice agents (RealtimeAgent), set forVoice: true to get only function tools.
+ * Hosted tools like file_search don't work with RealtimeAgent.
+ * 
  * @param agentId - Agent identifier
  * @param env - Optional environment bindings (for Convex/DB access)
+ * @param options - Optional settings for tool loading
  * @returns Array of tools in OpenAI Agents SDK format
  * 
  * @example
+ * // For regular agents
  * const tools = await getTools('acme-support', { CONVEX_URL: env.CONVEX_URL });
- * // Returns: [currentTime, calculator, ...mcpTools]
+ * 
+ * // For voice agents
+ * const tools = await getTools('acme-support', { CONVEX_URL: env.CONVEX_URL }, { 
+ *   forVoice: true, 
+ *   openaiApiKey: env.OPENAI_API_KEY 
+ * });
  */
-export async function getTools(agentId: string, env?: AgentConfigEnv) {
+export async function getTools(agentId: string, env?: AgentConfigEnv, options?: GetToolsOptions) {
   // 1. Get agent configuration (pass env for Convex access)
   const config = await getAgentConfig(agentId, env);
   
@@ -72,9 +96,20 @@ export async function getTools(agentId: string, env?: AgentConfigEnv) {
     }
   } 
   
-  // 4. Add file_search tool if agent has a vector store (RAG knowledge base)
+  // 4. Add vector store search if agent has a vector store (RAG knowledge base)
   if (config?.vectorStoreId) {
-    tools.push(fileSearchTool([config.vectorStoreId]));
+    if (options?.forVoice) {
+      // Voice agents (RealtimeAgent) only support function tools, not hosted tools
+      // Use our custom function tool that queries the vector store API directly
+      if (options.openaiApiKey) {
+        tools.push(createVectorSearchTool(config.vectorStoreId, options.openaiApiKey));
+      } else {
+        console.warn(`[Tools] Voice agent has vectorStoreId but no openaiApiKey provided - skipping knowledge base tool`);
+      }
+    } else {
+      // Regular agents can use the hosted file_search tool
+      tools.push(fileSearchTool([config.vectorStoreId]));
+    }
   }
   
   // TODO: Add webhook tools here

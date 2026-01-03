@@ -36,6 +36,7 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const nextPlayTimeRef = useRef<number>(0)
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set())
 
   const getWorkerHost = () => {
     if (typeof window === 'undefined') return ''
@@ -62,6 +63,19 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
     return data.token
   }
 
+  const stopAllPlayback = useCallback(() => {
+    for (const source of activeSourcesRef.current) {
+      try {
+        source.stop()
+        source.disconnect()
+      } catch {
+        // Already stopped
+      }
+    }
+    activeSourcesRef.current.clear()
+    nextPlayTimeRef.current = 0
+  }, [])
+
   const playAudioData = useCallback((pcmData: ArrayBuffer) => {
     if (!audioContextRef.current) return
 
@@ -74,6 +88,12 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
     const source = audioContextRef.current.createBufferSource()
     source.buffer = audioBuffer
     source.connect(audioContextRef.current.destination)
+
+    // Track active source for interruption
+    activeSourcesRef.current.add(source)
+    source.onended = () => {
+      activeSourcesRef.current.delete(source)
+    }
 
     // Queue audio chunks sequentially instead of playing all at once
     const currentTime = audioContextRef.current.currentTime
@@ -137,7 +157,7 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
           try {
             const msg = JSON.parse(event.data)
             if (msg.type === 'interrupt') {
-              nextPlayTimeRef.current = 0
+              stopAllPlayback()
             }
           } catch {
             // Not JSON, ignore

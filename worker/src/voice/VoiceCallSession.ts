@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
 import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
 import { convexQuery, convexMutation } from '../convex/client';
+import { getTools } from '../tools';
 
 export interface VoiceCallSessionEnv {
   OPENAI_API_KEY: string;
@@ -11,7 +12,8 @@ export interface VoiceCallSessionEnv {
 export interface VoiceConfig {
   numberId: string;
   tenantId: string;
-  agentId: string;
+  agentDbId: string;
+  agentId?: string; // String identifier used for tool lookup (optional for fallback)
   voiceAgentId: string;
   phoneNumber: string;
   voiceModel: string;
@@ -22,7 +24,7 @@ export interface VoiceConfig {
   systemPrompt: string;
 }
 
-const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | 'voiceAgentId' | 'phoneNumber'> = {
+const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | 'agentDbId' | 'voiceAgentId' | 'phoneNumber'> = {
   voiceModel: 'gpt-4o-realtime-preview',
   voiceName: 'verse',
   locale: 'en-US',
@@ -122,9 +124,18 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     // Load voice config from Convex
     const config = await this.loadVoiceConfig();
 
+    // Load tools for the agent (forVoice: true ensures only function tools are returned)
+    const tools = config.agentId 
+      ? await getTools(config.agentId, { CONVEX_URL: this.env.CONVEX_URL }, { 
+          forVoice: true, 
+          openaiApiKey: this.env.OPENAI_API_KEY 
+        })
+      : [];
+
     const agent = new RealtimeAgent({
       name: config.agentName,
       instructions: config.systemPrompt,
+      tools,
     });
 
     this.twilioTransport = new TwilioRealtimeTransportLayer({

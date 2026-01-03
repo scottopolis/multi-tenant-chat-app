@@ -151,6 +151,7 @@ export const getConfigByAgentDbId = query({
 
     return {
       agentDbId: args.agentDbId,
+      agentId: agent.agentId, // String identifier used for tool lookup
       tenantId: voiceAgent.tenantId,
       agentName: agent.name,
       systemPrompt: agent.systemPrompt || "You are a helpful voice assistant.",

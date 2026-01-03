@@ -38,7 +38,8 @@ export const getByPhoneNumber = query({
     return {
       numberId: twilioNumber._id,
       tenantId: twilioNumber.tenantId,
-      agentId: twilioNumber.agentId,
+      agentDbId: twilioNumber.agentId,
+      agentId: agent.agentId, // String identifier used for tool lookup
       voiceAgentId: twilioNumber.voiceAgentId,
       phoneNumber: twilioNumber.phoneNumber,
       // Voice config
