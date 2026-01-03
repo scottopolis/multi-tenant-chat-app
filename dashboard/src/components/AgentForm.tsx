@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { KnowledgeBase } from './KnowledgeBase'
 import { VoiceSettings } from './VoiceSettings'
+import { EmbedCode } from './EmbedCode'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
 
 export interface McpServer {
@@ -52,7 +53,7 @@ interface AgentFormProps {
 }
 
 const BASE_TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
-const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base', 'Voice'] as const
+const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base', 'Voice', 'Embed'] as const
 type Tab = (typeof ALL_TABS)[number]
 
 const MODELS = [
@@ -566,6 +567,10 @@ export function AgentForm({
 
         {activeTab === 'Voice' && agentId && agentDbId && (
           <VoiceSettings agentId={agentId} agentDbId={agentDbId} />
+        )}
+
+        {activeTab === 'Embed' && agentId && (
+          <EmbedCode agentId={agentId} />
         )}
       </div>
 

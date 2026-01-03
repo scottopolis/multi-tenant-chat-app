@@ -83,6 +83,8 @@ VITE_AGENT_ID=default
 - ✅ Multiple OpenAI models (gpt-4.1, gpt-4.1-mini, o1, o3-mini)
 - ✅ Agent routing via query parameters (MVP multi-tenancy)
 - ✅ MCP (Model Context Protocol) server integration via HTTP
+- ✅ Embeddable widget with customizable launcher
+- ✅ Voice agents via Twilio + OpenAI Realtime API
 - ✅ Comprehensive test coverage (unit + E2E)
 - 🚧 Authentication (placeholder)
 - 🚧 Persistent storage (in-memory for now)
@@ -156,6 +158,57 @@ cd widget && npm run test:e2e
 ```
 
 See [TESTING.md](./TESTING.md) for detailed testing guidelines and best practices.
+
+## Widget Embedding
+
+The chat widget can be embedded on any website using a simple script tag:
+
+```html
+<script
+  src="https://chat-widget.pages.dev/embed.js"
+  data-agent-id="YOUR_AGENT_ID"
+  data-color="#4F46E5"
+  data-position="bottom-right"
+  data-icon="chat"
+  defer
+></script>
+```
+
+**Configuration Options:**
+
+| Attribute | Default | Description |
+|-----------|---------|-------------|
+| `data-agent-id` | required | Your agent identifier |
+| `data-color` | `#4F46E5` | Launcher button color (hex) |
+| `data-position` | `bottom-right` | `bottom-right` or `bottom-left` |
+| `data-icon` | `chat` | `chat`, `help`, or `message` |
+
+**Auto-Open:** Add `?chat=open` to any URL to automatically open the widget on page load.
+
+See [specs/widget-embed-hosting.md](./specs/widget-embed-hosting.md) for detailed embed documentation.
+
+## Voice Agents
+
+Voice agents allow users to interact with your AI assistant via phone calls using Twilio and OpenAI's Realtime API.
+
+**Quick Setup:**
+
+1. Create an agent in the Dashboard with **Voice** capability enabled
+2. Configure a Twilio phone number with webhook: `https://your-worker.workers.dev/twilio/voice`
+3. Add the phone number in the Dashboard under the agent's Voice tab
+4. Call the number to test
+
+**Voice Settings:**
+
+| Setting | Options |
+|---------|---------|
+| Voice | verse, alloy, echo, fable, onyx, nova, shimmer |
+| Locale | en-US, en-GB, es-ES, fr-FR, de-DE, and more |
+| Barge-in | Allow callers to interrupt the AI |
+
+**Web Preview:** Test voice agents directly in the browser without a phone number via the Dashboard's Voice Preview feature.
+
+See [docs/voice-agents.md](./docs/voice-agents.md) for complete setup and configuration guide.
 
 ## Architecture
 

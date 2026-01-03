@@ -114,7 +114,7 @@ Configure Worker to allow requests from `chat-widget.pages.dev` origin.
 3. [x] Create `.env.production` with `VITE_API_URL` - ✅ Created .env.production and .env.example
 4. [ ] Set up Cloudflare Pages project
 5. [ ] Configure CORS on Worker for Pages origin
-6. [ ] Add embed code generator to dashboard
+6. [x] Add embed code generator to dashboard - ✅ Implemented EmbedCode component with customization options
 7. [ ] Add rate limiting (future)
 
 ---
