@@ -4,7 +4,7 @@ interface EmbedCodeProps {
   agentId: string
 }
 
-const WIDGET_URL = 'https://chat-widget.pages.dev'
+const WIDGET_URL = 'https://multi-tenant-chat-app.pages.dev'
 
 const POSITION_OPTIONS = [
   { value: 'bottom-right', label: 'Bottom Right' },

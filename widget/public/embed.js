@@ -1,7 +1,7 @@
 (function() {
   'use strict';
 
-  var WIDGET_ORIGIN = 'https://chat-widget.pages.dev';
+  var WIDGET_ORIGIN = 'https://multi-tenant-chat-app.pages.dev';
   var NAMESPACE = 'mychat-widget';
   var VERSION = 1;
 

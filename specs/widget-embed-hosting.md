@@ -10,20 +10,20 @@ Host the React widget on **Cloudflare Pages** and provide tenant-specific embed 
 ┌─────────────────────────────────────────────────────────────┐
 │  Customer Website                                            │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ <script src="chat-widget.pages.dev/embed.js"           ││
+│  │ <script src="multi-tenant-chat-app.pages.dev/embed.js"           ││
 │  │         data-agent-id="tenant-abc" defer></script>     ││
 │  └─────────────────────────────────────────────────────────┘│
 │                          ↓                                   │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │ Injected iframe:                                        ││
-│  │ src="chat-widget.pages.dev/?agent=tenant-abc"          ││
+│  │ src="multi-tenant-chat-app.pages.dev/?agent=tenant-abc"          ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
                           │
                           ↓ API calls
 ┌─────────────────────────────────────────────────────────────┐
 │  Cloudflare Worker (existing)                                │
-│  api.yourdomain.workers.dev                                  │
+│  multi-tenant-chat-app.designbyscott.workers.dev             │
 │  - Routes requests by ?agent= param                          │
 │  - Tenant isolation enforced server-side                     │
 └─────────────────────────────────────────────────────────────┘
@@ -42,8 +42,8 @@ Host the React widget on **Cloudflare Pages** and provide tenant-specific embed 
 
 1. **Build command:** `npm run build`
 2. **Build output:** `dist`
-3. **Environment variable:** `VITE_API_URL=https://your-worker.workers.dev`
-4. **Result URL:** `https://chat-widget.pages.dev`
+3. **Environment variable:** `VITE_API_URL=https://multi-tenant-chat-app.designbyscott.workers.dev`
+4. **Result URL:** `https://multi-tenant-chat-app.pages.dev`
 
 ## Embed Code Options
 
@@ -53,7 +53,7 @@ Dashboard generates this snippet for each tenant:
 
 ```html
 <script
-  src="https://chat-widget.pages.dev/embed.js"
+  src="https://multi-tenant-chat-app.pages.dev/embed.js"
   data-agent-id="TENANT_AGENT_ID"
   defer
 ></script>
@@ -70,7 +70,7 @@ For customers who prefer full control:
 
 ```html
 <iframe
-  src="https://chat-widget.pages.dev/?agent=TENANT_AGENT_ID"
+  src="https://multi-tenant-chat-app.pages.dev/?agent=TENANT_AGENT_ID"
   style="border: none; position: fixed; bottom: 24px; right: 24px; 
          width: 360px; height: 520px; z-index: 2147483647; 
          border-radius: 16px; overflow: hidden;"
@@ -105,15 +105,15 @@ const agentId = urlParams.get("agent") || import.meta.env.VITE_AGENT_ID || "defa
 
 ### CORS
 
-Configure Worker to allow requests from `chat-widget.pages.dev` origin.
+Configure Worker to allow requests from `multi-tenant-chat-app.pages.dev` origin.
 
 ## Implementation Tasks
 
 1. [x] Add `embed.js` to `widget/public/` - ✅ Implemented with launcher button, iframe injection, postMessage protocol
 2. [x] Verify widget reads `?agent=` param correctly - ✅ Updated AgentContext with URL param priority
 3. [x] Create `.env.production` with `VITE_API_URL` - ✅ Created .env.production and .env.example
-4. [ ] Set up Cloudflare Pages project
-5. [ ] Configure CORS on Worker for Pages origin
+4. [x] Set up Cloudflare Pages project - ✅ Deployed at https://multi-tenant-chat-app.pages.dev
+5. [x] Configure CORS on Worker for Pages origin - ✅ Worker uses `origin: '*'` (acceptable for MVP)
 6. [x] Add embed code generator to dashboard - ✅ Implemented EmbedCode component with customization options
 7. [ ] Add rate limiting (future)
 
@@ -148,7 +148,7 @@ Intercom-style widget with:
 
 ```html
 <script
-  src="https://chat-widget.pages.dev/embed.js"
+  src="https://multi-tenant-chat-app.pages.dev/embed.js"
   data-agent-id="TENANT_AGENT_ID"
   data-color="#4F46E5"
   data-position="bottom-right"
@@ -214,7 +214,7 @@ type WidgetMessage = {
 
 **Parent (embed.js):**
 ```js
-const WIDGET_ORIGIN = 'https://chat-widget.pages.dev';
+const WIDGET_ORIGIN = 'https://multi-tenant-chat-app.pages.dev';
 window.addEventListener('message', (event) => {
   if (event.origin !== WIDGET_ORIGIN) return;
   // process message

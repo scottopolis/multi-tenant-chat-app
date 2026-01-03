@@ -165,7 +165,7 @@ The chat widget can be embedded on any website using a simple script tag:
 
 ```html
 <script
-  src="https://chat-widget.pages.dev/embed.js"
+  src="https://multi-tenant-chat-app.pages.dev/embed.js"
   data-agent-id="YOUR_AGENT_ID"
   data-color="#4F46E5"
   data-position="bottom-right"
@@ -194,7 +194,7 @@ Voice agents allow users to interact with your AI assistant via phone calls usin
 **Quick Setup:**
 
 1. Create an agent in the Dashboard with **Voice** capability enabled
-2. Configure a Twilio phone number with webhook: `https://your-worker.workers.dev/twilio/voice`
+2. Configure a Twilio phone number with webhook: `https://multi-tenant-chat-app.designbyscott.workers.dev/twilio/voice`
 3. Add the phone number in the Dashboard under the agent's Voice tab
 4. Call the number to test
 
