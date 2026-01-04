@@ -3,7 +3,7 @@ import { useQuery } from 'convex/react'
 import { api } from '../../../../../convex-backend/convex/_generated/api'
 import { useTenant } from '../../../lib/tenant'
 
-export const Route = createFileRoute('/dashboard/agents/')({
+export const Route = createFileRoute('/_authed/dashboard/agents/')({
   component: AgentsList,
 })
 

@@ -9,16 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as DashboardAgentsIndexRouteImport } from './routes/dashboard/agents/index'
-import { Route as DashboardAgentsNewRouteImport } from './routes/dashboard/agents/new'
-import { Route as DashboardAgentsAgentIdRouteImport } from './routes/dashboard/agents/$agentId'
+import { Route as AuthedDashboardRouteImport } from './routes/_authed.dashboard'
+import { Route as AuthedDashboardIndexRouteImport } from './routes/_authed.dashboard/index'
+import { Route as AuthedDashboardAgentsIndexRouteImport } from './routes/_authed.dashboard/agents/index'
+import { Route as AuthedDashboardAgentsNewRouteImport } from './routes/_authed.dashboard/agents/new'
+import { Route as AuthedDashboardAgentsAgentIdRouteImport } from './routes/_authed.dashboard/agents/$agentId'
 
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthedRoute = AuthedRouteImport.update({
+  id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -26,50 +26,59 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
+const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDashboardIndexRoute = AuthedDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DashboardRoute,
+  getParentRoute: () => AuthedDashboardRoute,
 } as any)
-const DashboardAgentsIndexRoute = DashboardAgentsIndexRouteImport.update({
-  id: '/agents/',
-  path: '/agents/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardAgentsNewRoute = DashboardAgentsNewRouteImport.update({
-  id: '/agents/new',
-  path: '/agents/new',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardAgentsAgentIdRoute = DashboardAgentsAgentIdRouteImport.update({
-  id: '/agents/$agentId',
-  path: '/agents/$agentId',
-  getParentRoute: () => DashboardRoute,
-} as any)
+const AuthedDashboardAgentsIndexRoute =
+  AuthedDashboardAgentsIndexRouteImport.update({
+    id: '/agents/',
+    path: '/agents/',
+    getParentRoute: () => AuthedDashboardRoute,
+  } as any)
+const AuthedDashboardAgentsNewRoute =
+  AuthedDashboardAgentsNewRouteImport.update({
+    id: '/agents/new',
+    path: '/agents/new',
+    getParentRoute: () => AuthedDashboardRoute,
+  } as any)
+const AuthedDashboardAgentsAgentIdRoute =
+  AuthedDashboardAgentsAgentIdRouteImport.update({
+    id: '/agents/$agentId',
+    path: '/agents/$agentId',
+    getParentRoute: () => AuthedDashboardRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/agents/$agentId': typeof DashboardAgentsAgentIdRoute
-  '/dashboard/agents/new': typeof DashboardAgentsNewRoute
-  '/dashboard/agents': typeof DashboardAgentsIndexRoute
+  '/dashboard': typeof AuthedDashboardRouteWithChildren
+  '/dashboard/': typeof AuthedDashboardIndexRoute
+  '/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
+  '/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/dashboard/agents': typeof AuthedDashboardAgentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/dashboard/agents/$agentId': typeof DashboardAgentsAgentIdRoute
-  '/dashboard/agents/new': typeof DashboardAgentsNewRoute
-  '/dashboard/agents': typeof DashboardAgentsIndexRoute
+  '/dashboard': typeof AuthedDashboardIndexRoute
+  '/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
+  '/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/dashboard/agents': typeof AuthedDashboardAgentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/agents/$agentId': typeof DashboardAgentsAgentIdRoute
-  '/dashboard/agents/new': typeof DashboardAgentsNewRoute
-  '/dashboard/agents/': typeof DashboardAgentsIndexRoute
+  '/_authed': typeof AuthedRouteWithChildren
+  '/_authed/dashboard': typeof AuthedDashboardRouteWithChildren
+  '/_authed/dashboard/': typeof AuthedDashboardIndexRoute
+  '/_authed/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
+  '/_authed/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/_authed/dashboard/agents/': typeof AuthedDashboardAgentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -90,25 +99,26 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/dashboard'
-    | '/dashboard/'
-    | '/dashboard/agents/$agentId'
-    | '/dashboard/agents/new'
-    | '/dashboard/agents/'
+    | '/_authed'
+    | '/_authed/dashboard'
+    | '/_authed/dashboard/'
+    | '/_authed/dashboard/agents/$agentId'
+    | '/_authed/dashboard/agents/new'
+    | '/_authed/dashboard/agents/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRouteWithChildren
+  AuthedRoute: typeof AuthedRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/_authed': {
+      id: '/_authed'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -118,68 +128,87 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/': {
-      id: '/dashboard/'
+    '/_authed/dashboard': {
+      id: '/_authed/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthedDashboardRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/dashboard/': {
+      id: '/_authed/dashboard/'
       path: '/'
       fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
+      preLoaderRoute: typeof AuthedDashboardIndexRouteImport
+      parentRoute: typeof AuthedDashboardRoute
     }
-    '/dashboard/agents/': {
-      id: '/dashboard/agents/'
+    '/_authed/dashboard/agents/': {
+      id: '/_authed/dashboard/agents/'
       path: '/agents'
       fullPath: '/dashboard/agents'
-      preLoaderRoute: typeof DashboardAgentsIndexRouteImport
-      parentRoute: typeof DashboardRoute
+      preLoaderRoute: typeof AuthedDashboardAgentsIndexRouteImport
+      parentRoute: typeof AuthedDashboardRoute
     }
-    '/dashboard/agents/new': {
-      id: '/dashboard/agents/new'
+    '/_authed/dashboard/agents/new': {
+      id: '/_authed/dashboard/agents/new'
       path: '/agents/new'
       fullPath: '/dashboard/agents/new'
-      preLoaderRoute: typeof DashboardAgentsNewRouteImport
-      parentRoute: typeof DashboardRoute
+      preLoaderRoute: typeof AuthedDashboardAgentsNewRouteImport
+      parentRoute: typeof AuthedDashboardRoute
     }
-    '/dashboard/agents/$agentId': {
-      id: '/dashboard/agents/$agentId'
+    '/_authed/dashboard/agents/$agentId': {
+      id: '/_authed/dashboard/agents/$agentId'
       path: '/agents/$agentId'
       fullPath: '/dashboard/agents/$agentId'
-      preLoaderRoute: typeof DashboardAgentsAgentIdRouteImport
-      parentRoute: typeof DashboardRoute
+      preLoaderRoute: typeof AuthedDashboardAgentsAgentIdRouteImport
+      parentRoute: typeof AuthedDashboardRoute
     }
   }
 }
 
-interface DashboardRouteChildren {
-  DashboardIndexRoute: typeof DashboardIndexRoute
-  DashboardAgentsAgentIdRoute: typeof DashboardAgentsAgentIdRoute
-  DashboardAgentsNewRoute: typeof DashboardAgentsNewRoute
-  DashboardAgentsIndexRoute: typeof DashboardAgentsIndexRoute
+interface AuthedDashboardRouteChildren {
+  AuthedDashboardIndexRoute: typeof AuthedDashboardIndexRoute
+  AuthedDashboardAgentsAgentIdRoute: typeof AuthedDashboardAgentsAgentIdRoute
+  AuthedDashboardAgentsNewRoute: typeof AuthedDashboardAgentsNewRoute
+  AuthedDashboardAgentsIndexRoute: typeof AuthedDashboardAgentsIndexRoute
 }
 
-const DashboardRouteChildren: DashboardRouteChildren = {
-  DashboardIndexRoute: DashboardIndexRoute,
-  DashboardAgentsAgentIdRoute: DashboardAgentsAgentIdRoute,
-  DashboardAgentsNewRoute: DashboardAgentsNewRoute,
-  DashboardAgentsIndexRoute: DashboardAgentsIndexRoute,
+const AuthedDashboardRouteChildren: AuthedDashboardRouteChildren = {
+  AuthedDashboardIndexRoute: AuthedDashboardIndexRoute,
+  AuthedDashboardAgentsAgentIdRoute: AuthedDashboardAgentsAgentIdRoute,
+  AuthedDashboardAgentsNewRoute: AuthedDashboardAgentsNewRoute,
+  AuthedDashboardAgentsIndexRoute: AuthedDashboardAgentsIndexRoute,
 }
 
-const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
-  DashboardRouteChildren,
+const AuthedDashboardRouteWithChildren = AuthedDashboardRoute._addFileChildren(
+  AuthedDashboardRouteChildren,
 )
+
+interface AuthedRouteChildren {
+  AuthedDashboardRoute: typeof AuthedDashboardRouteWithChildren
+}
+
+const AuthedRouteChildren: AuthedRouteChildren = {
+  AuthedDashboardRoute: AuthedDashboardRouteWithChildren,
+}
+
+const AuthedRouteWithChildren =
+  AuthedRoute._addFileChildren(AuthedRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRouteWithChildren,
+  AuthedRoute: AuthedRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

@@ -1,29 +1,32 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '../../../../../convex-backend/convex/_generated/api'
+import { useTenant } from '../../../lib/tenant'
 import { AgentForm, type AgentFormData } from '../../../components/AgentForm'
+import type { Id } from '../../../../../convex-backend/convex/_generated/dataModel'
 
-export const Route = createFileRoute('/dashboard/agents/$agentId')({
-  component: EditAgent,
+export const Route = createFileRoute('/_authed/dashboard/agents/new')({
+  component: NewAgent,
 })
 
-function EditAgent() {
-  const { agentId } = Route.useParams()
+function NewAgent() {
   const navigate = useNavigate()
-
-  const agent = useQuery(api.agents.getByAgentId, { agentId })
-  const updateAgent = useMutation(api.agents.update)
-  const deleteAgent = useMutation(api.agents.remove)
-
+  const { tenant, isLoading: tenantLoading } = useTenant()
+  const createAgent = useMutation(api.agents.create)
+  const createVoiceAgent = useMutation(api.voiceAgents.create)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (data: AgentFormData) => {
-    if (!agent) return
+    if (!tenant) return
+
     setIsSubmitting(true)
     try {
-      await updateAgent({
-        id: agent._id,
+      const agentId = data.name.toLowerCase().replace(/\s+/g, '-')
+      const newAgentId = await createAgent({
+        agentId,
+        tenantId: tenant.id as Id<'tenants'>,
+        orgId: tenant.clerkOrgId,
         name: data.name,
         systemPrompt: data.systemPrompt,
         model: data.model,
@@ -35,6 +38,19 @@ function EditAgent() {
         langfusePromptName: data.langfuse.promptName || undefined,
         langfuseLabel: data.langfuse.label || undefined,
       })
+
+      if (data.capabilities.voice && data.voiceConfig) {
+        await createVoiceAgent({
+          tenantId: tenant.id as Id<'tenants'>,
+          agentId: newAgentId,
+          voiceModel: data.voiceConfig.voiceModel,
+          voiceName: data.voiceConfig.voiceName,
+          locale: data.voiceConfig.locale,
+          bargeInEnabled: data.voiceConfig.bargeInEnabled,
+          enabled: true,
+        })
+      }
+
       navigate({ to: '/dashboard/agents' })
     } finally {
       setIsSubmitting(false)
@@ -45,15 +61,7 @@ function EditAgent() {
     navigate({ to: '/dashboard/agents' })
   }
 
-  const handleDelete = async () => {
-    if (!agent) return
-    if (window.confirm('Are you sure you want to delete this agent?')) {
-      await deleteAgent({ id: agent._id })
-      navigate({ to: '/dashboard/agents' })
-    }
-  }
-
-  if (agent === undefined) {
+  if (tenantLoading) {
     return (
       <div className="px-4 py-6 sm:px-0">
         <p className="text-white">Loading...</p>
@@ -61,10 +69,10 @@ function EditAgent() {
     )
   }
 
-  if (agent === null) {
+  if (!tenant) {
     return (
       <div className="px-4 py-6 sm:px-0">
-        <p className="text-red-400">Agent not found.</p>
+        <p className="text-red-400">No tenant found. Please run the seed script.</p>
       </div>
     )
   }
@@ -74,28 +82,16 @@ function EditAgent() {
       <div className="md:flex md:items-center md:justify-between mb-8">
         <div className="min-w-0 flex-1">
           <h2 className="text-3xl font-bold leading-7 text-white sm:truncate sm:tracking-tight">
-            Edit Agent
+            Create New Agent
           </h2>
-          <p className="mt-1 text-sm text-gray-400">ID: {agent.agentId}</p>
         </div>
       </div>
 
       <AgentForm
-        initialData={{
-          name: agent.name,
-          systemPrompt: agent.systemPrompt ?? '',
-          model: agent.model,
-          mcpServers: agent.mcpServers,
-          outputSchema: agent.outputSchema,
-          langfuse: agent.langfuse,
-        }}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
-        onDelete={handleDelete}
         isSubmitting={isSubmitting}
-        submitLabel="Save Changes"
-        agentId={agent.agentId}
-        agentDbId={agent._id}
+        submitLabel="Create Agent"
       />
     </div>
   )

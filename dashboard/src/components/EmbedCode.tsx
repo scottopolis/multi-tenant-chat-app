@@ -198,7 +198,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
         <p className="text-sm text-gray-400 mb-3">
           Click the launcher button to test the actual widget with your agent.
         </p>
-        <div className="bg-slate-900 rounded-lg relative h-[500px] overflow-hidden">
+        <div className="bg-slate-900 rounded-lg relative h-[600px] overflow-hidden">
           <div className="absolute top-4 left-4 text-sm text-gray-500">Your website content...</div>
           
           {/* Live iframe when open */}

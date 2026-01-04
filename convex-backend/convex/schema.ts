@@ -15,16 +15,20 @@ import { v } from "convex/values";
 
 export default defineSchema({
   /**
-   * Tenants (Organizations)
-   * Each tenant represents a customer organization using the platform
+   * Tenants (Users or Organizations)
+   * Each tenant represents a customer using the platform
+   * Currently uses clerkUserId for personal accounts
+   * Can be extended to support clerkOrgId for team accounts later
    */
   tenants: defineTable({
-    clerkOrgId: v.string(), // Clerk organization ID (for auth integration)
+    clerkUserId: v.optional(v.string()), // Clerk user ID (for personal accounts)
+    clerkOrgId: v.optional(v.string()), // Clerk org ID (for future team support)
     name: v.string(), // Display name
     plan: v.string(), // Billing tier: "free" | "pro" | "enterprise"
     createdAt: v.number(), // Unix timestamp
   })
-    .index("by_clerk_org", ["clerkOrgId"]), // Lookup by Clerk org ID (unique)
+    .index("by_clerk_user", ["clerkUserId"]) // Lookup by Clerk user ID
+    .index("by_clerk_org", ["clerkOrgId"]), // Lookup by Clerk org ID (future)
 
   /**
    * Agents

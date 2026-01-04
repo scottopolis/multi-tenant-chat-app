@@ -1,3 +1,8 @@
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+} from '@clerk/tanstack-react-start'
 import { createFileRoute, Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({ component: Landing })
@@ -21,12 +26,21 @@ function Landing() {
             into your applications with ease.
           </p>
           <div className="flex flex-col items-center gap-4">
-            <Link
-              to="/dashboard"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Go to Dashboard
-            </Link>
+            <SignedIn>
+              <Link
+                to="/dashboard"
+                className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
+              >
+                Go to Dashboard
+              </Link>
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50">
+                  Sign In to Get Started
+                </button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
       </section>
