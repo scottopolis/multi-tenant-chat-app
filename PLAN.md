@@ -35,9 +35,9 @@ See [DATABASE.md](DATABASE.md) for database implementation details.
 - [ ] Persist across sessions
 
 ### Widget Embed Code
-- [ ] Generate embed snippet in dashboard
-- [ ] API key display/copy
-- [ ] Customization options (theme, position)
+- [x ] Generate embed snippet in dashboard
+- [x] API key display/copy
+- [x] Customization options (theme, position)
 
 ---
 

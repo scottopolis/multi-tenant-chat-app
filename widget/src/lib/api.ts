@@ -165,7 +165,9 @@ export async function* streamMessage(
           // Store the event type for the next data line
           currentEvent = line.slice(6).trim();
         } else if (line.startsWith('data:')) {
-          const data = line.slice(5).trim();
+          // SSE format: "data: content" - skip "data:" (5 chars) and optional single space
+          const rawData = line.slice(5);
+          const data = rawData.startsWith(' ') ? rawData.slice(1) : rawData;
           yield { event: currentEvent, data };
           // Reset event type after yielding
           currentEvent = 'message';
