@@ -1,18 +1,32 @@
-import { createRouter } from '@tanstack/react-router'
-import { QueryClient } from '@tanstack/react-query'
-import { routerWithQueryClient } from '@tanstack/react-router-with-query'
+import { createRouter, Link } from '@tanstack/react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConvexQueryClient } from '@convex-dev/react-query'
-import { ConvexProvider } from 'convex/react'
+import { ConvexProvider, ConvexReactClient } from 'convex/react'
 
 import { routeTree } from './routeTree.gen'
-import { TenantProvider } from './lib/tenant'
+
+function NotFound() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4">
+      <h1 className="text-4xl font-bold">404</h1>
+      <p className="text-muted-foreground">Page not found</p>
+      <Link to="/" className="text-primary underline hover:no-underline">
+        Go home
+      </Link>
+    </div>
+  )
+}
 
 export function getRouter() {
   const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!
   if (!CONVEX_URL) {
     console.error('missing envar VITE_CONVEX_URL')
   }
-  const convexQueryClient = new ConvexQueryClient(CONVEX_URL)
+
+  const convexClient = new ConvexReactClient(CONVEX_URL, {
+    unsavedChangesWarning: false,
+  })
+  const convexQueryClient = new ConvexQueryClient(convexClient)
 
   const queryClient: QueryClient = new QueryClient({
     defaultOptions: {
@@ -24,21 +38,24 @@ export function getRouter() {
   })
   convexQueryClient.connect(queryClient)
 
-  const router = routerWithQueryClient(
-    createRouter({
-      routeTree,
-      defaultPreload: 'intent',
-      context: { queryClient },
-      scrollRestoration: true,
-      defaultNotFoundComponent: () => <div className="p-8 text-center"><h1 className="text-2xl font-bold">404 - Page Not Found</h1></div>,
-      Wrap: ({ children }) => (
-        <ConvexProvider client={convexQueryClient.convexClient}>
-          <TenantProvider>{children}</TenantProvider>
-        </ConvexProvider>
-      ),
-    }),
-    queryClient
-  )
+  const router = createRouter({
+    routeTree,
+    context: { queryClient, convexClient, convexQueryClient },
+    scrollRestoration: true,
+    defaultPreload: 'intent',
+    defaultNotFoundComponent: NotFound,
+    Wrap: ({ children }) => (
+      <ConvexProvider client={convexQueryClient.convexClient}>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </ConvexProvider>
+    ),
+  })
 
   return router
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof getRouter>
+  }
 }

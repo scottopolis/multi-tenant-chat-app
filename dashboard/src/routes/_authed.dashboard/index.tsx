@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useTenant } from '../../lib/tenant'
 
-export const Route = createFileRoute('/dashboard/')({
+export const Route = createFileRoute('/_authed/dashboard/')({
   component: DashboardHome,
 })
 

@@ -489,25 +489,35 @@ function LandingPage() {
 
 ## 10. Implementation Checklist
 
-### Phase 1: Setup
-- [ ] Install `@clerk/tanstack-react-start@0.26.5` in dashboard
-- [ ] Create Clerk account and application
-- [ ] Create "convex" JWT template in Clerk Dashboard
-- [ ] Add env vars to `dashboard/.env.local`
-- [ ] Create `convex-backend/convex/auth.config.ts`
-- [ ] Set `CLERK_FRONTEND_API_URL` in Convex environment
+### Phase 1: Setup ✅ COMPLETE
+- [x] Install `@clerk/tanstack-react-start@0.26.5` in dashboard
+- [x] Create Clerk account and application
+- [x] Create "convex" JWT template in Clerk Dashboard
+- [x] Add env vars to `dashboard/.env.local`
+- [x] Create `convex-backend/convex/auth.config.ts`
+- [x] Set `CLERK_FRONTEND_API_URL` in Convex environment
 
-### Phase 2: Router & Root
-- [ ] Update `dashboard/src/router.tsx` with convexClient context
-- [ ] Update `dashboard/src/routes/__root.tsx` with Clerk providers
-- [ ] Test that app loads without errors
+**Summary:** Installed Clerk SDK, created auth config for Convex integration, configured environment variables in both dashboard and Convex backend. Also fixed vitest config to exclude e2e tests and pass with no unit tests.
 
-### Phase 3: Protected Routes
-- [ ] Create `_authed.tsx` layout route
-- [ ] Move `dashboard.tsx` → `_authed.dashboard.tsx`
-- [ ] Move nested routes under `_authed.dashboard/`
-- [ ] Update `index.tsx` as public landing page
-- [ ] Test login flow shows SignIn component
+### Phase 2: Router & Root ✅ COMPLETE
+- [x] Update `dashboard/src/router.tsx` with convexClient context
+- [x] Update `dashboard/src/routes/__root.tsx` with Clerk providers
+- [x] Create `dashboard/src/start.ts` with clerkMiddleware()
+- [x] Test that app loads without errors
+
+**Summary:** Updated router to pass convexClient and convexQueryClient in context. Added ClerkProvider, ConvexProviderWithClerk, and fetchClerkAuth server function to __root.tsx. Created start.ts with clerkMiddleware for request handling.
+
+### Phase 3: Protected Routes ✅ COMPLETE
+- [x] Create `_authed.tsx` layout route
+- [x] Move `dashboard.tsx` → `_authed.dashboard.tsx`
+- [x] Move nested routes under `_authed.dashboard/`
+- [x] Update `index.tsx` as public landing page with SignedIn/SignedOut
+- [x] Update Header with UserButton and SignInButton
+- [x] Test login flow shows SignIn component
+- [x] Create `dashboard/e2e/auth.spec.ts` with 3 passing tests
+- [x] Pin TanStack packages to exact versions matching reference project (1.134.x)
+
+**Summary:** Created _authed.tsx layout that checks context.userId and shows Clerk SignIn if not authenticated. Moved all dashboard routes under _authed prefix. Updated Header with UserButton for signed-in users and SignInButton for signed-out users. Updated landing page to show "Go to Dashboard" when signed in or "Sign In to Get Started" when signed out. Fixed package versions to match reference project.
 
 ### Phase 4: Tenant Integration
 - [ ] Update `TenantProvider` to use Clerk `orgId`
@@ -515,7 +525,6 @@ function LandingPage() {
 - [ ] Verify tenant data displays in dashboard
 
 ### Phase 5: Polish
-- [ ] Add UserButton to dashboard nav
 - [ ] Handle "no organization selected" state
 - [ ] Add sign-out functionality
 - [ ] Test full flow: sign in → select org → use dashboard → sign out
