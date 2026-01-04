@@ -116,3 +116,19 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+/**
+ * Delete orphaned tenants (those without clerkUserId)
+ * Used to clean up test data from before personal account migration
+ */
+export const deleteOrphanedTenants = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTenants = await ctx.db.query("tenants").collect();
+    const orphaned = allTenants.filter((t) => !t.clerkUserId);
+    for (const tenant of orphaned) {
+      await ctx.db.delete(tenant._id);
+    }
+    return { deleted: orphaned.length };
+  },
+});
