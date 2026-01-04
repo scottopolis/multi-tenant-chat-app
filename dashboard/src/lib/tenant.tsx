@@ -1,11 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/tanstack-react-start'
 import { api } from '../../../convex-backend/convex/_generated/api'
 
 export interface Tenant {
   id: string
   name: string
-  clerkOrgId: string
+  clerkUserId: string
+  clerkOrgId?: string // For future team support
   plan: string
 }
 
@@ -16,23 +18,27 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | null>(null)
 
-const DEV_CLERK_ORG_ID = 'org_acme_corp'
-
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const tenant = useQuery(api.tenants.getByClerkOrgId, {
-    clerkOrgId: DEV_CLERK_ORG_ID,
-  })
+  const { userId, isLoaded } = useAuth()
+
+  const tenant = useQuery(
+    api.tenants.getByClerkUserId,
+    userId ? { clerkUserId: userId } : 'skip'
+  )
+
+  const isLoading = !isLoaded || (userId !== null && tenant === undefined)
 
   const value: TenantContextValue = {
     tenant: tenant
       ? {
           id: tenant._id,
           name: tenant.name,
+          clerkUserId: tenant.clerkUserId,
           clerkOrgId: tenant.clerkOrgId,
           plan: tenant.plan,
         }
       : null,
-    isLoading: tenant === undefined,
+    isLoading,
   }
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>

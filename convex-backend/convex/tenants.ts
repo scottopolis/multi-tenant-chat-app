@@ -6,8 +6,22 @@ import { query, mutation } from "./_generated/server";
  */
 
 /**
+ * Get tenant by Clerk user ID
+ * Used to map Clerk auth to our internal tenant (personal accounts)
+ */
+export const getByClerkUserId = query({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("tenants")
+      .withIndex("by_clerk_user", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .first();
+  },
+});
+
+/**
  * Get tenant by Clerk organization ID
- * Used to map Clerk auth to our internal tenant
+ * Used for future team/org support
  */
 export const getByClerkOrgId = query({
   args: { clerkOrgId: v.string() },
@@ -41,26 +55,28 @@ export const list = query({
 
 /**
  * Create a new tenant
- * Called when a new organization signs up
+ * Called when a new user signs up (auto-provisioning)
  */
 export const create = mutation({
   args: {
-    clerkOrgId: v.string(),
+    clerkUserId: v.string(),
+    clerkOrgId: v.optional(v.string()), // For future team support
     name: v.string(),
     plan: v.optional(v.string()), // Defaults to "free"
   },
   handler: async (ctx, args) => {
-    // Check if tenant already exists
+    // Check if tenant already exists for this user
     const existing = await ctx.db
       .query("tenants")
-      .withIndex("by_clerk_org", (q) => q.eq("clerkOrgId", args.clerkOrgId))
+      .withIndex("by_clerk_user", (q) => q.eq("clerkUserId", args.clerkUserId))
       .first();
 
     if (existing) {
-      throw new Error(`Tenant with Clerk org ID "${args.clerkOrgId}" already exists`);
+      throw new Error(`Tenant for user "${args.clerkUserId}" already exists`);
     }
 
     return await ctx.db.insert("tenants", {
+      clerkUserId: args.clerkUserId,
       clerkOrgId: args.clerkOrgId,
       name: args.name,
       plan: args.plan ?? "free",
