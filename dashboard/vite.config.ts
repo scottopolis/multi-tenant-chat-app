@@ -18,6 +18,10 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  test: {
+    exclude: ['e2e/**', 'node_modules/**'],
+    passWithNoTests: true,
+  },
 })
 
 export default config

@@ -14,6 +14,7 @@
     "pages:dev": "wrangler pages dev .output/public"
   },
   "dependencies": {
+    "@clerk/tanstack-react-start": "^0.26.5",
     "@convex-dev/react-query": "^0.1.0",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-devtools": "^0.7.0",
