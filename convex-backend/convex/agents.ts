@@ -99,7 +99,7 @@ export const create = mutation({
   args: {
     agentId: v.string(),
     tenantId: v.id("tenants"),
-    orgId: v.string(),
+    orgId: v.optional(v.string()),
     name: v.string(),
     systemPrompt: v.optional(v.string()),
     model: v.string(),

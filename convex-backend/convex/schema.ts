@@ -38,7 +38,7 @@ export default defineSchema({
   agents: defineTable({
     agentId: v.string(), // Unique agent identifier (e.g., "acme-support")
     tenantId: v.id("tenants"), // Reference to tenant
-    orgId: v.string(), // Denormalized org identifier for easier queries
+    orgId: v.optional(v.string()), // Denormalized org identifier for easier queries
     name: v.string(), // Display name (e.g., "Acme Customer Support")
     systemPrompt: v.optional(v.string()), // System prompt text (fallback if no Langfuse)
     model: v.string(), // Model ID (e.g., "gpt-4.1-mini", "gpt-4o")
