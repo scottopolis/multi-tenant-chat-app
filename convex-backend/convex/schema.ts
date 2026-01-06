@@ -120,6 +120,30 @@ export default defineSchema({
     .index("by_agent", ["agentId"]),
 
   /**
+   * Documents (Knowledge Base Files)
+   * Files uploaded to the RAG knowledge base for each agent.
+   * Stored in Convex file storage with text extracted and indexed via RAG component.
+   */
+  documents: defineTable({
+    tenantId: v.id("tenants"),
+    agentId: v.id("agents"),
+    fileName: v.string(),
+    fileSize: v.number(), // bytes
+    storageId: v.id("_storage"), // Convex file storage reference
+    mimeType: v.string(), // e.g., "text/plain", "text/markdown"
+    status: v.union(
+      v.literal("pending"), // Upload complete, awaiting processing
+      v.literal("processing"), // Being chunked and indexed
+      v.literal("ready"), // Successfully indexed in RAG
+      v.literal("failed") // Processing failed
+    ),
+    errorMessage: v.optional(v.string()), // Error details if failed
+    createdAt: v.number(),
+  })
+    .index("by_agent", ["agentId"])
+    .index("by_tenant", ["tenantId"]),
+
+  /**
    * Voice Calls
    * Call logs for analytics and billing.
    */

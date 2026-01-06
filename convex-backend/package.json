@@ -9,7 +9,12 @@
     "codegen": "convex dev --once"
   },
   "dependencies": {
-    "convex": "^1.17.2"
+    "@ai-sdk/openai": "^2.0.89",
+    "@convex-dev/rag": "^0.6.1",
+    "@convex-dev/workpool": "^0.3.0",
+    "ai": "^5.0.118",
+    "convex": "^1.17.2",
+    "convex-helpers": "^0.1.108"
   },
   "devDependencies": {
     "@types/node": "^20.10.0"
