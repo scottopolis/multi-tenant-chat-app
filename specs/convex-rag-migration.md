@@ -2,35 +2,28 @@
 
 Replace OpenAI Vector Store + File Search with Convex RAG component for knowledge base functionality.
 
+## Status: Phases 1-3 Complete ✅
+
 ## Goals
 
-- Remove dependency on OpenAI's vector store and file search APIs
-- Use Convex RAG component with namespaces for multi-tenant isolation
-- Store uploaded files in Convex file storage
-- Unified search mechanism for both chat and voice agents
-- Text files only initially (PDF/doc extraction deferred)
+- ✅ Remove dependency on OpenAI's vector store and file search APIs
+- ✅ Use Convex RAG component with namespaces for multi-tenant isolation
+- ✅ Store uploaded files in Convex file storage
+- ✅ Unified search mechanism for both chat and voice agents
+- ✅ Text files only initially (PDF/doc extraction deferred)
 
-## Current Architecture
-
-**OpenAI-based:**
-- `worker/src/lib/vectorStore.ts` - CRUD operations against OpenAI Vector Store API
-- `worker/src/tools/vectorSearch.ts` - Custom function tool that queries OpenAI's `/vector_stores/{id}/search` endpoint
-- `worker/src/tools/index.ts` - Uses `fileSearchTool` (hosted) for chat, `createVectorSearchTool` (function) for voice
-- `worker/src/routes/documents.ts` - Upload/delete/list endpoints, creates vector stores on-demand
-- `convex-backend/convex/schema.ts` - Agents table has `vectorStoreId` field (OpenAI Vector Store ID)
-
-## Target Architecture
+## Architecture
 
 **Convex RAG-based:**
-- Convex RAG component installed in `convex-backend`
+- `@convex-dev/rag` component with `@ai-sdk/openai@2` for embeddings
 - Namespaces: one per agent (e.g., `agent:{agentId}`)
-- Files stored in Convex file storage with metadata in a new `documents` table
-- Single search tool (function-based) that calls a Convex action from the Worker
-- Remove `vectorStoreId` from agents table (no longer needed)
+- Files stored in Convex file storage with metadata in `documents` table
+- Single `search_knowledge_base` tool that calls Convex `searchKnowledgeBase` action
+- Uses `agentConvexId` (Convex document _id) instead of `vectorStoreId`
 
 ## Implementation Phases
 
-### Phase 1: Set Up Convex RAG Component
+### Phase 1: Set Up Convex RAG Component ✅
 
 **convex-backend changes:**
 
@@ -55,9 +48,9 @@ Replace OpenAI Vector Store + File Search with Convex RAG component for knowledg
    - `tenantId`, `agentId`, `fileName`, `fileSize`, `storageId` (Convex file ref), `status`, `createdAt`
    - Index by `agentId` for listing
 
-### Phase 2: Convex Actions for RAG Operations
+### Phase 2: Convex Actions for RAG Operations ✅
 
-**New Convex actions in `convex/rag.ts`:**
+**Convex actions in `convex/documents.ts`:**
 
 1. `addDocument` - Upload file to Convex storage, extract text, add to RAG with namespace
 2. `deleteDocument` - Remove from RAG, delete from file storage
@@ -68,48 +61,41 @@ Replace OpenAI Vector Store + File Search with Convex RAG component for knowledg
 - For `.txt` and `.md` files: read directly
 - Defer other formats (return error for unsupported types)
 
-### Phase 3: Update Worker to Use Convex RAG
+### Phase 3: Update Worker to Use Convex RAG ✅
 
 **worker changes:**
 
-1. Delete `worker/src/lib/vectorStore.ts` (no longer needed)
+1. ✅ Deleted `worker/src/lib/vectorStore.ts`
+2. ✅ Rewrote `worker/src/routes/documents.ts` to call Convex actions
+3. ✅ Rewrote `worker/src/tools/vectorSearch.ts` to call Convex `searchKnowledgeBase`
+4. ✅ Updated `worker/src/tools/index.ts` - unified search, removed `fileSearchTool`
+5. ✅ Updated `worker/src/tenants/types.ts` - replaced `vectorStoreId` with `agentConvexId`
+6. ✅ Updated `worker/src/tenants/config.ts` - fetch `agentConvexId` from `result._id`
+7. ✅ Deleted old test files (`vectorStore.test.ts`, `documents.test.ts`)
 
-2. Update `worker/src/routes/documents.ts`:
-   - Upload: Store file in Convex via HTTP action, call `addDocument` action
-   - Delete: Call `deleteDocument` action
-   - List: Call `listDocuments` action
-   - Remove all OpenAI Vector Store API calls
-
-3. Replace `worker/src/tools/vectorSearch.ts`:
-   - New implementation calls Convex `searchKnowledgeBase` action
-   - Same tool interface (`search_knowledge_base` with `query` param)
-
-4. Update `worker/src/tools/index.ts`:
-   - Remove `fileSearchTool` import and usage
-   - Use the new Convex-based search tool for both chat and voice
-   - Remove `forVoice` branching (unified approach)
-
-### Phase 4: Schema & Cleanup
+### Phase 4: Schema & Cleanup (TODO)
 
 1. Remove `vectorStoreId` field from agents table in Convex schema
 2. Update `convex/agents.ts` mutations to remove vectorStoreId handling
-3. Delete `worker/src/tools/vectorSearch.ts` (old OpenAI version)
-4. Update tests in `worker/src/routes/documents.test.ts`
+3. Add new tests for Convex RAG integration
 
-## Files to Modify
+## Files Modified
 
-| File | Action |
+| File | Status |
 |------|--------|
-| `convex-backend/package.json` | Add `@convex-dev/rag`, `@ai-sdk/openai` |
-| `convex-backend/convex/convex.config.ts` | Create - RAG component setup |
-| `convex-backend/convex/rag.ts` | Create - RAG instance + actions |
-| `convex-backend/convex/schema.ts` | Add `documents` table, remove `vectorStoreId` from agents |
-| `convex-backend/convex/agents.ts` | Remove vectorStoreId mutation logic |
-| `worker/src/lib/vectorStore.ts` | Delete |
-| `worker/src/routes/documents.ts` | Rewrite to call Convex actions |
-| `worker/src/tools/vectorSearch.ts` | Rewrite to call Convex search action |
-| `worker/src/tools/index.ts` | Simplify - unified search tool |
-| `worker/src/routes/documents.test.ts` | Update for new implementation |
+| `convex-backend/package.json` | ✅ Added `@convex-dev/rag`, `@ai-sdk/openai@2` |
+| `convex-backend/convex/convex.config.ts` | ✅ Created - RAG component setup |
+| `convex-backend/convex/rag.ts` | ✅ Created - RAG instance config |
+| `convex-backend/convex/documents.ts` | ✅ Created - RAG actions |
+| `convex-backend/convex/schema.ts` | ✅ Added `documents` table |
+| `worker/src/lib/vectorStore.ts` | ✅ Deleted |
+| `worker/src/routes/documents.ts` | ✅ Rewritten to call Convex actions |
+| `worker/src/tools/vectorSearch.ts` | ✅ Rewritten to call Convex search |
+| `worker/src/tools/index.ts` | ✅ Unified search tool |
+| `worker/src/tenants/types.ts` | ✅ `vectorStoreId` → `agentConvexId` |
+| `worker/src/tenants/config.ts` | ✅ Fetch `agentConvexId` |
+| `convex-backend/convex/agents.ts` | TODO: Remove vectorStoreId |
+| `convex-backend/convex/schema.ts` | TODO: Remove vectorStoreId from agents |
 
 ## API Contracts (No Change)
 

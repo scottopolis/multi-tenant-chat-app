@@ -124,11 +124,10 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     // Load voice config from Convex
     const config = await this.loadVoiceConfig();
 
-    // Load tools for the agent (forVoice: true ensures only function tools are returned)
+    // Load tools for the agent
     const tools = config.agentId 
       ? await getTools(config.agentId, { CONVEX_URL: this.env.CONVEX_URL }, { 
-          forVoice: true, 
-          openaiApiKey: this.env.OPENAI_API_KEY 
+          convexUrl: this.env.CONVEX_URL 
         })
       : [];
 
