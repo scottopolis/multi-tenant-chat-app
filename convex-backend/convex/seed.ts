@@ -1,5 +1,4 @@
 import { internalMutation } from "./_generated/server";
-import { v } from "convex/values";
 
 /**
  * Seed script to populate Convex with initial data

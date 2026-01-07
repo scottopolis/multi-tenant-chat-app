@@ -117,7 +117,7 @@ async function fetchFromConvex(
       
       if (schemaObj && typeof schemaObj === 'object' && Object.keys(schemaObj).length > 0) {
         outputSchema = JSONSchemaToZod.convert(schemaObj);
-        console.log(`[AgentConfig] Converted outputSchema for ${agentId}:`, outputSchema?._def?.typeName);
+        console.log(`[AgentConfig] Converted outputSchema for ${agentId}:`, (outputSchema?._def as any)?.typeName);
       }
     } catch (error) {
       console.error(`[AgentConfig] Failed to convert outputSchema for ${agentId}:`, error);
@@ -133,7 +133,7 @@ async function fetchFromConvex(
     model: result.model,
     mcpServers: result.mcpServers,
     outputSchema,
-    vectorStoreId: result.vectorStoreId,
+    agentConvexId: result._id,
   };
 }
 

@@ -89,10 +89,10 @@ export interface AgentConfig {
   outputSchema?: any; // Zod schema type
   
   /**
-   * OpenAI Vector Store ID for RAG knowledge base
-   * When provided, the file_search tool is attached to the agent
+   * Convex document ID for the agent (_id from agents table)
+   * Used for knowledge base search via Convex RAG
    */
-  vectorStoreId?: string;
+  agentConvexId?: string;
   
   // Future additions:
   // webhookTools?: WebhookToolConfig[];

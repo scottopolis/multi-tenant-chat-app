@@ -5,7 +5,6 @@ import { Button } from './components/ui/button';
 import { createChat } from './lib/api';
 import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { AgentProvider, useAgent } from './contexts/AgentContext';
-import { AgentSelector } from './components/AgentSelector';
 
 /**
  * Main App Component
@@ -87,10 +86,7 @@ function AppContent() {
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold">Chat Assistant</h1>
-          <AgentSelector />
-        </div>
+        <h1 className="text-lg font-semibold">Chat Assistant</h1>
         <Button
           variant="outline"
           size="sm"

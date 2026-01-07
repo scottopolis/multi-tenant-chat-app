@@ -1,11 +1,4 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
-import {
-  createVectorStore,
-  uploadFileToVectorStore,
-  deleteFileFromVectorStore,
-  listVectorStoreFiles,
-} from '../lib/vectorStore';
 import { invalidateAgentCache } from '../tenants/config';
 
 type Bindings = {
@@ -21,29 +14,19 @@ type Variables = {
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 /**
- * Helper: Call Convex mutation to update agent's vectorStoreId
+ * Document Routes - Convex RAG Integration
+ *
+ * These routes proxy document operations to Convex actions.
+ * Files are stored in Convex file storage and indexed via the RAG component.
+ *
+ * Flow:
+ * 1. Upload: generateUploadUrl -> upload to Convex storage -> addDocument action
+ * 2. Delete: removeDocument action
+ * 3. List: listByAgent query
  */
-async function updateAgentVectorStore(
-  convexUrl: string,
-  agentId: string,
-  vectorStoreId: string
-): Promise<void> {
-  const response = await fetch(`${convexUrl}/api/mutation`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path: 'agents:updateVectorStoreId',
-      args: { agentId, vectorStoreId },
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update agent vector store: ${response.status}`);
-  }
-}
 
 /**
- * Helper: Get agent data from Convex (includes _id and vectorStoreId)
+ * Helper: Get agent data from Convex (includes _id, tenantId)
  */
 async function getAgentData(convexUrl: string, agentId: string): Promise<any> {
   const response = await fetch(`${convexUrl}/api/query`, {
@@ -59,45 +42,125 @@ async function getAgentData(convexUrl: string, agentId: string): Promise<any> {
     throw new Error(`Failed to get agent: ${response.status}`);
   }
 
-  const data = await response.json() as { value: any };
+  const data = (await response.json()) as { value: any };
   return data.value;
 }
 
 /**
- * Helper: Update agent record via Convex mutation
+ * Helper: Generate upload URL from Convex
  */
-async function patchAgent(
-  convexUrl: string,
-  id: string,
-  updates: Record<string, any>
-): Promise<void> {
+async function generateUploadUrl(convexUrl: string): Promise<string> {
   const response = await fetch(`${convexUrl}/api/mutation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      path: 'agents:update',
-      args: { id, ...updates },
+      path: 'documents:generateUploadUrl',
+      args: {},
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update agent: ${response.status}`);
+    throw new Error(`Failed to generate upload URL: ${response.status}`);
   }
+
+  const data = (await response.json()) as { value: string };
+  return data.value;
+}
+
+/**
+ * Helper: Call addDocument action in Convex
+ */
+async function addDocument(
+  convexUrl: string,
+  args: {
+    tenantId: string;
+    agentId: string;
+    storageId: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+  }
+): Promise<{ documentId: string; success: boolean }> {
+  const response = await fetch(`${convexUrl}/api/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: 'documents:addDocument',
+      args,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to add document: ${response.status} - ${error}`);
+  }
+
+  const data = (await response.json()) as { value: { documentId: string; success: boolean } };
+  return data.value;
+}
+
+/**
+ * Helper: Call removeDocument action in Convex
+ */
+async function removeDocument(
+  convexUrl: string,
+  documentId: string
+): Promise<{ success: boolean; documentId: string }> {
+  const response = await fetch(`${convexUrl}/api/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: 'documents:removeDocument',
+      args: { documentId },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to remove document: ${response.status} - ${error}`);
+  }
+
+  const data = (await response.json()) as { value: { success: boolean; documentId: string } };
+  return data.value;
+}
+
+/**
+ * Helper: List documents for an agent from Convex
+ */
+async function listDocuments(convexUrl: string, agentId: string): Promise<any[]> {
+  const response = await fetch(`${convexUrl}/api/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: 'documents:listByAgent',
+      args: { agentId },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to list documents: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { value: any[] };
+  return data.value || [];
 }
 
 /**
  * POST /api/documents/upload
  * Upload a file to the agent's knowledge base
+ *
+ * Flow:
+ * 1. Validate file size and type
+ * 2. Get agent data (for tenantId)
+ * 3. Generate upload URL from Convex
+ * 4. Upload file to Convex storage
+ * 5. Call addDocument action to process and index
  */
 app.post('/upload', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
-    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
-    }
-    if (!openaiApiKey) {
-      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
     }
 
     const agentId = c.get('agentId');
@@ -111,13 +174,29 @@ app.post('/upload', async (c) => {
     }
     const file = fileEntry as File;
 
-    // Validate file size (max 10MB as per spec)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
-      return c.json({
-        error: 'File too large',
-        details: `Maximum file size is 10MB, got ${(file.size / 1024 / 1024).toFixed(2)}MB`
-      }, 400);
+      return c.json(
+        {
+          error: 'File too large',
+          details: `Maximum file size is 10MB, got ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        },
+        400
+      );
+    }
+
+    // Validate file type
+    const supportedTypes = ['text/plain', 'text/markdown'];
+    const mimeType = file.type || 'text/plain';
+    if (!supportedTypes.includes(mimeType)) {
+      return c.json(
+        {
+          error: 'Unsupported file type',
+          details: `Supported types: ${supportedTypes.join(', ')}. Got: ${mimeType}`,
+        },
+        400
+      );
     }
 
     // Get agent data from Convex
@@ -126,86 +205,88 @@ app.post('/upload', async (c) => {
       return c.json({ error: 'Agent not found' }, 404);
     }
 
-    let vectorStoreId = agentData.vectorStoreId;
+    // Generate upload URL from Convex
+    const uploadUrl = await generateUploadUrl(convexUrl);
 
-    // Create vector store if it doesn't exist
-    if (!vectorStoreId) {
-      vectorStoreId = await createVectorStore(openaiApiKey, `${agentId}-knowledge-base`);
+    // Upload file to Convex storage
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': mimeType },
+      body: file,
+    });
 
-      // Update agent with new vectorStoreId
-      await patchAgent(convexUrl, agentData._id, { vectorStoreId });
-
-      // Invalidate cache so next request gets updated config
-      invalidateAgentCache(agentId);
-
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload to Convex storage: ${uploadResponse.status}`);
     }
 
-    // Upload file to OpenAI Vector Store
-    const fileId = await uploadFileToVectorStore(openaiApiKey, vectorStoreId, file, file.name);
+    const { storageId } = (await uploadResponse.json()) as { storageId: string };
 
-
-    return c.json({
-      success: true,
-      fileId,
-      vectorStoreId,
+    // Call addDocument action to process and index
+    const result = await addDocument(convexUrl, {
+      tenantId: agentData.tenantId,
+      agentId: agentData._id,
+      storageId,
       fileName: file.name,
       fileSize: file.size,
-    }, 201);
+      mimeType,
+    });
+
+    // Invalidate cache so next request gets updated config
+    invalidateAgentCache(agentId);
+
+    return c.json(
+      {
+        success: true,
+        documentId: result.documentId,
+        fileName: file.name,
+        fileSize: file.size,
+      },
+      201
+    );
   } catch (error) {
     console.error('[Documents] Upload error:', error);
-    return c.json({
-      error: 'Failed to upload file',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    }, 500);
+    return c.json(
+      {
+        error: 'Failed to upload file',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
   }
 });
 
 /**
- * DELETE /api/documents/:fileId
+ * DELETE /api/documents/:documentId
  * Delete a file from the agent's knowledge base
  */
-app.delete('/:fileId', async (c) => {
+app.delete('/:documentId', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
-    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
     }
-    if (!openaiApiKey) {
-      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
+
+    const documentId = c.req.param('documentId');
+    if (!documentId) {
+      return c.json({ error: 'Document ID required' }, 400);
     }
 
-    const agentId = c.get('agentId');
-    const fileId = c.req.param('fileId');
-
-    if (!fileId) {
-      return c.json({ error: 'File ID required' }, 400);
-    }
-
-    // Get agent data from Convex
-    const agentData = await getAgentData(convexUrl, agentId);
-    if (!agentData) {
-      return c.json({ error: 'Agent not found' }, 404);
-    }
-
-    const vectorStoreId = agentData.vectorStoreId;
-    if (!vectorStoreId) {
-      return c.json({ error: 'No vector store configured for this agent' }, 404);
-    }
-
-    // Delete file from OpenAI Vector Store
-    await deleteFileFromVectorStore(openaiApiKey, vectorStoreId, fileId);
+    // Call removeDocument action
+    const result = await removeDocument(convexUrl, documentId);
 
     return c.json({
       success: true,
-      fileId,
+      documentId: result.documentId,
     });
   } catch (error) {
     console.error('[Documents] Delete error:', error);
-    return c.json({
-      error: 'Failed to delete file',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    }, 500);
+    return c.json(
+      {
+        error: 'Failed to delete file',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
   }
 });
 
@@ -216,49 +297,41 @@ app.delete('/:fileId', async (c) => {
 app.get('/', async (c) => {
   try {
     const convexUrl = c.env.CONVEX_URL;
-    const openaiApiKey = c.env.OPENAI_API_KEY;
     if (!convexUrl) {
       return c.json({ error: 'Service configuration error (CONVEX_URL)' }, 500);
     }
-    if (!openaiApiKey) {
-      return c.json({ error: 'Service configuration error (OPENAI_API_KEY)' }, 500);
-    }
 
     const agentId = c.get('agentId');
-    console.log(`[Documents] GET list for agentId: ${agentId}`);
 
-    // Get agent data from Convex
+    // Get agent data to get the Convex agent _id
     const agentData = await getAgentData(convexUrl, agentId);
-    console.log(`[Documents] Agent data:`, JSON.stringify(agentData, null, 2));
     if (!agentData) {
       return c.json({ error: 'Agent not found' }, 404);
     }
 
-    const vectorStoreId = agentData.vectorStoreId;
-    console.log(`[Documents] vectorStoreId: ${vectorStoreId}`);
-    if (!vectorStoreId) {
-      // No vector store = no documents
-      console.log(`[Documents] No vectorStoreId found, returning empty files`);
-      return c.json({ files: [] });
-    }
-
-    // List files from OpenAI Vector Store (cached)
-    const files = await listVectorStoreFiles(openaiApiKey, vectorStoreId);
-    console.log(`[Documents] Files from OpenAI:`, files.length);
+    // List documents from Convex
+    const documents = await listDocuments(convexUrl, agentData._id);
 
     return c.json({
-      files: files.map((file) => ({
-        id: file.id,
-        status: file.status,
-        createdAt: file.created_at,
+      files: documents.map((doc) => ({
+        id: doc._id,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        mimeType: doc.mimeType,
+        status: doc.status,
+        errorMessage: doc.errorMessage,
+        createdAt: doc.createdAt,
       })),
     });
   } catch (error) {
     console.error('[Documents] List error:', error);
-    return c.json({
-      error: 'Failed to list files',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    }, 500);
+    return c.json(
+      {
+        error: 'Failed to list files',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    );
   }
 });
 
