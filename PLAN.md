@@ -179,6 +179,8 @@ See docs here: https://tanstack.com/ai/latest/docs/getting-started/overview
 
 ## Later Phases
 
+- use open router embedding model for convex RAG document upload, see convex-backend/convex/documents.ts
+
 ### Evals (Langfuse)
 - [ ] Set up Langfuse integration
 - [ ] Create eval datasets

@@ -140,7 +140,9 @@ export async function runAgent(options: RunAgentOptions): Promise<any> {
   setDefaultOpenAIKey(apiKey);
 
   // 5. Get tools for this agent (includes file_search if vector store exists)
-  const tools = await getTools(agentId, { CONVEX_URL: env.CONVEX_URL });
+  const tools = await getTools(agentId, { CONVEX_URL: env.CONVEX_URL }, {
+    convexUrl: env.CONVEX_URL,
+  });
 
   // 6. Create Agent instance
   // If outputSchema is provided, create agent with structured output
