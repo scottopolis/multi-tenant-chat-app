@@ -2,7 +2,7 @@
 
 Replace OpenAI Vector Store + File Search with Convex RAG component for knowledge base functionality.
 
-## Status: Phases 1-3 Complete ✅
+## Status: Complete ✅
 
 ## Goals
 
@@ -73,11 +73,11 @@ Replace OpenAI Vector Store + File Search with Convex RAG component for knowledg
 6. ✅ Updated `worker/src/tenants/config.ts` - fetch `agentConvexId` from `result._id`
 7. ✅ Deleted old test files (`vectorStore.test.ts`, `documents.test.ts`)
 
-### Phase 4: Schema & Cleanup (TODO)
+### Phase 4: Schema & Cleanup ✅
 
-1. Remove `vectorStoreId` field from agents table in Convex schema
-2. Update `convex/agents.ts` mutations to remove vectorStoreId handling
-3. Add new tests for Convex RAG integration
+1. ✅ Removed `vectorStoreId` field from agents table in Convex schema
+2. ✅ Removed `updateVectorStoreId` mutation from `convex/agents.ts`
+3. ✅ Removed `vectorStoreId` from update mutation args
 
 ## Files Modified
 
@@ -94,8 +94,8 @@ Replace OpenAI Vector Store + File Search with Convex RAG component for knowledg
 | `worker/src/tools/index.ts` | ✅ Unified search tool |
 | `worker/src/tenants/types.ts` | ✅ `vectorStoreId` → `agentConvexId` |
 | `worker/src/tenants/config.ts` | ✅ Fetch `agentConvexId` |
-| `convex-backend/convex/agents.ts` | TODO: Remove vectorStoreId |
-| `convex-backend/convex/schema.ts` | TODO: Remove vectorStoreId from agents |
+| `convex-backend/convex/agents.ts` | ✅ Removed vectorStoreId handling |
+| `convex-backend/convex/schema.ts` | ✅ Removed vectorStoreId from agents |
 
 ## API Contracts (No Change)
 

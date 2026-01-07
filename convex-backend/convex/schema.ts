@@ -8,7 +8,7 @@ import { v } from "convex/values";
  * - Multi-tenant isolation via tenantId
  * - Agent configurations with Langfuse integration
  * - API key management
- * - RAG knowledgebase via OpenAI Vector Stores (vectorStoreId in agents)
+ * - RAG knowledge base via Convex RAG component (documents table)
  *
  * Security: All queries MUST filter by tenantId to prevent cross-tenant data access
  */
@@ -57,9 +57,6 @@ export default defineSchema({
     // Structured output schema (optional)
     // Stored as JSON-serialized Zod schema definition
     outputSchema: v.optional(v.string()),
-
-    // OpenAI Vector Store for RAG knowledgebase (optional)
-    vectorStoreId: v.optional(v.string()), // OpenAI Vector Store ID
 
     createdAt: v.number(), // Unix timestamp
     updatedAt: v.number(), // Unix timestamp

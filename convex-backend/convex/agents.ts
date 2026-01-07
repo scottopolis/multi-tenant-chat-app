@@ -163,7 +163,6 @@ export const update = mutation({
     langfuseLabel: v.optional(v.string()),
     mcpServers: v.optional(v.string()),
     outputSchema: v.optional(v.string()),
-    vectorStoreId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
@@ -174,34 +173,6 @@ export const update = mutation({
     });
 
     return id;
-  },
-});
-
-/**
- * Update agent's vector store ID
- * Used when creating/updating RAG knowledge base
- */
-export const updateVectorStoreId = mutation({
-  args: {
-    agentId: v.string(),
-    vectorStoreId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const agent = await ctx.db
-      .query("agents")
-      .withIndex("by_agent_id", (q) => q.eq("agentId", args.agentId))
-      .first();
-
-    if (!agent) {
-      throw new Error(`Agent not found: ${args.agentId}`);
-    }
-
-    await ctx.db.patch(agent._id, {
-      vectorStoreId: args.vectorStoreId,
-      updatedAt: Date.now(),
-    });
-
-    return agent._id;
   },
 });
 
