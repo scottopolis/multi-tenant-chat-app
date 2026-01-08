@@ -1,4 +1,4 @@
-import { chat, maxIterations } from '@tanstack/ai';
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai';
 import { createOpenRouterChat } from '../ai/openrouter';
 import { getAgentConfig } from '../tenants/config';
 import { resolveSystemPrompt } from './prompts';
@@ -53,4 +53,17 @@ export async function runAgentTanStack(options: RunAgentOptions) {
   });
 }
 
-export { runAgentTanStack as runAgentTanStackSSE };
+export interface RunAgentTanStackSSEOptions extends RunAgentOptions {
+  chatId: string;
+}
+
+/**
+ * Run agent and return SSE Response for streaming.
+ *
+ * @param options - RunAgentOptions plus chatId
+ * @returns Response with SSE stream
+ */
+export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): Promise<Response> {
+  const stream = await runAgentTanStack(options);
+  return toServerSentEventsResponse(stream);
+}

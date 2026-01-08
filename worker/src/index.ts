@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { createChat, getChat, listChats, addMessage, getMessages, updateChatConversationState } from './storage';
-import { runAgent, isValidModel } from './agents/index';
+import { runAgent, isValidModel, runAgentTanStackSSE } from './agents/index';
 import { z } from 'zod';
 import { getTools } from './tools';
 import documentRoutes from './routes/documents';
@@ -230,6 +230,31 @@ app.post('/api/chats/:chatId/messages', async (c) => {
 
     // Run agent and stream response with conversation continuity
     const agentId = c.get('agentId');
+    
+    // Feature flag: ?engine=tanstack uses TanStack AI with OpenRouter
+    const engine = c.req.query('engine') || 'agents';
+    const useTanStack = engine === 'tanstack';
+    
+    // TanStack path - returns SSE Response directly
+    if (useTanStack) {
+      const openRouterKey = c.env.OPENROUTER_API_KEY || c.env.OPENAI_API_KEY;
+      if (!openRouterKey) {
+        return c.json({ error: 'OPENROUTER_API_KEY not configured' }, 500);
+      }
+      
+      return runAgentTanStackSSE({
+        messages,
+        apiKey: openRouterKey,
+        agentId,
+        model,
+        chatId,
+        env: {
+          CONVEX_URL: c.env.CONVEX_URL,
+        },
+      });
+    }
+    
+    // Default: OpenAI Agents SDK path
     const result = await runAgent({
       messages,
       apiKey,

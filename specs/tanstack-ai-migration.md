@@ -176,7 +176,9 @@ export async function getAiTools(agentId: string, env?: AgentConfigEnv, options?
 
 ---
 
-### Phase 3: SSE Endpoint with Feature Flag
+### Phase 3: SSE Endpoint with Feature Flag ✅
+
+**Status:** COMPLETE
 
 **Goal:** Add opt-in TanStack/OpenRouter path via `?engine=tanstack` query param.
 
@@ -213,6 +215,10 @@ if (useTanStack) {
 **Acceptance:** 
 - `POST /api/chats/:id/messages` works as before (default)
 - `POST /api/chats/:id/messages?engine=tanstack` uses TanStack/OpenRouter
+
+**Notes:**
+- TanStack path prefers `OPENROUTER_API_KEY`, falls back to `OPENAI_API_KEY`
+- Message persistence not yet wired for TanStack path (TODO for Phase 4)
 
 ---
 
