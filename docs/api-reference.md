@@ -189,20 +189,30 @@ Get available AI models.
 {
   "models": [
     {
+      "id": "openai/gpt-4.1-mini",
       "name": "gpt-4.1-mini",
       "description": "Fast and affordable"
     },
     {
-      "name": "gpt-4.1",
-      "description": "Balanced performance"
+      "id": "anthropic/claude-sonnet-4",
+      "name": "claude-sonnet-4",
+      "description": "Anthropic Claude"
     },
     {
-      "name": "claude-3.5-sonnet",
-      "description": "Excellent reasoning"
+      "id": "google/gemini-2.0-flash",
+      "name": "gemini-2.0-flash",
+      "description": "Google Gemini"
+    },
+    {
+      "id": "meta-llama/llama-4-scout",
+      "name": "llama-4-scout",
+      "description": "Meta Llama"
     }
   ]
 }
 ```
+
+Models are served via OpenRouter. See [OpenRouter Models](https://openrouter.ai/models) for the full list.
 
 ---
 

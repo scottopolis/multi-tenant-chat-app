@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Multi-tenant chat assistant platform with embeddable React widget and Cloudflare Worker backend using OpenAI Agents SDK.
+Multi-tenant chat assistant platform with embeddable React widget and Cloudflare Worker backend using TanStack AI + OpenRouter for provider-agnostic model access.
 
 ## Project Structure
 
