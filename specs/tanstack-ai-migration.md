@@ -58,7 +58,9 @@ export function createOpenRouterChat(apiKey: string) {
 
 ---
 
-### Phase 1: TanStack Runtime Skeleton (no routing changes)
+### Phase 1: TanStack Runtime Skeleton (no routing changes) ✅
+
+**Status:** COMPLETE (implemented alongside Phase 2)
 
 **Goal:** Build `runAgentTanStack()` that mirrors current `runAgent()`, but don't wire it to routes yet.
 
@@ -112,7 +114,9 @@ export { runAgentTanStack } from './tanstack';
 
 ---
 
-### Phase 2: Tool Migration to `toolDefinition()`
+### Phase 2: Tool Migration to `toolDefinition()` ✅
+
+**Status:** COMPLETE
 
 **Goal:** Migrate tools to TanStack format while maintaining Agents SDK compatibility.
 
@@ -165,6 +169,10 @@ export async function getAiTools(agentId: string, env?: AgentConfigEnv, options?
 3. Wire tools in TanStack runner.
 
 **Acceptance:** Both `getTools()` (Agents) and `getAiTools()` (TanStack) return functional tools.
+
+**Notes:**
+- `createKnowledgeBaseSearchToolTanStack()` created as factory function (mirrors existing pattern)
+- MCP tools not yet migrated to TanStack path (TODO noted in code)
 
 ---
 

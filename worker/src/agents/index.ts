@@ -202,3 +202,6 @@ export function getAvailableModels(): Array<{ name: string; id: string }> {
   }));
 }
 
+// TanStack AI runner (Phase 1-2 migration)
+export { runAgentTanStack, runAgentTanStackSSE } from './tanstack';
+
