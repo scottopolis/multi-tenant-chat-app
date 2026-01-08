@@ -1,10 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { streamSSE } from 'hono/streaming';
-import { createChat, getChat, listChats, addMessage, getMessages, updateChatConversationState } from './storage';
-import { runAgent, isValidModel, runAgentTanStackSSE } from './agents/index';
+import { createChat, getChat, listChats, addMessage, getMessages } from './storage';
+import { runAgentTanStackSSE } from './agents/index';
 import { z } from 'zod';
-import { getTools } from './tools';
 import documentRoutes from './routes/documents';
 import twilioRoutes from './routes/twilio';
 import voiceRoutes from './routes/voice';
@@ -210,131 +208,31 @@ app.post('/api/chats/:chatId/messages', async (c) => {
 
     const { content, model } = validation.data;
 
-    // Validate model if provided
-    if (model && !isValidModel(model)) {
-      return c.json({ error: `Invalid model: ${model}` }, 400);
-    }
-
     // Add user message to storage
     addMessage(chatId, { role: 'user', content });
 
     // Get chat history
     const messages = getMessages(chatId);
 
-    // Get API key from environment (prefer OPENAI_API_KEY, fallback to OPENROUTER_API_KEY)
-    const apiKey = c.env.OPENAI_API_KEY || c.env.OPENROUTER_API_KEY;
+    // Get API key (prefer OPENROUTER_API_KEY for multi-provider support)
+    const apiKey = c.env.OPENROUTER_API_KEY || c.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error('OPENAI_API_KEY not configured');
+      console.error('API key not configured');
       return c.json({ error: 'Service configuration error' }, 500);
     }
 
-    // Run agent and stream response with conversation continuity
+    // Run agent with TanStack AI + OpenRouter
     const agentId = c.get('agentId');
     
-    // Feature flag: ?engine=tanstack uses TanStack AI with OpenRouter
-    const engine = c.req.query('engine') || 'agents';
-    const useTanStack = engine === 'tanstack';
-    
-    // TanStack path - returns SSE Response directly
-    if (useTanStack) {
-      const openRouterKey = c.env.OPENROUTER_API_KEY || c.env.OPENAI_API_KEY;
-      if (!openRouterKey) {
-        return c.json({ error: 'OPENROUTER_API_KEY not configured' }, 500);
-      }
-      
-      return runAgentTanStackSSE({
-        messages,
-        apiKey: openRouterKey,
-        agentId,
-        model,
-        chatId,
-        env: {
-          CONVEX_URL: c.env.CONVEX_URL,
-        },
-      });
-    }
-    
-    // Default: OpenAI Agents SDK path
-    const result = await runAgent({
+    return runAgentTanStackSSE({
       messages,
       apiKey,
       agentId,
       model,
-      previousResponseId: chat.lastResponseId, // Use previous response for context
+      chatId,
       env: {
-        LANGFUSE_PUBLIC_KEY: c.env.LANGFUSE_PUBLIC_KEY,
-        LANGFUSE_SECRET_KEY: c.env.LANGFUSE_SECRET_KEY,
-        LANGFUSE_HOST: c.env.LANGFUSE_HOST,
         CONVEX_URL: c.env.CONVEX_URL,
       },
-    });
-
-    console.log('[Stream] Agent result received, starting stream');
-
-    // Stream SSE response using Agents SDK streaming
-    // Docs: https://openai.github.io/openai-agents-js/guides/streaming/
-    return streamSSE(c, async (stream) => {
-      let assistantMessage = '';
-      let chunkCount = 0;
-
-      try {
-        console.log('[Stream] Processing streamed agent response');
-        
-        // Get text stream from the StreamedRunResult
-        // toTextStream() returns an async iterable of text deltas
-        const textStream = result.toTextStream();
-        
-        for await (const textChunk of textStream) {
-          chunkCount++;
-          assistantMessage += textChunk;
-          
-          // Send each chunk as it arrives
-          await stream.writeSSE({
-            event: 'text',
-            data: textChunk,
-          });
-        }
-
-        // Wait for the stream to complete (important: ensures all output is flushed)
-        await result.completed;
-
-        console.log(`[Stream] Completed streaming. Total chunks: ${chunkCount}, message length: ${assistantMessage.length}`);
-
-        // Save the lastResponseId for conversation continuity
-        // This allows us to chain conversations using previousResponseId
-        if (result.lastResponseId) {
-          updateChatConversationState(chatId, {
-            lastResponseId: result.lastResponseId,
-          });
-          console.log('[Stream] Saved lastResponseId for conversation continuity');
-        }
-
-        // Send done event
-        await stream.writeSSE({
-          event: 'done',
-          data: JSON.stringify({ 
-            messageId: crypto.randomUUID(),
-            finishReason: 'stop' 
-          }),
-        });
-
-        // Save assistant message to storage
-        addMessage(chatId, {
-          role: 'assistant',
-          content: assistantMessage,
-          responseId: result.lastResponseId,
-        });
-        console.log('[Stream] Saved assistant message to storage');
-      } catch (error) {
-        console.error('[Stream] Error streaming response:', error);
-        console.error('[Stream] Error stack:', error instanceof Error ? error.stack : 'No stack');
-        await stream.writeSSE({
-          event: 'error',
-          data: JSON.stringify({
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }),
-        });
-      }
     });
   } catch (error) {
     console.error('Error handling message:', error);
@@ -347,22 +245,24 @@ app.post('/api/chats/:chatId/messages', async (c) => {
 
 /**
  * GET /api/models
- * List available OpenAI models
+ * List available models via OpenRouter
  */
 app.get('/api/models', (c) => {
   const models = [
-    // Fast and affordable models
-    { name: 'gpt-4.1-mini', description: 'Fast and affordable (default)' },
-    { name: 'gpt-4o-mini', description: 'Fast and affordable' },
+    // OpenAI models
+    { name: 'GPT-4.1 Mini', id: 'openai/gpt-4.1-mini', description: 'Fast and affordable (default)' },
+    { name: 'GPT-4.1', id: 'openai/gpt-4.1', description: 'Balanced performance' },
+    { name: 'GPT-4o', id: 'openai/gpt-4o', description: 'Latest GPT-4' },
     
-    // Balanced models
-    { name: 'gpt-4.1', description: 'Balanced performance' },
-    { name: 'gpt-4o', description: 'Balanced performance' },
+    // Anthropic models
+    { name: 'Claude Sonnet 4', id: 'anthropic/claude-sonnet-4', description: 'Anthropic Claude' },
+    { name: 'Claude Haiku 3.5', id: 'anthropic/claude-3.5-haiku', description: 'Fast Claude' },
     
-    // Most capable models
-    { name: 'o1', description: 'Most capable reasoning model' },
-    { name: 'o1-mini', description: 'Faster reasoning model' },
-    { name: 'o3-mini', description: 'Latest reasoning model' },
+    // Google models
+    { name: 'Gemini 2.0 Flash', id: 'google/gemini-2.0-flash', description: 'Google Gemini' },
+    
+    // Open source models
+    { name: 'Llama 3.3 70B', id: 'meta-llama/llama-3.3-70b-instruct', description: 'Meta Llama' },
   ];
   
   return c.json({ models });

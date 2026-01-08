@@ -222,14 +222,14 @@ if (useTanStack) {
 
 ---
 
-### Phase 4: Flip Default & Cleanup
+### Phase 4: Flip Default & Cleanup ✅
 
-**Goal:** Make TanStack the default, remove Agents SDK.
+**Status:** COMPLETE
+
+**Goal:** Make TanStack the default, remove Agents SDK from chat path.
 
 **Files:**
-- `worker/package.json` - Remove `@openai/agents`, `@openai/agents-extensions`
-- `worker/src/agents/index.ts` - Remove old `runAgent()`
-- `worker/src/tools/index.ts` - Remove `getTools()`, keep only `getAiTools()`
+- `worker/src/agents/index.ts` - Remove old `runAgent()`, keep interface
 - `worker/src/index.ts` - Remove Agents path, update `/api/models`
 
 **Steps:**
@@ -247,6 +247,12 @@ const models = [
 ```
 
 **Acceptance:** All tests pass with TanStack only. Agents SDK removed.
+
+**Notes:**
+- `@openai/agents` deps kept for voice agents (RealtimeAgent still uses it)
+- `getTools()` kept for voice agents
+- Chat path now exclusively uses TanStack AI + OpenRouter
+- Models endpoint now includes Claude, Gemini, Llama options
 
 ---
 
