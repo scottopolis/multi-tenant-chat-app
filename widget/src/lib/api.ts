@@ -116,6 +116,11 @@ export function sendMessage(
 /**
  * Send a message using fetch for SSE streaming
  * Returns an async iterator of text chunks
+ * 
+ * Handles TanStack AI SSE format:
+ * - data: {"type":"content","delta":"text chunk",...}
+ * - data: {"type":"done",...}
+ * - data: [DONE]
  */
 export async function* streamMessage(
   chatId: string,
@@ -142,7 +147,6 @@ export async function* streamMessage(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let currentEvent = 'message'; // Default event type
 
   try {
     while (true) {
@@ -155,22 +159,36 @@ export async function* streamMessage(
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.trim()) {
-          // Empty line resets the event type
-          currentEvent = 'message';
-          continue;
-        }
+        if (!line.trim()) continue;
         
-        if (line.startsWith('event:')) {
-          // Store the event type for the next data line
-          currentEvent = line.slice(6).trim();
-        } else if (line.startsWith('data:')) {
-          // SSE format: "data: content" - skip "data:" (5 chars) and optional single space
-          const rawData = line.slice(5);
-          const data = rawData.startsWith(' ') ? rawData.slice(1) : rawData;
-          yield { event: currentEvent, data };
-          // Reset event type after yielding
-          currentEvent = 'message';
+        if (line.startsWith('data:')) {
+          const rawData = line.slice(5).trim();
+          
+          // Handle end of stream
+          if (rawData === '[DONE]') {
+            yield { event: 'done', data: '' };
+            continue;
+          }
+          
+          // Parse TanStack AI JSON format
+          try {
+            const parsed = JSON.parse(rawData);
+            
+            if (parsed.type === 'content' && parsed.delta) {
+              // Content chunk - yield the delta text
+              yield { event: 'text', data: parsed.delta };
+            } else if (parsed.type === 'done') {
+              // Stream complete
+              yield { event: 'done', data: '' };
+            } else if (parsed.type === 'error') {
+              // Error from server
+              yield { event: 'error', data: JSON.stringify({ error: parsed.message || 'Unknown error' }) };
+            }
+            // Ignore other chunk types (thinking, tool calls, etc. for now)
+          } catch {
+            // If not JSON, treat as raw text (legacy format)
+            yield { event: 'text', data: rawData };
+          }
         }
       }
     }

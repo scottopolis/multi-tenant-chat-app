@@ -1,8 +1,7 @@
 import { createOpenaiChat } from '@tanstack/ai-openai';
 
-export function createOpenRouterChat(apiKey: string) {
-  return createOpenaiChat({
-    apiKey,
+export function createOpenRouterAdapter(model: string, apiKey: string) {
+  return createOpenaiChat(model, apiKey, {
     baseURL: 'https://openrouter.ai/api/v1',
   });
 }
