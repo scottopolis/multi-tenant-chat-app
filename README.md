@@ -1,6 +1,6 @@
 # Multi-Tenant Chat Assistant
 
-A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend. Built with OpenAI Agents SDK for advanced agent capabilities including conversation continuity, tool calling, and agent handoffs, featuring real-time streaming and a modern React UI.
+A minimal chat assistant platform with a React widget frontend and Cloudflare Worker backend. Built with TanStack AI and OpenRouter for provider-agnostic model access (Claude, GPT, Gemini, Llama), featuring real-time streaming, tool calling, and a modern React UI.
 
 **Repository:** https://github.com/scottopolis/multi-tenant-chat-app
 
@@ -58,13 +58,15 @@ npm run dev
 Worker (create `worker/.dev.vars` for local development):
 ```bash
 cd worker
-echo "OPENAI_API_KEY=your-api-key-here" > .dev.vars
+echo "OPENROUTER_API_KEY=your-api-key-here" > .dev.vars
 ```
 
 For production deployment, use wrangler secrets:
 ```bash
-npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY
 ```
+
+Get your OpenRouter API key at [openrouter.ai/keys](https://openrouter.ai/keys)
 
 Widget (create `.env`):
 ```
@@ -75,12 +77,12 @@ VITE_AGENT_ID=default
 ## Features
 
 - ✅ Real-time streaming chat with SSE
-- ✅ OpenAI Agents SDK integration
-  - Conversation continuity with `previousResponseId` pattern
+- ✅ TanStack AI + OpenRouter integration
+  - Provider-agnostic: Claude, GPT, Gemini, Llama via OpenRouter
   - Native tool/function calling support
-  - Support for agent handoffs (prepared)
-  - Structured output support (prepared)
-- ✅ Multiple OpenAI models (gpt-4.1, gpt-4.1-mini, o1, o3-mini)
+  - Built-in agent loop strategies
+  - Structured output support
+- ✅ Multiple AI models (gpt-4.1-mini, claude-sonnet-4, gemini-2.0-flash, llama-4-scout)
 - ✅ Agent routing via query parameters (MVP multi-tenancy)
 - ✅ MCP (Model Context Protocol) server integration via HTTP
 - ✅ Embeddable widget with customizable launcher
@@ -237,7 +239,7 @@ npx wrangler deploy
 ### Worker Backend
 - **Runtime:** Cloudflare Workers (with `nodejs_compat` flag)
 - **Framework:** Hono (routing & middleware)
-- **AI:** OpenAI Agents SDK (`@openai/agents`)
+- **AI:** TanStack AI (`@tanstack/ai`) + OpenRouter
 - **Language:** TypeScript (strict mode)
 - **Testing:** Vitest
 

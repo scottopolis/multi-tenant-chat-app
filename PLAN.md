@@ -147,9 +147,7 @@ See docs here: https://tanstack.com/ai/latest/docs/getting-started/overview
 ### 3. Widget UI Refresh (shadcn-style)
 - [ ] Install shadcn-chat components or build custom
 - [ ] Match chat-sdk.dev aesthetic:
-  - Clean sidebar with chat history
   - Suggestion chips below input
-  - Model selector dropdown
   - Streaming with proper scroll management
   - Loading states and typing indicators
 - [ ] Components needed:
@@ -158,22 +156,11 @@ See docs here: https://tanstack.com/ai/latest/docs/getting-started/overview
   - `ChatInput` - textarea with file upload, model select
   - `ChatBubble` - message styling with avatar
   - `SuggestionChips` - quick action buttons
-- [ ] Add dark mode support
-
-### 4. Authentication (Convex Auth)
-- [ ] Set up Convex Auth
-- [ ] Protect dashboard routes
-- [ ] Tenant isolation in queries
 
 ### 5. Conversation History Storage
-- [ ] Store messages in Convex
+- [ ] Store conversation history in Convex
 - [ ] Load history on chat open
 - [ ] Persist across sessions
-
-### 6. Widget Embed Code
-- [x] Generate embed snippet in dashboard
-- [x] API key display/copy
-- [x] Customization options (theme, position)
 
 ---
 

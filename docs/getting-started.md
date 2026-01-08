@@ -6,7 +6,7 @@ This guide will help you set up and run the Multi-Tenant Chat Assistant locally.
 
 - Node.js 18 or higher
 - npm or pnpm
-- OpenAI API key (sign up at [platform.openai.com](https://platform.openai.com/api-keys))
+- OpenRouter API key (sign up at [openrouter.ai](https://openrouter.ai/keys))
 
 ## Installation
 
@@ -28,25 +28,25 @@ npm install
 
 ### Worker Setup
 
-1. **Set your OpenAI API key for local development:**
+1. **Set your OpenRouter API key for local development:**
 
 Create a `.dev.vars` file in the `worker` directory:
 
 ```bash
 cd worker
-echo "OPENAI_API_KEY=your-api-key-here" > .dev.vars
+echo "OPENROUTER_API_KEY=your-api-key-here" > .dev.vars
 ```
 
-Replace `your-api-key-here` with your actual OpenAI API key.
+Replace `your-api-key-here` with your actual OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys).
 
 2. **For production deployment, use wrangler secrets:**
 
 ```bash
 cd worker
-npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY
 ```
 
-When prompted, paste your OpenAI API key.
+When prompted, paste your OpenRouter API key.
 
 3. **Optional: Configure Langfuse (for future use)**
 
@@ -150,8 +150,8 @@ Navigate to `http://localhost:5173` in your browser. You should see the chat int
 
 - Open browser DevTools and check the Network tab for SSE connections
 - Look for errors in both the worker logs and browser console
-- Verify your OpenAI API key is valid and has available credits
-- Check the worker logs for any errors related to the OpenAI API
+- Verify your OpenRouter API key is valid and has available credits
+- Check the worker logs for any errors related to the OpenRouter API
 
 ## Next Steps
 

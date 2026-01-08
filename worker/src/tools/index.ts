@@ -1,7 +1,7 @@
 import { builtinTools } from './builtin';
 import { getMCPTools } from '../mcp';
 import { getAgentConfig, type AgentConfigEnv } from '../tenants/config';
-import { createKnowledgeBaseSearchTool } from './vectorSearch';
+import { createKnowledgeBaseSearchTool, createKnowledgeBaseSearchToolTanStack } from './vectorSearch';
 
 /**
  * Tool registry
@@ -101,3 +101,29 @@ export async function getTools(agentId: string, env?: AgentConfigEnv, options?: 
 export type { WebhookToolConfig } from './webhook';
 export { createWebhookTool } from './webhook';
 export { builtinTools } from './builtin';
+
+/**
+ * Get all available TanStack AI tools for an agent
+ *
+ * This is the TanStack AI equivalent of getTools() for use with the new runtime.
+ * Currently only includes knowledge base search; MCP tools will be added later.
+ *
+ * @param agentId - Agent identifier
+ * @param env - Optional environment bindings (for Convex/DB access)
+ * @param options - Optional settings for tool loading
+ * @returns Array of TanStack AI tools
+ */
+export async function getAiTools(agentId: string, env?: AgentConfigEnv, options?: GetToolsOptions) {
+  const config = await getAgentConfig(agentId, env);
+  const tools: ReturnType<typeof createKnowledgeBaseSearchToolTanStack>[] = [];
+
+  // Add knowledge base search if agent has documents and convexUrl is provided
+  if (config?.agentConvexId && options?.convexUrl) {
+    tools.push(createKnowledgeBaseSearchToolTanStack(config.agentConvexId, options.convexUrl));
+  }
+
+  // TODO: Add MCP tools for TanStack path
+  // TODO: Add webhook tools for TanStack path
+
+  return tools;
+}
