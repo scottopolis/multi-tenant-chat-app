@@ -79,6 +79,7 @@ export async function getAgentConfig(
 
 /**
  * Fetch agent config from Convex
+ * Uses the public HTTP endpoint to bypass Clerk auth
  *
  * @internal
  */
@@ -86,21 +87,18 @@ async function fetchFromConvex(
   agentId: string,
   convexUrl: string
 ): Promise<AgentConfig> {
-  const response = await fetch(`${convexUrl}/api/query`, {
-    method: 'POST',
+  // Use the public HTTP endpoint instead of the query API
+  // This bypasses Clerk auth requirements
+  const response = await fetch(`${convexUrl}/api/agents/${encodeURIComponent(agentId)}`, {
+    method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path: 'agents:getByAgentId',
-      args: { agentId },
-    }),
   });
 
   if (!response.ok) {
-    throw new Error(`Convex query failed: ${response.status}`);
+    throw new Error(`Convex HTTP fetch failed: ${response.status}`);
   }
 
-  const data = await response.json() as { value: any };
-  const result = data.value;
+  const result = await response.json() as any;
 
   if (!result) {
     throw new Error(`Agent not found: ${agentId}`);
