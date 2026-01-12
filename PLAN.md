@@ -39,6 +39,8 @@ Convex (configs, history, vectors via @convex-dev/rag)
 
 ## Next Up
 
+Read specs/widget-security.md
+
 ### 1. TanStack AI SDK Migration
 
 DONE

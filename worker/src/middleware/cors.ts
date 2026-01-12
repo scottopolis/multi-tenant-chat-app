@@ -44,22 +44,16 @@ export function dynamicCors() {
     }
 
     // For non-OPTIONS requests, set Vary header
-    // The actual Access-Control-Allow-Origin will be set by auth middleware
-    // after validating the origin against allowedDomains
     c.header("Vary", "Origin");
-
-    // For requests without Origin (e.g., same-origin, curl, server-to-server),
-    // allow them through. The auth middleware will handle API key validation.
-    if (origin) {
-      // Origin is present - auth middleware will validate and set CORS headers
-      // If origin is invalid, auth middleware will return 403
-    }
 
     await next();
 
     // If no CORS header was set by auth middleware (e.g., for public routes),
-    // and there's an origin, we need to decide what to do.
-    // For now, we'll leave it - public routes should set their own CORS.
+    // and there's an origin, set permissive CORS headers.
+    // This allows the widget to work before full auth middleware is enabled.
+    if (origin && !c.res.headers.get("Access-Control-Allow-Origin")) {
+      c.header("Access-Control-Allow-Origin", origin);
+    }
   };
 }
 

@@ -11,12 +11,12 @@ const http = httpRouter();
  * GET /api/agents/:agentId
  */
 http.route({
-  path: "/api/agents/{agentId}",
+  pathPrefix: "/api/agents/",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     const url = new URL(request.url);
     const pathParts = url.pathname.split("/");
-    const agentId = pathParts[pathParts.length - 1];
+    const agentId = decodeURIComponent(pathParts[pathParts.length - 1]);
 
     if (!agentId) {
       return new Response(JSON.stringify({ error: "agentId is required" }), {

@@ -89,7 +89,9 @@ async function fetchFromConvex(
 ): Promise<AgentConfig> {
   // Use the public HTTP endpoint instead of the query API
   // This bypasses Clerk auth requirements
-  const response = await fetch(`${convexUrl}/api/agents/${encodeURIComponent(agentId)}`, {
+  // HTTP actions are served from .convex.site, not .convex.cloud
+  const siteUrl = convexUrl.replace('.convex.cloud', '.convex.site');
+  const response = await fetch(`${siteUrl}/api/agents/${encodeURIComponent(agentId)}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
