@@ -106,9 +106,9 @@ In a client-side embed context, **true authentication is impossible** - any toke
 **Goal:** Basic API key validation and domain allowlists
 
 #### 1.1 Data Model Updates
-- [ ] Add `allowedDomains` field to agents table in Convex schema
-- [ ] Add migration to set default `allowedDomains: ["*"]` for existing agents
-- [ ] Verify `apiKeys` table structure supports scopes and revocation
+- [x] Add `allowedDomains` field to agents table in Convex schema
+- [x] Add migration to set default `allowedDomains: ["*"]` for existing agents
+- [x] Verify `apiKeys` table structure supports scopes and revocation
 
 #### 1.2 Dashboard UI
 - [ ] Add "Allowed Domains" input to agent settings (comma-separated or tag input)
