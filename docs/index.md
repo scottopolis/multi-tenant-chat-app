@@ -34,6 +34,7 @@ This is a minimal chat assistant platform with a React widget frontend and Cloud
 - [Getting Started](./getting-started.md) - Installation and setup guide
 - [API Reference](./api-reference.md) - Backend API endpoints and usage
 - [Tools & Agents](./tools-agents.md) - How to work with tools and customize agents
+- [Widget](./widget.md) - How the embeddable chat widget works
 - [Voice Agents](./voice-agents.md) - Set up phone-based AI agents with Twilio
 - [Development](./development.md) - Development workflow and best practices
 - [Deployment](./deployment.md) - Deploying to production
@@ -51,7 +52,7 @@ This is a minimal chat assistant platform with a React widget frontend and Cloud
 ┌─────────────────────────────────────┐
 │ Cloudflare Worker API               │
 │  • Hono framework for routing       │
-│  • AI SDK + OpenRouter              │
+│  • Tanstack AI SDK + OpenRouter              │
 │  • Multi-tenant agent configs       │
 └──────────────┬──────────────────────┘
                │ HTTP API
