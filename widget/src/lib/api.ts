@@ -1,10 +1,8 @@
 /**
  * API Client for Chat Assistant
  * 
- * TODO: Add auth header injection
- * - Accept auth token from props or context
- * - Include Authorization: Bearer <token> header in all requests
- * - Handle token refresh on 401 responses
+ * Supports API key authentication via Authorization header.
+ * API keys are passed from embed.js via postMessage to the widget.
  */
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
@@ -37,16 +35,24 @@ export interface SendMessageRequest {
   model?: string;
 }
 
+function buildHeaders(apiKey?: string, contentType?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+  if (apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+  return headers;
+}
+
 /**
  * Create a new chat
  */
-export async function createChat(data?: CreateChatRequest, agentId: string = 'default'): Promise<Chat> {
+export async function createChat(data?: CreateChatRequest, agentId: string = 'default', apiKey?: string): Promise<Chat> {
   const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // TODO: Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(apiKey, 'application/json'),
     body: JSON.stringify(data || {}),
   });
 
@@ -60,11 +66,9 @@ export async function createChat(data?: CreateChatRequest, agentId: string = 'de
 /**
  * Get a single chat with its messages
  */
-export async function getChat(chatId: string, agentId: string = 'default'): Promise<ChatWithMessages> {
+export async function getChat(chatId: string, agentId: string = 'default', apiKey?: string): Promise<ChatWithMessages> {
   const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${agentId}`, {
-    headers: {
-      // TODO: Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(apiKey),
   });
 
   if (!response.ok) {
@@ -77,11 +81,9 @@ export async function getChat(chatId: string, agentId: string = 'default'): Prom
 /**
  * List all chats
  */
-export async function listChats(agentId: string = 'default'): Promise<Chat[]> {
+export async function listChats(agentId: string = 'default', apiKey?: string): Promise<Chat[]> {
   const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
-    headers: {
-      // TODO: Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(apiKey),
   });
 
   if (!response.ok) {
@@ -125,14 +127,12 @@ export function sendMessage(
 export async function* streamMessage(
   chatId: string,
   data: SendMessageRequest,
-  agentId: string = 'default'
+  agentId: string = 'default',
+  apiKey?: string
 ): AsyncGenerator<{ event: string; data: string }, void, unknown> {
   const response = await fetch(`${API_URL}/api/chats/${chatId}/messages?agent=${agentId}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // TODO: Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(apiKey, 'application/json'),
     body: JSON.stringify(data),
   });
 
@@ -200,11 +200,9 @@ export async function* streamMessage(
 /**
  * Get available models
  */
-export async function getModels(agentId: string = 'default'): Promise<Array<{ name: string; description: string }>> {
+export async function getModels(agentId: string = 'default', apiKey?: string): Promise<Array<{ name: string; description: string }>> {
   const response = await fetch(`${API_URL}/api/models?agent=${agentId}`, {
-    headers: {
-      // TODO: Authorization: `Bearer ${token}`,
-    },
+    headers: buildHeaders(apiKey),
   });
 
   if (!response.ok) {

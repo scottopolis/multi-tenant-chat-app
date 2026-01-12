@@ -39,6 +39,7 @@ export interface AgentFormData {
   langfuse: LangfuseConfig
   capabilities: AgentCapabilities
   voiceConfig?: VoiceConfig
+  allowedDomains: string[]
 }
 
 interface AgentFormProps {
@@ -53,7 +54,7 @@ interface AgentFormProps {
 }
 
 const BASE_TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
-const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Knowledge Base', 'Voice', 'Embed'] as const
+const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Security', 'Knowledge Base', 'Voice', 'Embed'] as const
 type Tab = (typeof ALL_TABS)[number]
 
 const MODELS = [
@@ -123,10 +124,18 @@ export function AgentForm({
     locale: 'en-US',
     bargeInEnabled: true,
   })
+  const [domainsInput, setDomainsInput] = useState<string>(
+    (initialData?.allowedDomains ?? ['*']).join('\n')
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    const parsedDomains = domainsInput
+      .split(/[\n,]/)
+      .map(d => d.trim())
+      .filter(d => d.length > 0)
 
     try {
       await onSubmit({
@@ -138,6 +147,7 @@ export function AgentForm({
         langfuse,
         capabilities,
         voiceConfig: capabilities.voice ? voiceConfig : undefined,
+        allowedDomains: parsedDomains.length > 0 ? parsedDomains : ['*'],
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -557,6 +567,63 @@ export function AgentForm({
                   />
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'Security' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-white">Domain Allowlist</h3>
+              <p className="mt-1 text-sm text-gray-400">
+                Restrict which domains can embed and use this agent. Requests from other domains will be rejected.
+              </p>
+            </div>
+
+            {/* Wildcard Warning */}
+            {domainsInput.includes('*') && (
+              <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-yellow-400 text-sm font-medium">Wildcard domain detected</p>
+                    <p className="text-yellow-400/80 text-sm mt-1">
+                      Using <code className="bg-slate-800 px-1 rounded">*</code> allows any website to embed your widget.
+                      For production, specify your actual domains.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="allowedDomains" className="block text-sm font-medium text-white">
+                Allowed Domains
+              </label>
+              <p className="mt-1 text-sm text-gray-400 mb-2">
+                Enter one domain per line. Use <code className="text-cyan-400">*</code> to allow all domains (not recommended for production).
+                Wildcards like <code className="text-cyan-400">*.example.com</code> match subdomains.
+              </p>
+              <textarea
+                id="allowedDomains"
+                rows={5}
+                value={domainsInput}
+                onChange={(e) => setDomainsInput(e.target.value)}
+                className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white font-mono text-sm shadow-sm ring-1 ring-inset ring-slate-700 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-cyan-500"
+                placeholder="example.com&#10;*.example.org&#10;app.mysite.io"
+              />
+            </div>
+
+            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+              <h4 className="text-sm font-medium text-white mb-2">Examples</h4>
+              <ul className="text-sm text-gray-400 space-y-1">
+                <li><code className="text-cyan-400">example.com</code> — matches only example.com</li>
+                <li><code className="text-cyan-400">*.example.com</code> — matches app.example.com, www.example.com, etc.</li>
+                <li><code className="text-cyan-400">localhost</code> — matches localhost (for development)</li>
+                <li><code className="text-cyan-400">*</code> — matches any domain (not secure for production)</li>
+              </ul>
             </div>
           </div>
         )}

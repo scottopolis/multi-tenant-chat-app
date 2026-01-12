@@ -110,18 +110,18 @@ In a client-side embed context, **true authentication is impossible** - any toke
 - [x] Verify `apiKeys` table structure supports scopes and revocation
 
 #### 1.2 Dashboard UI
-- [ ] Add "Allowed Domains" input to agent settings (comma-separated or tag input)
-- [ ] Add "API Keys" section to agent settings
-  - [ ] Generate new key (show once, then only prefix)
-  - [ ] List existing keys with last used date
-  - [ ] Revoke key button
-- [ ] Add validation: warn if `allowedDomains` contains `*`
+- [x] Add "Allowed Domains" input to agent settings (comma-separated or tag input)
+- [x] Add "API Keys" section to agent settings
+  - [x] Generate new key (show once, then only prefix)
+  - [x] List existing keys with last used date
+  - [x] Revoke key button
+- [x] Add validation: warn if `allowedDomains` contains `*`
 
 #### 1.3 Widget Updates
-- [ ] Read `data-api-key` from script tag in embed.js
-- [ ] Pass API key to widget component via props
-- [ ] Update `api.ts` to include `Authorization: Bearer <key>` header
-- [ ] Update EmbedCode component to include API key in generated snippet
+- [x] Read `data-api-key` from script tag in embed.js
+- [x] Pass API key to widget component via props
+- [x] Update `api.ts` to include `Authorization: Bearer <key>` header
+- [x] Update EmbedCode component to include API key in generated snippet
 
 #### 1.4 Worker Auth Middleware
 - [x] Create `src/middleware/auth.ts` with key validation logic
@@ -132,9 +132,9 @@ In a client-side embed context, **true authentication is impossible** - any toke
 - [x] Return 401/403 with clear error messages
 
 #### 1.5 Dynamic CORS
-- [ ] Replace `cors({ origin: '*' })` with dynamic CORS middleware
-- [ ] Only return `Access-Control-Allow-Origin` for allowed domains
-- [ ] Handle preflight (OPTIONS) requests correctly
+- [x] Replace `cors({ origin: '*' })` with dynamic CORS middleware
+- [x] Only return `Access-Control-Allow-Origin` for allowed domains
+- [x] Handle preflight (OPTIONS) requests correctly
 
 ---
 

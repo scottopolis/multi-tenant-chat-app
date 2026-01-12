@@ -34,6 +34,7 @@ function EditAgent() {
         langfuseHost: data.langfuse.host || undefined,
         langfusePromptName: data.langfuse.promptName || undefined,
         langfuseLabel: data.langfuse.label || undefined,
+        allowedDomains: data.allowedDomains,
       })
       navigate({ to: '/dashboard/agents' })
     } finally {
@@ -88,6 +89,7 @@ function EditAgent() {
           mcpServers: agent.mcpServers,
           outputSchema: agent.outputSchema,
           langfuse: agent.langfuse,
+          allowedDomains: agent.allowedDomains ?? ['*'],
         }}
         onSubmit={handleSubmit}
         onCancel={handleCancel}

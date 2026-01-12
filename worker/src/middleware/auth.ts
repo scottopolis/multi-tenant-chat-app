@@ -173,13 +173,19 @@ export function authMiddleware() {
       );
     }
 
-    // 6. Set context for downstream handlers
+    // 6. Set CORS headers for validated origin
+    if (origin) {
+      c.header("Access-Control-Allow-Origin", origin);
+      c.header("Vary", "Origin");
+    }
+
+    // 7. Set context for downstream handlers
     c.set("tenantId", keyInfo.tenantId);
     c.set("agentId", agentId);
     c.set("apiKeyId", keyInfo.id);
     c.set("apiKeyHash", keyHash);
 
-    // 7. Update last used timestamp (fire and forget)
+    // 8. Update last used timestamp (fire and forget)
     updateKeyLastUsed(keyHash, convexUrl);
 
     await next();
@@ -209,6 +215,13 @@ export function permissiveAuthMiddleware() {
 
     c.set("agentId", agentId);
     c.set("tenantId", agentConfig.orgId || "unknown");
+
+    // Set CORS headers for development (allow all origins)
+    const origin = c.req.header("Origin");
+    if (origin) {
+      c.header("Access-Control-Allow-Origin", origin);
+      c.header("Vary", "Origin");
+    }
 
     // Check for API key (optional in permissive mode)
     const authHeader = c.req.header("Authorization");

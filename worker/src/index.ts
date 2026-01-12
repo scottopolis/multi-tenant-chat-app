@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { createChat, getChat, listChats, addMessage, getMessages } from './storage';
 import { runAgentTanStackSSE } from './agents/index';
 import { z } from 'zod';
 import documentRoutes from './routes/documents';
 import twilioRoutes from './routes/twilio';
 import voiceRoutes from './routes/voice';
+import { dynamicCors } from './middleware';
 
 export { VoiceCallSession } from './voice/VoiceCallSession';
 export { WebVoiceSession } from './voice/WebVoiceSession';
@@ -35,16 +35,11 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 /**
  * CORS Middleware
  * 
- * TODO: Restrict origins per org
- * - Fetch allowed origins from org settings
- * - Validate origin against org's allowed domains
- * - Support wildcard subdomains (e.g., *.example.com)
+ * Handles preflight OPTIONS requests permissively.
+ * For actual requests, CORS headers are set after origin validation
+ * in the auth middleware or by this middleware for public routes.
  */
-app.use('*', cors({
-  origin: '*', // Allow all origins for now
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use('*', dynamicCors());
 
 /**
  * Auth Middleware (Placeholder)
