@@ -79,7 +79,6 @@ In a client-side embed context, **true authentication is impossible** - any toke
 {
   // ... existing fields
   allowedDomains: v.optional(v.array(v.string())), // ["example.com", "*.example.org"]
-  rateLimitPerMinute: v.optional(v.number()),       // Per-agent rate limit
 }
 ```
 
@@ -125,12 +124,12 @@ In a client-side embed context, **true authentication is impossible** - any toke
 - [ ] Update EmbedCode component to include API key in generated snippet
 
 #### 1.4 Worker Auth Middleware
-- [ ] Create `src/middleware/auth.ts` with key validation logic
-- [ ] Implement SHA-256 hashing for key lookup
-- [ ] Add Convex HTTP endpoint for key validation (like we did for agents)
-- [ ] Validate tenant-agent binding (key's tenant must own the agent)
-- [ ] Check Origin header against `allowedDomains`
-- [ ] Return 401/403 with clear error messages
+- [x] Create `src/middleware/auth.ts` with key validation logic
+- [x] Implement SHA-256 hashing for key lookup
+- [x] Add Convex HTTP endpoint for key validation (like we did for agents)
+- [x] Validate tenant-agent binding (key's tenant must own the agent)
+- [x] Check Origin header against `allowedDomains`
+- [x] Return 401/403 with clear error messages
 
 #### 1.5 Dynamic CORS
 - [ ] Replace `cors({ origin: '*' })` with dynamic CORS middleware
