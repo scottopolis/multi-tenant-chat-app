@@ -126,10 +126,14 @@ In a client-side embed context, **true authentication is impossible** - any toke
 #### 1.4 Worker Auth Middleware
 - [x] Create `src/middleware/auth.ts` with key validation logic
 - [x] Implement SHA-256 hashing for key lookup
-- [x] Add Convex HTTP endpoint for key validation (like we did for agents)
+- [x] Add Convex HTTP endpoints for key validation:
+  - [x] `POST /api/keys/validate` - validates API key hash, returns tenant info
+  - [x] `POST /api/keys/touch` - updates last used timestamp
+  - [x] Uses `.convex.site` URL (public HTTP actions, no auth required)
 - [x] Validate tenant-agent binding (key's tenant must own the agent)
 - [x] Check Origin header against `allowedDomains`
 - [x] Return 401/403 with clear error messages
+- [x] Add `tenantId` and `allowedDomains` to AgentConfig type
 
 #### 1.5 Dynamic CORS
 - [x] Replace `cors({ origin: '*' })` with dynamic CORS middleware
@@ -255,7 +259,8 @@ export async function authMiddleware(c: Context, next: Next) {
   const agentId = c.req.query('agent');
   const origin = c.req.header('Origin') || '';
 
-  // 2. Validate API key
+  // 2. Validate API key via Convex HTTP endpoint
+  // IMPORTANT: Use .convex.site (public HTTP actions), not .convex.cloud (requires auth)
   if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'Missing API key' }, 401);
   }
@@ -263,12 +268,20 @@ export async function authMiddleware(c: Context, next: Next) {
   const apiKey = authHeader.slice(7);
   const keyHash = await sha256(apiKey);
   
-  const keyInfo = await validateKeyWithConvex(keyHash, c.env.CONVEX_URL);
+  // Call public HTTP endpoint - bypasses Clerk auth
+  const siteUrl = c.env.CONVEX_URL.replace('.convex.cloud', '.convex.site');
+  const response = await fetch(`${siteUrl}/api/keys/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyHash }),
+  });
+  const keyInfo = await response.json();
+  
   if (!keyInfo || keyInfo.revokedAt) {
     return c.json({ error: 'Invalid API key' }, 401);
   }
 
-  // 3. Load agent config
+  // 3. Load agent config (also uses .convex.site HTTP endpoint)
   const agent = await getAgentConfig(agentId, c.env);
   if (agent.tenantId !== keyInfo.tenantId) {
     return c.json({ error: 'Key not authorized for this agent' }, 403);
@@ -289,8 +302,58 @@ export async function authMiddleware(c: Context, next: Next) {
   c.header('Access-Control-Allow-Origin', origin);
   c.header('Vary', 'Origin');
 
+  // 7. Update last used timestamp (fire and forget)
+  fetch(`${siteUrl}/api/keys/touch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyHash }),
+  });
+
   await next();
 }
+```
+
+## Convex HTTP Endpoints
+
+The worker uses public Convex HTTP actions (served from `.convex.site`) instead of the authenticated query API (`.convex.cloud`). This allows the worker to validate API keys without requiring Clerk authentication.
+
+```typescript
+// convex/http.ts
+
+// POST /api/keys/validate - Validate API key hash
+http.route({
+  path: "/api/keys/validate",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const { keyHash } = await request.json();
+    const result = await ctx.runQuery(api.apiKeys.validate, { keyHash });
+    return new Response(JSON.stringify(result), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+// POST /api/keys/touch - Update last used timestamp
+http.route({
+  path: "/api/keys/touch",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const { keyHash } = await request.json();
+    await ctx.runMutation(api.apiKeys.updateLastUsed, { keyHash });
+    return new Response(JSON.stringify({ success: true }));
+  }),
+});
+
+// GET /api/agents/:agentId - Get agent config (existing)
+http.route({
+  pathPrefix: "/api/agents/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    // Returns agent with tenantId and allowedDomains
+    const agent = await ctx.runQuery(api.agents.getByAgentId, { agentId });
+    return new Response(JSON.stringify(agent));
+  }),
+});
 ```
 
 ## Cloudflare Configuration

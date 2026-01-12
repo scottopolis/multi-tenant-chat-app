@@ -15,7 +15,6 @@
 import type { Context, Next } from "hono";
 import { hashApiKey, extractApiKey } from "../security/api-key";
 import { validateOrigin } from "../security/domain-allowlist";
-import { convexQuery, convexMutation } from "../convex/client";
 import { getAgentConfig } from "../tenants/config";
 
 interface ApiKeyInfo {
@@ -44,30 +43,51 @@ export interface AuthContext {
 }
 
 /**
- * Validate an API key against Convex
+ * Get the Convex site URL for HTTP endpoints
+ * HTTP actions are served from .convex.site, not .convex.cloud
+ */
+function getConvexSiteUrl(convexUrl: string): string {
+  return convexUrl.replace(".convex.cloud", ".convex.site");
+}
+
+/**
+ * Validate an API key against Convex via public HTTP endpoint
  */
 async function validateApiKey(
   keyHash: string,
   convexUrl: string
 ): Promise<ApiKeyInfo | null> {
-  const result = await convexQuery<ApiKeyInfo>(
-    convexUrl,
-    "apiKeys:validate",
-    { keyHash }
-  );
+  const siteUrl = getConvexSiteUrl(convexUrl);
+  const response = await fetch(`${siteUrl}/api/keys/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keyHash }),
+  });
 
-  return result;
+  if (!response.ok) {
+    console.error("[Auth] API key validation failed:", response.status);
+    return null;
+  }
+
+  const result = await response.json();
+  return result as ApiKeyInfo | null;
 }
 
 /**
  * Update the last used timestamp for an API key (fire and forget)
+ * Uses the public HTTP endpoint
  */
 async function updateKeyLastUsed(
   keyHash: string,
   convexUrl: string
 ): Promise<void> {
   try {
-    await convexMutation(convexUrl, "apiKeys:updateLastUsed", { keyHash });
+    const siteUrl = getConvexSiteUrl(convexUrl);
+    await fetch(`${siteUrl}/api/keys/touch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyHash }),
+    });
   } catch (error) {
     console.warn("[Auth] Failed to update key last used:", error);
   }
@@ -137,18 +157,8 @@ export function authMiddleware() {
       return c.json({ error: "Agent not found", code: "AGENT_NOT_FOUND" }, 404);
     }
 
-    // Get the agent's tenantId from Convex to verify binding
-    const agentDoc = await convexQuery<{
-      tenantId: string;
-      allowedDomains?: string[];
-    }>(convexUrl, "agents:getByAgentId", { agentId });
-
-    if (!agentDoc) {
-      return c.json({ error: "Agent not found", code: "AGENT_NOT_FOUND" }, 404);
-    }
-
     // Verify the API key's tenant owns this agent
-    if (agentDoc.tenantId !== keyInfo.tenantId) {
+    if (agentConfig.tenantId !== keyInfo.tenantId) {
       return c.json(
         {
           error: "API key not authorized for this agent",
@@ -160,7 +170,7 @@ export function authMiddleware() {
 
     // 5. Check domain allowlist
     const origin = c.req.header("Origin");
-    const allowedDomains = agentDoc.allowedDomains;
+    const allowedDomains = agentConfig.allowedDomains;
 
     if (!validateOrigin(origin, allowedDomains)) {
       return c.json(

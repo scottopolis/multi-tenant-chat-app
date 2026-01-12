@@ -134,6 +134,8 @@ async function fetchFromConvex(
     mcpServers: result.mcpServers,
     outputSchema,
     agentConvexId: result._id,
+    tenantId: result.tenantId,
+    allowedDomains: result.allowedDomains ?? ["*"],
   };
 }
 
