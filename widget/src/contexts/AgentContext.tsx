@@ -15,6 +15,7 @@ interface AgentContextType {
   agentId: string;
   setAgentId: (id: string) => void;
   isEmbedded: boolean;
+  apiKey: string | null;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -55,6 +56,7 @@ function isInIframe(): boolean {
 export function AgentProvider({ children }: { children: ReactNode }) {
   const isEmbedded = isInIframe();
   
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [agentId, setAgentIdState] = useState<string>(() => {
     // Priority: URL param > localStorage > env var > default
     const urlAgent = getAgentFromUrl();
@@ -99,6 +101,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           if (data.payload?.agentId) {
             setAgentIdState(data.payload.agentId);
           }
+          if (data.payload?.apiKey) {
+            setApiKey(data.payload.apiKey);
+          }
           break;
       }
     }
@@ -131,7 +136,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AgentContext.Provider value={{ agentId, setAgentId, isEmbedded }}>
+    <AgentContext.Provider value={{ agentId, setAgentId, isEmbedded, apiKey }}>
       <EmbedContext.Provider value={{ requestClose }}>
         {children}
       </EmbedContext.Provider>

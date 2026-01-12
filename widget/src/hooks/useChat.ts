@@ -14,6 +14,7 @@ export interface ChatMessage extends Omit<Message, 'createdAt'> {
 export interface UseChatOptions {
   chatId: string;
   agentId: string;
+  apiKey?: string | null;
   onError?: (error: Error) => void;
   onChatNotFound?: () => void;
 }
@@ -27,7 +28,7 @@ export interface UseChatOptions {
  * - isLoading: Whether initial data is loading
  * - error: Any error that occurred
  */
-export function useChat({ chatId, agentId, onError, onChatNotFound }: UseChatOptions) {
+export function useChat({ chatId, agentId, apiKey, onError, onChatNotFound }: UseChatOptions) {
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -36,7 +37,7 @@ export function useChat({ chatId, agentId, onError, onChatNotFound }: UseChatOpt
   // Fetch initial chat data
   const { data: chatData, isLoading, error: queryError } = useQuery({
     queryKey: ['chat', chatId, agentId],
-    queryFn: () => getChat(chatId, agentId),
+    queryFn: () => getChat(chatId, agentId, apiKey ?? undefined),
     enabled: !!chatId,
     retry: (failureCount, error) => {
       // Don't retry 404s - chat doesn't exist
@@ -105,7 +106,7 @@ export function useChat({ chatId, agentId, onError, onChatNotFound }: UseChatOpt
         for await (const { event, data } of streamMessage(chatId, {
           content: content.trim(),
           model,
-        }, agentId)) {
+        }, agentId, apiKey ?? undefined)) {
           if (event === 'text') {
             fullContent += data;
             
@@ -163,7 +164,7 @@ export function useChat({ chatId, agentId, onError, onChatNotFound }: UseChatOpt
         setIsStreaming(false);
       }
     },
-    [chatId, agentId, isStreaming, queryClient, onError]
+    [chatId, agentId, apiKey, isStreaming, queryClient, onError]
   );
 
   return {

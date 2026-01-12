@@ -29,14 +29,18 @@ export const validate = query({
       return null;
     }
 
-    // Update last used timestamp (optimistically)
-    // Note: This is a query, so we can't mutate. Consider moving to a mutation if needed.
-    // For now, we'll handle lastUsedAt updates separately
+    // Check if key has been revoked
+    if (apiKey.revokedAt) {
+      return null;
+    }
 
     return {
+      id: apiKey._id,
       tenantId: apiKey.tenantId,
       keyPrefix: apiKey.keyPrefix,
       name: apiKey.name,
+      scopes: apiKey.scopes ?? ["widget:chat"], // Default scope
+      revokedAt: apiKey.revokedAt,
     };
   },
 });
@@ -78,7 +82,9 @@ export const listByTenant = query({
       id: key._id,
       name: key.name,
       keyPrefix: key.keyPrefix,
+      scopes: key.scopes ?? ["widget:chat"],
       lastUsedAt: key.lastUsedAt,
+      revokedAt: key.revokedAt,
       createdAt: key.createdAt,
     }));
   },
@@ -99,6 +105,7 @@ export const create = mutation({
     keyHash: v.string(),
     keyPrefix: v.string(),
     name: v.string(),
+    scopes: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("apiKeys", {
@@ -106,13 +113,14 @@ export const create = mutation({
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       name: args.name,
+      scopes: args.scopes ?? ["widget:chat"], // Default scope
       createdAt: Date.now(),
     });
   },
 });
 
 /**
- * Revoke (delete) an API key
+ * Revoke an API key (soft delete - marks as revoked)
  *
  * SECURITY: Verify that the key belongs to the requesting tenant
  */
@@ -133,6 +141,14 @@ export const revoke = mutation({
       throw new Error("Unauthorized: API key does not belong to this tenant");
     }
 
-    await ctx.db.delete(args.id);
+    // Already revoked
+    if (apiKey.revokedAt) {
+      return;
+    }
+
+    // Soft delete - mark as revoked
+    await ctx.db.patch(args.id, {
+      revokedAt: Date.now(),
+    });
   },
 });

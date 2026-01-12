@@ -187,7 +187,9 @@ The chat widget can be embedded on any website using a simple script tag:
 
 **Auto-Open:** Add `?chat=open` to any URL to automatically open the widget on page load.
 
-See [specs/widget-embed-hosting.md](./specs/widget-embed-hosting.md) for detailed embed documentation.
+**Security:** The widget uses API key authentication with domain allowlists. Keys are validated at the edge via Cloudflare Worker, and only configured domains can embed your widget.
+
+See [docs/widget.md](./docs/widget.md) for architecture and security details, or [specs/widget-embed-hosting.md](./specs/widget-embed-hosting.md) for embed configuration.
 
 ## Voice Agents
 

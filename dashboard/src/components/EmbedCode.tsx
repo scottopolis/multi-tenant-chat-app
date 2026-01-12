@@ -1,10 +1,17 @@
 import { useState } from 'react'
+import { useQuery } from 'convex/react'
+import { api } from '../../../convex-backend/convex/_generated/api'
+import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
+import { useTenant } from '../lib/tenant'
+import { ApiKeys } from './ApiKeys'
 
 interface EmbedCodeProps {
   agentId: string
 }
 
-const WIDGET_URL = 'https://multi-tenant-chat-app.pages.dev'
+const WIDGET_URL = import.meta.env.DEV 
+  ? 'http://localhost:5173' 
+  : 'https://multi-tenant-chat-app.pages.dev'
 
 const POSITION_OPTIONS = [
   { value: 'bottom-right', label: 'Bottom Right' },
@@ -18,15 +25,25 @@ const ICON_OPTIONS = [
 ]
 
 export function EmbedCode({ agentId }: EmbedCodeProps) {
+  const { tenant } = useTenant()
   const [color, setColor] = useState('#4F46E5')
   const [position, setPosition] = useState('bottom-right')
   const [icon, setIcon] = useState('chat')
   const [copied, setCopied] = useState<'script' | 'iframe' | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [selectedKeyPrefix, setSelectedKeyPrefix] = useState<string | null>(null)
+
+  const apiKeys = useQuery(
+    api.apiKeys.listByTenant,
+    tenant ? { tenantId: tenant.id as Id<'tenants'> } : 'skip'
+  )
+
+  const activeKeys = apiKeys?.filter(k => !k.revokedAt) ?? []
 
   const scriptCode = `<script
   src="${WIDGET_URL}/embed.js"
-  data-agent-id="${agentId}"
+  data-agent-id="${agentId}"${selectedKeyPrefix ? `
+  data-api-key="YOUR_API_KEY_HERE"` : ''}
   data-color="${color}"
   data-position="${position}"
   data-icon="${icon}"
@@ -56,7 +73,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
       </div>
 
       {/* Customization Options */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div>
           <label htmlFor="embedColor" className="block text-sm font-medium text-white">
             Button Color
@@ -117,7 +134,45 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
             </select>
           </div>
         </div>
+
+        <div>
+          <label htmlFor="embedApiKey" className="block text-sm font-medium text-white">
+            API Key
+          </label>
+          <div className="mt-2">
+            <select
+              id="embedApiKey"
+              value={selectedKeyPrefix ?? ''}
+              onChange={(e) => setSelectedKeyPrefix(e.target.value || null)}
+              className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+            >
+              <option value="">No API key (development only)</option>
+              {activeKeys.map((key) => (
+                <option key={key.keyPrefix} value={key.keyPrefix}>
+                  {key.name} ({key.keyPrefix})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
+
+      {/* API Key Warning */}
+      {selectedKeyPrefix && (
+        <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-yellow-400 text-sm font-medium">Replace YOUR_API_KEY_HERE with your actual API key</p>
+              <p className="text-yellow-400/80 text-sm mt-1">
+                The embed code shows a placeholder. Copy your full API key from the API Keys section below and paste it in place of <code className="bg-slate-800 px-1 rounded">YOUR_API_KEY_HERE</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Script Embed (Recommended) */}
       <div>
@@ -264,6 +319,12 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
           Useful for support links or help buttons.
         </p>
       </div>
+
+      {/* Divider */}
+      <hr className="border-slate-700" />
+
+      {/* API Keys Management */}
+      {tenant && <ApiKeys tenantId={tenant.id as Id<'tenants'>} />}
     </div>
   )
 }

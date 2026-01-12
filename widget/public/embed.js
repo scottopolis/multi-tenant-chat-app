@@ -15,6 +15,7 @@
   // Read configuration from data attributes
   var config = {
     agentId: currentScript.getAttribute('data-agent-id'),
+    apiKey: currentScript.getAttribute('data-api-key'),
     color: currentScript.getAttribute('data-color') || '#4F46E5',
     position: currentScript.getAttribute('data-position') || 'bottom-right',
     icon: currentScript.getAttribute('data-icon') || 'chat'
@@ -257,6 +258,7 @@
           type: 'INIT',
           payload: {
             agentId: config.agentId,
+            apiKey: config.apiKey,
             color: config.color
           }
         });

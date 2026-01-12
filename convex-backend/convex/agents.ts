@@ -113,6 +113,8 @@ export const create = mutation({
     mcpServers: v.optional(v.string()),
     // Output schema (JSON string)
     outputSchema: v.optional(v.string()),
+    // Security settings
+    allowedDomains: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     // Check if agentId already exists
@@ -141,6 +143,7 @@ export const create = mutation({
       langfuseLabel: args.langfuseLabel,
       mcpServers: args.mcpServers,
       outputSchema: args.outputSchema,
+      allowedDomains: args.allowedDomains ?? ["*"], // Default to allow all
       createdAt: now,
       updatedAt: now,
     });
@@ -163,6 +166,7 @@ export const update = mutation({
     langfuseLabel: v.optional(v.string()),
     mcpServers: v.optional(v.string()),
     outputSchema: v.optional(v.string()),
+    allowedDomains: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

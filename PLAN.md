@@ -34,115 +34,20 @@ OpenRouter API (any model: Claude, GPT, Gemini, Llama, etc.)
 Convex (configs, history, vectors via @convex-dev/rag)
 ```
 
-### Key Implementation Details
-
-#### TanStack AI SDK Setup
-
-```typescript
-// packages/worker/src/lib/ai.ts
-import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
-import { createOpenaiChat } from '@tanstack/ai-openai'
-
-// OpenRouter uses OpenAI-compatible API
-const openrouter = createOpenaiChat(process.env.OPENROUTER_API_KEY!, {
-  baseURL: 'https://openrouter.ai/api/v1',
-})
-
-// Use any model via OpenRouter
-const stream = chat({
-  adapter: openrouter('anthropic/claude-sonnet-4'),
-  messages,
-  tools: [searchKnowledge, ...tenantTools],
-  agentLoopStrategy: maxIterations(10),
-})
-
-return toServerSentEventsResponse(stream)
-```
-
-#### Tool Definition Pattern
-
-```typescript
-// packages/worker/src/tools/search-knowledge.ts
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
-
-const searchKnowledgeDef = toolDefinition({
-  name: 'search_knowledge',
-  description: 'Search the knowledge base for relevant information',
-  inputSchema: z.object({
-    query: z.string().describe('Search query'),
-    limit: z.number().optional().default(5),
-  }),
-  outputSchema: z.object({
-    results: z.array(z.object({
-      text: z.string(),
-      score: z.number(),
-    })),
-  }),
-})
-
-export const searchKnowledge = searchKnowledgeDef.server(async ({ query, limit }) => {
-  // Call Convex RAG action
-  const { results } = await convex.action(api.rag.search, { 
-    namespace: tenantId,
-    query,
-    limit,
-  })
-  return { results }
-})
-```
-
-#### Convex RAG Component
-
-```typescript
-// convex/convex.config.ts
-import { defineApp } from 'convex/server'
-import rag from '@convex-dev/rag/convex.config.js'
-
-const app = defineApp()
-app.use(rag)
-export default app
-
-// convex/rag.ts
-import { components } from './_generated/api'
-import { RAG } from '@convex-dev/rag'
-import { openai } from '@ai-sdk/openai'
-
-export const rag = new RAG(components.rag, {
-  textEmbeddingModel: openai.embedding('text-embedding-3-small'),
-  embeddingDimension: 1536,
-  filterNames: ['tenantId', 'documentType'],
-})
-```
-
----
-
-## Current State
-
-- Widget with real-time streaming chat, structured output, suggestions
-- Worker with OpenAI Agents SDK (migrating to TanStack AI)
-- Dashboard (TanStack Start + shadcn/ui)
-- Convex database integrated
-- Unit tests (Vitest) and E2E tests (Playwright)
 
 ---
 
 ## Next Up
 
+Read specs/widget-security.md
+
 ### 1. TanStack AI SDK Migration
-See docs here: https://tanstack.com/ai/latest/docs/getting-started/overview
-- [ ] Install TanStack AI packages (`@tanstack/ai`, `@tanstack/ai-openai`)
-- [ ] Create OpenRouter adapter using OpenAI adapter with custom baseURL
-- [ ] Migrate tool definitions to `toolDefinition()` pattern
-- [ ] Implement agent loop with `maxIterations` strategy
-- [ ] Update SSE streaming to use `toServerSentEventsResponse`
+
+DONE
 
 ### 2. Convex RAG Migration
-- [ ] Install `@convex-dev/rag` component
-- [ ] Add RAG component to `convex.config.ts`
-- [ ] Migrate embeddings to Convex vector search (replace OpenAI VectorStore)
-- [ ] Update `search_knowledge` tool to use Convex RAG
-- [ ] Add namespace support for tenant isolation
+
+DONE
 
 ### 3. Widget UI Refresh (shadcn-style)
 - [ ] Install shadcn-chat components or build custom

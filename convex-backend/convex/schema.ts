@@ -58,6 +58,11 @@ export default defineSchema({
     // Stored as JSON-serialized Zod schema definition
     outputSchema: v.optional(v.string()),
 
+    // Security: Domain allowlist for widget embedding
+    // Supports wildcards: ["example.com", "*.example.org"]
+    // Default ["*"] allows all domains
+    allowedDomains: v.optional(v.array(v.string())),
+
     createdAt: v.number(), // Unix timestamp
     updatedAt: v.number(), // Unix timestamp
   })
@@ -74,7 +79,9 @@ export default defineSchema({
     keyHash: v.string(), // SHA-256 hash of the API key
     keyPrefix: v.string(), // First 8 chars for display (e.g., "sk_live_")
     name: v.string(), // Key name/description
+    scopes: v.optional(v.array(v.string())), // ["widget:chat"] - limit what key can do
     lastUsedAt: v.optional(v.number()), // Last usage timestamp
+    revokedAt: v.optional(v.number()), // Revocation timestamp (null = active)
     createdAt: v.number(), // Unix timestamp
   })
     .index("by_hash", ["keyHash"]) // Lookup for validation

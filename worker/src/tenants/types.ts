@@ -93,6 +93,18 @@ export interface AgentConfig {
    * Used for knowledge base search via Convex RAG
    */
   agentConvexId?: string;
+
+  /**
+   * Tenant ID that owns this agent (Convex document ID)
+   * Used for API key tenant binding verification
+   */
+  tenantId?: string;
+
+  /**
+   * Allowed domains for CORS and origin validation
+   * Defaults to ["*"] (allow all) if not specified
+   */
+  allowedDomains?: string[];
   
   // Future additions:
   // webhookTools?: WebhookToolConfig[];
