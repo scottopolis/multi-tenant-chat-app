@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTenant } from '../../lib/tenant'
 import { api } from '../../../../convex-backend/convex/_generated/api'
+import { UsageChart } from '../../components/UsageChart'
 
 export const Route = createFileRoute('/_authed/dashboard/')({
   component: DashboardHome,
@@ -66,16 +67,17 @@ function DashboardHome() {
   }
 
   return (
-    <div>
-      <div className="border border-dashed border-gray-300 rounded-xl h-80 flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-3">
-            Welcome to your Dashboard
-          </h2>
-          <p className="text-gray-500">
-            Usage overview and analytics will be displayed here.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-1">
+          Welcome to your Dashboard
+        </h2>
+        <p className="text-gray-500">
+          View your account usage and analytics below.
+        </p>
+      </div>
+      <div className="max-w-2xl">
+        <UsageChart />
       </div>
     </div>
   )

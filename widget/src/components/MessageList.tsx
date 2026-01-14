@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ScrollArea } from './ui/scroll-area';
 import { Message } from './Message';
 import type { ChatMessage } from '@/hooks/useChat';
+import { MessageSquare } from 'lucide-react';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -24,10 +25,11 @@ export function MessageList({ messages, onSuggestionClick }: MessageListProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
+      <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
-          <p className="text-lg font-medium">Start a conversation</p>
-          <p className="text-sm mt-2">Send a message to begin chatting with the assistant</p>
+          <MessageSquare className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          <p className="text-base font-medium text-gray-900">Start a conversation</p>
+          <p className="text-sm mt-1 text-gray-500">Send a message to begin chatting</p>
         </div>
       </div>
     );
@@ -49,6 +51,3 @@ export function MessageList({ messages, onSuggestionClick }: MessageListProps) {
     </ScrollArea>
   );
 }
-
-
-

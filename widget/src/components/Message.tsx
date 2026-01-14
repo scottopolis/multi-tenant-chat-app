@@ -1,8 +1,7 @@
-import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/hooks/useChat';
-import { User, Bot, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { parseMessageContent } from '@/lib/structured-output';
 
 /**
@@ -27,7 +26,6 @@ interface MessageProps {
 
 export function Message({ message, onSuggestionClick, isLatestMessage = false }: MessageProps) {
   const isUser = message.role === 'user';
-  const isAssistant = message.role === 'assistant';
 
   // Parse content to detect structured responses
   // Only parse if not streaming (to avoid JSON parsing errors on incomplete data)
@@ -44,36 +42,21 @@ export function Message({ message, onSuggestionClick, isLatestMessage = false }:
       data-role={message.role}
       data-streaming={message.isStreaming}
       className={cn(
-        'flex gap-3 p-4',
-        isUser && 'flex-row-reverse',
-        isAssistant && 'bg-muted/50'
+        'flex px-6 py-3',
+        isUser && 'justify-end'
       )}
     >
-      <Avatar className="h-8 w-8">
-        <AvatarFallback
-          className={cn(
-            isUser ? 'bg-primary text-primary-foreground' : 'bg-secondary'
-          )}
-        >
-          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-        </AvatarFallback>
-      </Avatar>
-
-      <div className={cn('flex flex-col gap-1 flex-1', isUser && 'items-end')}>
-        <div className="text-xs font-medium text-muted-foreground">
-          {isUser ? 'You' : 'Assistant'}
-        </div>
-        
+      <div className={cn('flex flex-col max-w-[85%]', isUser && 'items-end')}>
         <div
           className={cn(
-            'rounded-lg px-4 py-2 max-w-[80%]',
+            'rounded-xl px-4 py-3',
             isUser
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-background border border-border'
+              ? 'bg-gray-900 text-white'
+              : 'bg-white border border-gray-200 text-gray-900'
           )}
         >
           {/* Main content */}
-          <div className="text-sm whitespace-pre-wrap break-words">
+          <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
             {message.isStreaming 
               ? (message.content || '...')
               : (parsed.displayText || '...')
@@ -98,7 +81,7 @@ export function Message({ message, onSuggestionClick, isLatestMessage = false }:
                 variant="outline"
                 size="sm"
                 onClick={() => onSuggestionClick(suggestion)}
-                className="text-xs h-8"
+                className="text-xs h-8 rounded-full"
               >
                 {suggestion}
               </Button>
@@ -109,4 +92,3 @@ export function Message({ message, onSuggestionClick, isLatestMessage = false }:
     </div>
   );
 }
-

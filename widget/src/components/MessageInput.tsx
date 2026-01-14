@@ -34,7 +34,7 @@ export function MessageInput({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 p-4 border-t">
+    <form onSubmit={handleSubmit} className="flex gap-3 p-4 border-t border-gray-200 bg-white">
       <Input
         value={input}
         onChange={(e) => setInput(e.target.value)}
@@ -48,13 +48,10 @@ export function MessageInput({
         type="submit"
         disabled={disabled || !input.trim()}
         size="icon"
+        className="shrink-0"
       >
         <Send className="h-4 w-4" />
       </Button>
     </form>
   );
 }
-
-
-
-

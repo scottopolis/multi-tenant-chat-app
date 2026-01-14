@@ -62,18 +62,18 @@ function AppContent() {
 
   if (!chatId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
           {isCreating ? (
             <>
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">Creating chat...</p>
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500">Creating chat...</p>
             </>
           ) : (
             <>
-              <MessageSquarePlus className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h1 className="text-2xl font-semibold mb-2">Chat Assistant</h1>
-              <p className="text-muted-foreground mb-4">Start a conversation</p>
+              <MessageSquarePlus className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <h1 className="text-2xl font-semibold text-gray-900 mb-2">Chat Assistant</h1>
+              <p className="text-gray-500 mb-6">Start a conversation</p>
               <Button onClick={handleCreateChat}>New Chat</Button>
             </>
           )}
@@ -83,10 +83,10 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <h1 className="text-lg font-semibold">Chat Assistant</h1>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+        <h1 className="text-lg font-semibold text-gray-900">Chat Assistant</h1>
         <Button
           variant="outline"
           size="sm"
@@ -99,7 +99,7 @@ function AppContent() {
       </div>
 
       {/* Chat */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden bg-gray-50">
         <Chat 
           chatId={chatId} 
           agentId={agentId} 
@@ -122,4 +122,3 @@ export default function App() {
     </QueryClientProvider>
   );
 }
-
