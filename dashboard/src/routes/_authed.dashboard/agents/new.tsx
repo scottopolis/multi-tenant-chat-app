@@ -63,28 +63,26 @@ function NewAgent() {
 
   if (tenantLoading) {
     return (
-      <div className="px-4 py-6 sm:px-0">
-        <p className="text-white">Loading...</p>
+      <div>
+        <p className="text-gray-500">Loading...</p>
       </div>
     )
   }
 
   if (!tenant) {
     return (
-      <div className="px-4 py-6 sm:px-0">
-        <p className="text-red-400">No tenant found. Please run the seed script.</p>
+      <div>
+        <p className="text-red-600">No tenant found. Please run the seed script.</p>
       </div>
     )
   }
 
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="md:flex md:items-center md:justify-between mb-8">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-3xl font-bold leading-7 text-white sm:truncate sm:tracking-tight">
-            Create New Agent
-          </h2>
-        </div>
+    <div>
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold text-gray-900">
+          Create New Agent
+        </h2>
       </div>
 
       <AgentForm

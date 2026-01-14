@@ -6,11 +6,9 @@ import { useTenant } from '../lib/tenant'
 import { VoicePreview } from './VoicePreview'
 
 interface VoiceSettingsProps {
-  agentId: string // Human-readable agent ID (for display/logging)
+  agentId: string
   agentDbId: Id<'agents'>
 }
-
-// agentId kept for future logging/analytics purposes
 
 const VOICE_MODELS = [
   { value: 'gpt-realtime', label: 'GPT Realtime' },
@@ -42,7 +40,7 @@ const LOCALES = [
 ]
 
 export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsProps) {
-  void _agentId // Reserved for future analytics/logging
+  void _agentId
   const { tenant } = useTenant()
 
   const voiceAgent = useQuery(api.voiceAgents.getByAgentId, { agentId: agentDbId })
@@ -195,7 +193,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <p className="text-gray-400">Loading voice settings...</p>
+        <p className="text-gray-500">Loading voice settings...</p>
       </div>
     )
   }
@@ -203,51 +201,51 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-white">Voice Settings</h3>
-        <p className="mt-1 text-sm text-gray-400">
+        <h3 className="text-base font-medium text-gray-900">Voice Settings</h3>
+        <p className="mt-1 text-sm text-gray-500">
           Enable voice capabilities for this agent via Twilio phone numbers.
         </p>
       </div>
 
       {error && (
-        <div className="bg-red-900/50 border border-red-500 rounded-lg p-3">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
       {successMessage && (
-        <div className="bg-green-900/50 border border-green-500 rounded-lg p-3">
-          <p className="text-green-400 text-sm">{successMessage}</p>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <p className="text-green-700 text-sm">{successMessage}</p>
         </div>
       )}
 
       {/* Enable Voice Toggle */}
-      <div className="bg-slate-900 rounded-lg p-4">
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <label className="flex items-center gap-3">
           <input
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+            className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
           />
-          <span className="text-white font-medium">Enable voice for this agent</span>
+          <span className="text-gray-900 font-medium">Enable voice for this agent</span>
         </label>
       </div>
 
       {enabled && (
         <>
           {/* Voice Configuration */}
-          <div className="bg-slate-900 rounded-lg p-4 space-y-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="voiceModel" className="block text-sm font-medium text-white">
+                <label htmlFor="voiceModel" className="block text-sm font-medium text-gray-900">
                   Model
                 </label>
                 <select
                   id="voiceModel"
                   value={voiceModel}
                   onChange={(e) => setVoiceModel(e.target.value)}
-                  className="mt-2 block w-full rounded-md border-0 bg-slate-800 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                  className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                 >
                   {VOICE_MODELS.map((m) => (
                     <option key={m.value} value={m.value}>{m.label}</option>
@@ -255,14 +253,14 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                 </select>
               </div>
               <div>
-                <label htmlFor="voiceName" className="block text-sm font-medium text-white">
+                <label htmlFor="voiceName" className="block text-sm font-medium text-gray-900">
                   Voice
                 </label>
                 <select
                   id="voiceName"
                   value={voiceName}
                   onChange={(e) => setVoiceName(e.target.value)}
-                  className="mt-2 block w-full rounded-md border-0 bg-slate-800 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                  className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                 >
                   {VOICE_PERSONAS.map((v) => (
                     <option key={v.value} value={v.value}>{v.label}</option>
@@ -273,14 +271,14 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="locale" className="block text-sm font-medium text-white">
+                <label htmlFor="locale" className="block text-sm font-medium text-gray-900">
                   Locale
                 </label>
                 <select
                   id="locale"
                   value={locale}
                   onChange={(e) => setLocale(e.target.value)}
-                  className="mt-2 block w-full rounded-md border-0 bg-slate-800 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                  className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                 >
                   {LOCALES.map((l) => (
                     <option key={l.value} value={l.value}>{l.label}</option>
@@ -293,9 +291,9 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                     type="checkbox"
                     checked={bargeInEnabled}
                     onChange={(e) => setBargeInEnabled(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                    className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                   />
-                  <span className="text-white text-sm">Allow barge-in (interruptions)</span>
+                  <span className="text-gray-700 text-sm">Allow barge-in (interruptions)</span>
                 </label>
               </div>
             </div>
@@ -306,7 +304,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                   type="button"
                   onClick={handleDisableVoice}
                   disabled={isSaving}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:opacity-50"
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
                 >
                   Disable Voice
                 </button>
@@ -315,7 +313,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-600 disabled:opacity-50"
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
               >
                 {isSaving ? 'Saving...' : 'Save Voice Settings'}
               </button>
@@ -326,20 +324,20 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
           {voiceAgent && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-md font-medium text-white">Phone Numbers</h4>
+                <h4 className="text-sm font-medium text-gray-900">Phone Numbers</h4>
                 <button
                   type="button"
                   onClick={() => setShowAddNumber(true)}
-                  className="text-sm text-cyan-400 hover:text-cyan-300"
+                  className="text-sm text-gray-900 hover:text-gray-600 font-medium"
                 >
                   + Add Phone Number
                 </button>
               </div>
 
               {showAddNumber && (
-                <div className="bg-slate-900 rounded-lg p-4 space-y-3">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
                   <div>
-                    <label htmlFor="newPhoneNumber" className="block text-sm font-medium text-white">
+                    <label htmlFor="newPhoneNumber" className="block text-sm font-medium text-gray-900">
                       Phone Number (E.164 format)
                     </label>
                     <input
@@ -348,11 +346,11 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                       value={newPhoneNumber}
                       onChange={(e) => setNewPhoneNumber(e.target.value)}
                       placeholder="+15551234567"
-                      className="mt-2 block w-full rounded-md border-0 bg-slate-800 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                      className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                     />
                   </div>
                   <div>
-                    <label htmlFor="newDescription" className="block text-sm font-medium text-white">
+                    <label htmlFor="newDescription" className="block text-sm font-medium text-gray-900">
                       Description (optional)
                     </label>
                     <input
@@ -361,7 +359,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                       value={newDescription}
                       onChange={(e) => setNewDescription(e.target.value)}
                       placeholder="Main support line"
-                      className="mt-2 block w-full rounded-md border-0 bg-slate-800 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                      className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                     />
                   </div>
                   <div className="flex justify-end gap-3">
@@ -372,7 +370,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                         setNewPhoneNumber('')
                         setNewDescription('')
                       }}
-                      className="rounded-md bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-600"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Cancel
                     </button>
@@ -380,7 +378,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                       type="button"
                       onClick={handleAddNumber}
                       disabled={isAddingNumber || !newPhoneNumber}
-                      className="rounded-md bg-cyan-500 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-50"
+                      className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                     >
                       {isAddingNumber ? 'Adding...' : 'Add Number'}
                     </button>
@@ -389,15 +387,15 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
               )}
 
               {twilioNumbers === undefined ? (
-                <p className="text-gray-500 text-sm italic">Loading phone numbers...</p>
+                <p className="text-gray-400 text-sm italic">Loading phone numbers...</p>
               ) : twilioNumbers.length === 0 ? (
-                <p className="text-gray-500 text-sm italic">No phone numbers configured yet.</p>
+                <p className="text-gray-400 text-sm italic">No phone numbers configured yet.</p>
               ) : (
                 <div className="space-y-2">
                   {twilioNumbers.map((number) => (
                     <div
                       key={number._id}
-                      className="flex items-center justify-between bg-slate-900 rounded-lg p-3"
+                      className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-3"
                     >
                       <div className="flex items-center gap-3">
                         <svg
@@ -414,7 +412,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                           />
                         </svg>
                         <div>
-                          <p className="text-sm text-white font-medium">
+                          <p className="text-sm text-gray-900 font-medium">
                             {formatPhoneNumber(number.phoneNumber)}
                           </p>
                           {number.description && (
@@ -424,7 +422,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                       </div>
                       <button
                         onClick={() => handleDeleteNumber(number._id)}
-                        className="text-red-400 hover:text-red-300 text-sm"
+                        className="text-red-600 hover:text-red-500 text-sm font-medium"
                       >
                         Remove
                       </button>
@@ -437,12 +435,12 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
           {/* Integration Instructions */}
           {voiceAgent && (
-            <div className="bg-slate-900 rounded-lg p-4 space-y-3">
-              <h4 className="text-md font-medium text-white">Integration</h4>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-medium text-gray-900">Integration</h4>
               <div>
-                <label className="block text-sm font-medium text-gray-400">Webhook URL</label>
+                <label className="block text-sm font-medium text-gray-500">Webhook URL</label>
                 <div className="mt-2 flex items-center gap-2">
-                  <code className="flex-1 bg-slate-800 rounded px-3 py-2 text-sm text-cyan-400 font-mono overflow-x-auto">
+                  <code className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 font-mono overflow-x-auto">
                     {webhookUrl}
                   </code>
                   <button
@@ -452,14 +450,14 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                       setSuccessMessage('Webhook URL copied to clipboard')
                       setTimeout(() => setSuccessMessage(null), 2000)
                     }}
-                    className="rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-600"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Copy
                   </button>
                 </div>
               </div>
-              <div className="text-sm text-gray-400 space-y-1">
-                <p className="font-medium text-white">Configure this URL in Twilio Console:</p>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p className="font-medium text-gray-900">Configure this URL in Twilio Console:</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>Go to Phone Numbers → Manage → Active numbers</li>
                   <li>Select your phone number</li>

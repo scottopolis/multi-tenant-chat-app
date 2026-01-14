@@ -26,7 +26,7 @@ const ICON_OPTIONS = [
 
 export function EmbedCode({ agentId }: EmbedCodeProps) {
   const { tenant } = useTenant()
-  const [color, setColor] = useState('#4F46E5')
+  const [color, setColor] = useState('#111827')
   const [position, setPosition] = useState('bottom-right')
   const [icon, setIcon] = useState('chat')
   const [copied, setCopied] = useState<'script' | 'iframe' | null>(null)
@@ -66,8 +66,8 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-medium text-white">Embed Widget</h3>
-        <p className="mt-1 text-sm text-gray-400">
+        <h3 className="text-base font-medium text-gray-900">Embed Widget</h3>
+        <p className="mt-1 text-sm text-gray-500">
           Add the chat widget to any website by copying the embed code below.
         </p>
       </div>
@@ -75,7 +75,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
       {/* Customization Options */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div>
-          <label htmlFor="embedColor" className="block text-sm font-medium text-white">
+          <label htmlFor="embedColor" className="block text-sm font-medium text-gray-900">
             Button Color
           </label>
           <div className="mt-2 flex items-center gap-2">
@@ -84,19 +84,19 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
               id="embedColor"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="h-10 w-10 rounded border border-slate-600 bg-slate-900 cursor-pointer"
+              className="h-10 w-10 rounded-lg border border-gray-300 bg-white cursor-pointer"
             />
             <input
               type="text"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm font-mono"
+              className="block w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm font-mono"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="embedPosition" className="block text-sm font-medium text-white">
+          <label htmlFor="embedPosition" className="block text-sm font-medium text-gray-900">
             Position
           </label>
           <div className="mt-2">
@@ -104,7 +104,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
               id="embedPosition"
               value={position}
               onChange={(e) => setPosition(e.target.value)}
-              className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+              className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
             >
               {POSITION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -116,7 +116,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
         </div>
 
         <div>
-          <label htmlFor="embedIcon" className="block text-sm font-medium text-white">
+          <label htmlFor="embedIcon" className="block text-sm font-medium text-gray-900">
             Launcher Icon
           </label>
           <div className="mt-2">
@@ -124,7 +124,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
               id="embedIcon"
               value={icon}
               onChange={(e) => setIcon(e.target.value)}
-              className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+              className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
             >
               {ICON_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -136,7 +136,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
         </div>
 
         <div>
-          <label htmlFor="embedApiKey" className="block text-sm font-medium text-white">
+          <label htmlFor="embedApiKey" className="block text-sm font-medium text-gray-900">
             API Key
           </label>
           <div className="mt-2">
@@ -144,7 +144,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
               id="embedApiKey"
               value={selectedKeyPrefix ?? ''}
               onChange={(e) => setSelectedKeyPrefix(e.target.value || null)}
-              className="block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+              className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
             >
               <option value="">No API key (development only)</option>
               {activeKeys.map((key) => (
@@ -159,15 +159,15 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
 
       {/* API Key Warning */}
       {selectedKeyPrefix && (
-        <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <svg className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div>
-              <p className="text-yellow-400 text-sm font-medium">Replace YOUR_API_KEY_HERE with your actual API key</p>
-              <p className="text-yellow-400/80 text-sm mt-1">
-                The embed code shows a placeholder. Copy your full API key from the API Keys section below and paste it in place of <code className="bg-slate-800 px-1 rounded">YOUR_API_KEY_HERE</code>.
+              <p className="text-amber-800 text-sm font-medium">Replace YOUR_API_KEY_HERE with your actual API key</p>
+              <p className="text-amber-700 text-sm mt-1">
+                The embed code shows a placeholder. Copy your full API key from the API Keys section below and paste it in place of <code className="bg-amber-100 px-1 rounded">YOUR_API_KEY_HERE</code>.
               </p>
             </div>
           </div>
@@ -177,20 +177,20 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
       {/* Script Embed (Recommended) */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <div>
-            <h4 className="text-sm font-medium text-white">Script Tag</h4>
-            <span className="inline-flex items-center rounded-full bg-green-900/50 px-2 py-0.5 text-xs font-medium text-green-400 ml-2">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-medium text-gray-900">Script Tag</h4>
+            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
               Recommended
             </span>
           </div>
           <button
             type="button"
             onClick={() => handleCopy(scriptCode, 'script')}
-            className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            className="text-sm text-gray-900 hover:text-gray-600 font-medium flex items-center gap-1"
           >
             {copied === 'script' ? (
               <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Copied!
@@ -205,26 +205,26 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
             )}
           </button>
         </div>
-        <p className="text-sm text-gray-400 mb-2">
-          Paste this script tag before the closing <code className="text-cyan-400">&lt;/body&gt;</code> tag:
+        <p className="text-sm text-gray-500 mb-2">
+          Paste this script tag before the closing <code className="text-gray-900">&lt;/body&gt;</code> tag:
         </p>
-        <pre className="bg-slate-900 rounded-lg p-4 overflow-x-auto">
-          <code className="text-sm text-gray-300 font-mono whitespace-pre">{scriptCode}</code>
+        <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto">
+          <code className="text-sm text-gray-700 font-mono whitespace-pre">{scriptCode}</code>
         </pre>
       </div>
 
       {/* Direct Iframe */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-white">Direct Iframe</h4>
+          <h4 className="text-sm font-medium text-gray-900">Direct Iframe</h4>
           <button
             type="button"
             onClick={() => handleCopy(iframeCode, 'iframe')}
-            className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            className="text-sm text-gray-900 hover:text-gray-600 font-medium flex items-center gap-1"
           >
             {copied === 'iframe' ? (
               <>
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Copied!
@@ -239,28 +239,28 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
             )}
           </button>
         </div>
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-gray-500 mb-2">
           For full control over positioning and styling:
         </p>
-        <pre className="bg-slate-900 rounded-lg p-4 overflow-x-auto">
-          <code className="text-sm text-gray-300 font-mono whitespace-pre">{iframeCode}</code>
+        <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto">
+          <code className="text-sm text-gray-700 font-mono whitespace-pre">{iframeCode}</code>
         </pre>
       </div>
 
       {/* Interactive Preview */}
       <div>
-        <h4 className="text-sm font-medium text-white mb-2">Live Preview</h4>
-        <p className="text-sm text-gray-400 mb-3">
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Live Preview</h4>
+        <p className="text-sm text-gray-500 mb-3">
           Click the launcher button to test the actual widget with your agent.
         </p>
-        <div className="bg-slate-900 rounded-lg relative h-[600px] overflow-hidden">
-          <div className="absolute top-4 left-4 text-sm text-gray-500">Your website content...</div>
+        <div className="bg-gray-100 border border-gray-200 rounded-xl relative h-[600px] overflow-hidden">
+          <div className="absolute top-4 left-4 text-sm text-gray-400">Your website content...</div>
           
           {/* Live iframe when open */}
           {previewOpen && (
             <iframe
               src={`${WIDGET_URL}/?agent=${agentId}`}
-              className="absolute border-none rounded-2xl shadow-2xl"
+              className="absolute border-none rounded-2xl shadow-xl"
               style={{
                 width: '380px',
                 height: '450px',
@@ -312,16 +312,16 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
       </div>
 
       {/* Auto-Open Tip */}
-      <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-        <h4 className="text-sm font-medium text-white mb-1">💡 Pro Tip: Auto-Open Widget</h4>
-        <p className="text-sm text-gray-400">
-          Add <code className="text-cyan-400">?chat=open</code> to any URL to automatically open the chat widget when the page loads.
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-1">Pro Tip: Auto-Open Widget</h4>
+        <p className="text-sm text-gray-600">
+          Add <code className="text-gray-900 bg-gray-200 px-1 rounded">?chat=open</code> to any URL to automatically open the chat widget when the page loads.
           Useful for support links or help buttons.
         </p>
       </div>
 
       {/* Divider */}
-      <hr className="border-slate-700" />
+      <hr className="border-gray-200" />
 
       {/* API Keys Management */}
       {tenant && <ApiKeys tenantId={tenant.id as Id<'tenants'>} />}

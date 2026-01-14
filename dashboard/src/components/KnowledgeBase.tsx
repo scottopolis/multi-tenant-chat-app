@@ -46,14 +46,12 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type
     const ext = '.' + file.name.split('.').pop()?.toLowerCase()
     if (!ACCEPTED_TYPES.includes(ext)) {
       setError(`Invalid file type. Accepted: ${ACCEPTED_TYPES.join(', ')}`)
       return
     }
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       setError(`File too large. Maximum size is 10MB.`)
       return
@@ -76,14 +74,12 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
         throw new Error(data.error || `Upload failed: ${res.status}`)
       }
 
-      // Refresh the file list
       await fetchFiles()
     } catch (err) {
       console.error('Error uploading file:', err)
       setError(err instanceof Error ? err.message : 'Failed to upload file')
     } finally {
       setIsUploading(false)
-      // Reset the input
       e.target.value = ''
     }
   }
@@ -104,7 +100,6 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
         throw new Error(data.error || `Delete failed: ${res.status}`)
       }
 
-      // Refresh the file list
       await fetchFiles()
     } catch (err) {
       console.error('Error deleting file:', err)
@@ -124,30 +119,30 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      completed: 'bg-green-500/20 text-green-400',
-      in_progress: 'bg-yellow-500/20 text-yellow-400',
-      failed: 'bg-red-500/20 text-red-400',
+      completed: 'bg-green-50 text-green-700',
+      in_progress: 'bg-amber-50 text-amber-700',
+      failed: 'bg-red-50 text-red-700',
     }
-    return colors[status] || 'bg-gray-500/20 text-gray-400'
+    return colors[status] || 'bg-gray-50 text-gray-700'
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-white">Knowledge Base</h3>
-        <p className="mt-1 text-sm text-gray-400">
+        <h3 className="text-base font-medium text-gray-900">Knowledge Base</h3>
+        <p className="mt-1 text-sm text-gray-500">
           Upload documents to give your agent access to custom knowledge. Supports PDF, TXT, MD, and CSV files.
         </p>
       </div>
 
       {error && (
-        <div className="bg-red-900/50 border border-red-500 rounded-lg p-3">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
       {/* Upload Zone */}
-      <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-slate-500 transition-colors">
+      <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-gray-400 transition-colors">
         <input
           type="file"
           id="file-upload"
@@ -175,15 +170,15 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
           </svg>
           <div className="mt-4">
             {isUploading ? (
-              <span className="text-cyan-400">Uploading...</span>
+              <span className="text-gray-900 font-medium">Uploading...</span>
             ) : (
               <>
-                <span className="text-cyan-400 hover:text-cyan-300">Click to upload</span>
-                <span className="text-gray-400"> or drag and drop</span>
+                <span className="text-gray-900 font-medium hover:text-gray-600">Click to upload</span>
+                <span className="text-gray-500"> or drag and drop</span>
               </>
             )}
           </div>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-gray-400">
             PDF, TXT, MD, CSV up to 10MB
           </p>
         </label>
@@ -191,20 +186,20 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
 
       {/* Document List */}
       <div>
-        <h4 className="text-sm font-medium text-gray-300 mb-3">
+        <h4 className="text-sm font-medium text-gray-700 mb-3">
           Documents {!isLoading && `(${files.length})`}
         </h4>
 
         {isLoading ? (
-          <p className="text-gray-500 text-sm italic">Loading documents...</p>
+          <p className="text-gray-400 text-sm italic">Loading documents...</p>
         ) : files.length === 0 ? (
-          <p className="text-gray-500 text-sm italic">No documents uploaded yet.</p>
+          <p className="text-gray-400 text-sm italic">No documents uploaded yet.</p>
         ) : (
           <div className="space-y-2">
             {files.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center justify-between bg-slate-900 rounded-lg p-3"
+                className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg p-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <svg
@@ -221,7 +216,7 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
                     />
                   </svg>
                   <div className="min-w-0">
-                    <p className="text-sm text-white truncate" title={file.id}>
+                    <p className="text-sm text-gray-900 truncate" title={file.id}>
                       {file.id}
                     </p>
                     <p className="text-xs text-gray-500">
@@ -230,13 +225,13 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-1 rounded ${getStatusBadge(file.status)}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadge(file.status)}`}>
                     {file.status}
                   </span>
                   <button
                     onClick={() => handleDelete(file.id)}
                     disabled={deletingId === file.id}
-                    className="text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-red-600 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Delete document"
                   >
                     {deletingId === file.id ? (

@@ -40,7 +40,6 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
 
   const getWorkerHost = () => {
     if (typeof window === 'undefined') return ''
-    // Replace dashboard port with worker port
     return window.location.origin.replace(':3000', ':8787')
   }
 
@@ -89,13 +88,11 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
     source.buffer = audioBuffer
     source.connect(audioContextRef.current.destination)
 
-    // Track active source for interruption
     activeSourcesRef.current.add(source)
     source.onended = () => {
       activeSourcesRef.current.delete(source)
     }
 
-    // Queue audio chunks sequentially instead of playing all at once
     const currentTime = audioContextRef.current.currentTime
     const startTime = Math.max(currentTime, nextPlayTimeRef.current)
     source.start(startTime)
@@ -117,7 +114,6 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
     nextPlayTimeRef.current = 0
 
     try {
-      // 1. Get microphone access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: SAMPLE_RATE,
@@ -128,14 +124,11 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
       })
       mediaStreamRef.current = stream
 
-      // 2. Set up audio context
       audioContextRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
       const source = audioContextRef.current.createMediaStreamSource(stream)
 
-      // Use ScriptProcessor for compatibility (AudioWorklet is better but more complex)
       const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1)
 
-      // 3. Get preview token and connect to worker
       const token = await getPreviewToken()
       const workerHost = getWorkerHost()
       const wsUrl = `${workerHost.replace('http', 'ws')}/voice/preview?agentDbId=${agentDbId}&tenantId=${tenant.id}&token=${encodeURIComponent(token)}`
@@ -178,7 +171,6 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
         }
       }
 
-      // 4. Stream audio to server
       processor.onaudioprocess = (e) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           const inputData = e.inputBuffer.getChannelData(0)
@@ -188,7 +180,6 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
       }
 
       source.connect(processor)
-      // Connect processor to a silent gain node (must be in audio graph to process, but gain=0 prevents echo)
       const silentGain = audioContextRef.current.createGain()
       silentGain.gain.value = 0
       silentGain.connect(audioContextRef.current.destination)
@@ -202,19 +193,16 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
   }
 
   const stopPreview = () => {
-    // Close WebSocket
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
     }
 
-    // Stop media stream
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop())
       mediaStreamRef.current = null
     }
 
-    // Close audio context
     if (audioContextRef.current) {
       audioContextRef.current.close()
       audioContextRef.current = null
@@ -230,15 +218,15 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
   }
 
   return (
-    <div className="bg-slate-900 rounded-lg p-4 space-y-3">
-      <h4 className="text-md font-medium text-white">Preview</h4>
-      <p className="text-sm text-gray-400">
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+      <h4 className="text-sm font-medium text-gray-900">Preview</h4>
+      <p className="text-sm text-gray-500">
         Test your voice agent directly in the browser. No phone number required.
       </p>
 
       {error && (
-        <div className="bg-red-900/50 border border-red-500 rounded-lg p-2">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
@@ -247,12 +235,12 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
           type="button"
           onClick={isActive ? stopPreview : startPreview}
           disabled={isConnecting}
-          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors ${
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
             isActive
               ? 'bg-red-600 hover:bg-red-500'
               : isConnecting
-                ? 'bg-gray-600 cursor-wait'
-                : 'bg-cyan-500 hover:bg-cyan-600'
+                ? 'bg-gray-400 cursor-wait'
+                : 'bg-gray-900 hover:bg-gray-800'
           } disabled:opacity-50`}
         >
           {isActive ? (
@@ -274,14 +262,14 @@ export function VoicePreview({ agentDbId }: VoicePreviewProps) {
         </button>
 
         {isActive && (
-          <span className="flex items-center gap-2 text-sm text-green-400">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <span className="flex items-center gap-2 text-sm text-green-600">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             Listening...
           </span>
         )}
       </div>
 
-      <p className="text-xs text-gray-500">Uses your microphone. Sessions auto-disconnect after 10 minutes.</p>
+      <p className="text-xs text-gray-400">Uses your microphone. Sessions auto-disconnect after 10 minutes.</p>
     </div>
   )
 }

@@ -98,70 +98,70 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
   }
 
   if (keys === undefined) {
-    return <p className="text-gray-400">Loading API keys...</p>
+    return <p className="text-gray-500">Loading API keys...</p>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium text-white">API Keys</h3>
-          <p className="mt-1 text-sm text-gray-400">
+          <h3 className="text-base font-medium text-gray-900">API Keys</h3>
+          <p className="mt-1 text-sm text-gray-500">
             Manage API keys for authenticating widget requests.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-600"
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors"
         >
           Generate New Key
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-900/50 border border-red-500 rounded-lg p-3">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
       {keys.length === 0 ? (
-        <div className="bg-slate-900 rounded-lg p-6 text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
-          <h4 className="mt-4 text-sm font-medium text-white">No API keys</h4>
-          <p className="mt-1 text-sm text-gray-400">
+          <h4 className="mt-4 text-sm font-medium text-gray-900">No API keys</h4>
+          <p className="mt-1 text-sm text-gray-500">
             Generate an API key to authenticate your widget.
           </p>
         </div>
       ) : (
-        <div className="bg-slate-900 rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-slate-700">
-            <thead className="bg-slate-800">
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Key</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Created</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Last Used</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Used</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700">
+            <tbody className="divide-y divide-gray-200">
               {keys.map((key) => (
-                <tr key={key.id}>
-                  <td className="px-4 py-3 text-sm text-white">{key.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400 font-mono">{key.keyPrefix}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{formatDate(key.createdAt)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{formatDate(key.lastUsedAt)}</td>
+                <tr key={key.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-900">{key.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 font-mono">{key.keyPrefix}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(key.createdAt)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(key.lastUsedAt)}</td>
                   <td className="px-4 py-3 text-sm">
                     {key.revokedAt ? (
-                      <span className="inline-flex items-center rounded-full bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-400">
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
                         Revoked
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-green-900/50 px-2 py-0.5 text-xs font-medium text-green-400">
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                         Active
                       </span>
                     )}
@@ -171,7 +171,7 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
                       <button
                         type="button"
                         onClick={() => handleRevoke(key.id)}
-                        className="text-red-400 hover:text-red-300"
+                        className="text-red-600 hover:text-red-500 font-medium"
                       >
                         Revoke
                       </button>
@@ -186,12 +186,12 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
 
       {/* Create Key Modal */}
       {showCreateModal && !newlyCreatedKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-medium text-white mb-4">Generate New API Key</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Generate New API Key</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="keyName" className="block text-sm font-medium text-white">
+                <label htmlFor="keyName" className="block text-sm font-medium text-gray-900">
                   Key Name
                 </label>
                 <input
@@ -200,7 +200,7 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
                   placeholder="e.g., Production Widget"
-                  className="mt-2 block w-full rounded-md border-0 bg-slate-900 py-2 px-3 text-white shadow-sm ring-1 ring-inset ring-slate-700 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-cyan-500 sm:text-sm"
+                  className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -211,7 +211,7 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
                     setKeyName('')
                     setError(null)
                   }}
-                  className="rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600"
+                  className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
@@ -219,7 +219,7 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
                   type="button"
                   onClick={handleCreateKey}
                   disabled={isCreating}
-                  className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-600 disabled:opacity-50"
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                 >
                   {isCreating ? 'Generating...' : 'Generate Key'}
                 </button>
@@ -231,32 +231,32 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
 
       {/* Show New Key Modal */}
       {newlyCreatedKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-slate-800 rounded-lg p-6 w-full max-w-lg shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl">
             <div className="flex items-center gap-3 mb-4">
-              <svg className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-6 w-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <h3 className="text-lg font-medium text-white">Save Your API Key</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Save Your API Key</h3>
             </div>
             
-            <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-3 mb-4">
-              <p className="text-yellow-400 text-sm">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-amber-800 text-sm">
                 This is the only time you will see this key. Copy it now and store it securely.
               </p>
             </div>
 
-            <div className="bg-slate-900 rounded-lg p-4 mb-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between gap-4">
-                <code className="text-cyan-400 font-mono text-sm break-all">{newlyCreatedKey}</code>
+                <code className="text-gray-900 font-mono text-sm break-all">{newlyCreatedKey}</code>
                 <button
                   type="button"
                   onClick={handleCopyKey}
-                  className="shrink-0 rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white hover:bg-slate-600 flex items-center gap-2"
+                  className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                 >
                   {copied ? (
                     <>
-                      <svg className="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       Copied
@@ -277,7 +277,7 @@ export function ApiKeys({ tenantId }: ApiKeysProps) {
               <button
                 type="button"
                 onClick={handleCloseNewKeyModal}
-                className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-600"
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Done
               </button>

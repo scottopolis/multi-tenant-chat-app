@@ -40,13 +40,13 @@ function DashboardHome() {
 
   if (provisionError) {
     return (
-      <div className="px-4 py-6 sm:px-0">
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-6 max-w-md">
-          <h3 className="text-red-400 font-medium mb-2">Setup Failed</h3>
-          <p className="text-gray-400 text-sm mb-4">{provisionError}</p>
+      <div>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md">
+          <h3 className="text-red-800 font-medium mb-2">Setup Failed</h3>
+          <p className="text-red-600 text-sm mb-4">{provisionError}</p>
           <button
             onClick={provisionTenant}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors"
           >
             Retry
           </button>
@@ -57,22 +57,22 @@ function DashboardHome() {
 
   if (isLoading || isProvisioning || !tenant) {
     return (
-      <div className="px-4 py-6 sm:px-0">
-        <div className="text-gray-400">
+      <div>
+        <p className="text-gray-500">
           {isProvisioning ? 'Setting up your workspace...' : 'Loading...'}
-        </div>
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="border-4 border-dashed border-slate-700 rounded-lg h-96 flex items-center justify-center">
+    <div>
+      <div className="border border-dashed border-gray-300 rounded-xl h-80 flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">
             Welcome to your Dashboard
           </h2>
-          <p className="text-gray-400">
+          <p className="text-gray-500">
             Usage overview and analytics will be displayed here.
           </p>
         </div>
