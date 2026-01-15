@@ -6,6 +6,7 @@ import documentRoutes from './routes/documents';
 import twilioRoutes from './routes/twilio';
 import voiceRoutes from './routes/voice';
 import { dynamicCors } from './middleware';
+import { convexMutation, convexQuery } from './convex/client';
 
 export { VoiceCallSession } from './voice/VoiceCallSession';
 export { WebVoiceSession } from './voice/WebVoiceSession';
@@ -108,16 +109,64 @@ app.route('/voice', voiceRoutes);
 /**
  * POST /api/chats
  * Create a new chat for the current agent
+ * 
+ * Body: { sessionId, userId?, title?, context? }
+ * - sessionId: Required, from widget localStorage
+ * - userId: Optional, Clerk user ID for authenticated users
+ * - title: Optional conversation title
+ * - context: Optional { pageUrl, referrer, userAgent, locale, timezone, customMetadata }
  */
 app.post('/api/chats', async (c) => {
   try {
-    const orgId = c.get('orgId');
     const agentId = c.get('agentId');
-    const body = await c.req.json().catch(() => ({}));
-    const title = body.title;
+    const convexUrl = c.env.CONVEX_URL;
 
+    const bodySchema = z.object({
+      sessionId: z.string().min(1, 'sessionId is required'),
+      userId: z.string().optional(),
+      title: z.string().optional(),
+      context: z.object({
+        pageUrl: z.string().optional(),
+        referrer: z.string().optional(),
+        userAgent: z.string().optional(),
+        locale: z.string().optional(),
+        timezone: z.string().optional(),
+        customMetadata: z.any().optional(),
+      }).optional(),
+    });
+
+    const body = await c.req.json().catch(() => ({}));
+    const validation = bodySchema.safeParse(body);
+
+    if (!validation.success) {
+      return c.json({ 
+        error: 'Invalid request', 
+        details: validation.error.issues 
+      }, 400);
+    }
+
+    const { sessionId, userId, title, context } = validation.data;
+
+    // Create conversation in Convex
+    if (convexUrl) {
+      const conversationId = await convexMutation<string>(convexUrl, 'conversations:create', {
+        agentId,
+        sessionId,
+        userId,
+        title,
+        context,
+      });
+
+      if (!conversationId) {
+        return c.json({ error: 'Failed to create conversation in Convex' }, 500);
+      }
+
+      return c.json({ id: conversationId }, 201);
+    }
+
+    // Fallback to in-memory storage if Convex not configured
+    const orgId = c.get('orgId');
     const chat = createChat(orgId, agentId, title);
-    
     return c.json(chat, 201);
   } catch (error) {
     console.error('Error creating chat:', error);
@@ -146,20 +195,63 @@ app.get('/api/chats', async (c) => {
  * GET /api/chats/:chatId
  * Get a single chat with its messages
  * 
- * TODO: Verify org ownership
- * - Check that the chat belongs to the requesting org
- * - Return 403 if org doesn't match
+ * For Convex conversations, returns the conversation with events.
+ * Access validation is done in the Convex query.
  */
 app.get('/api/chats/:chatId', async (c) => {
   try {
     const chatId = c.req.param('chatId');
+    const agentId = c.get('agentId');
+    const convexUrl = c.env.CONVEX_URL;
+
+    // Try Convex first if configured
+    if (convexUrl) {
+      const conversation = await convexQuery<{
+        _id: string;
+        events: Array<{
+          seq: number;
+          eventType: string;
+          role?: string;
+          content?: string;
+          toolName?: string;
+          toolCallId?: string;
+          toolInput?: unknown;
+          toolResult?: unknown;
+          createdAt: number;
+        }>;
+        createdAt: number;
+        updatedAt: number;
+      }>(convexUrl, 'conversations:get', {
+        agentId,
+        conversationId: chatId,
+      });
+
+      if (conversation) {
+        // Convert events to messages format for widget compatibility
+        const messages = conversation.events
+          .filter(e => e.eventType === 'message')
+          .map(e => ({
+            id: `${conversation._id}-${e.seq}`,
+            chatId: conversation._id,
+            role: e.role as 'user' | 'assistant' | 'system',
+            content: e.content || '',
+            createdAt: new Date(e.createdAt).toISOString(),
+          }));
+
+        return c.json({
+          id: conversation._id,
+          messages,
+          createdAt: new Date(conversation.createdAt).toISOString(),
+          updatedAt: new Date(conversation.updatedAt).toISOString(),
+        });
+      }
+    }
+
+    // Fallback to in-memory storage
     const chat = getChat(chatId);
-    
     if (!chat) {
       return c.json({ error: 'Chat not found' }, 404);
     }
-
-    // TODO: Verify chat.orgId === c.get('orgId')
     
     return c.json(chat);
   } catch (error) {
@@ -171,19 +263,14 @@ app.get('/api/chats/:chatId', async (c) => {
 /**
  * POST /api/chats/:chatId/messages
  * Send a message and stream the AI response
+ * 
+ * Persists user message and assistant response events to Convex.
  */
 app.post('/api/chats/:chatId/messages', async (c) => {
   try {
     const chatId = c.req.param('chatId');
-    const orgId = c.get('orgId');
-    
-    // Verify chat exists
-    const chat = getChat(chatId);
-    if (!chat) {
-      return c.json({ error: 'Chat not found' }, 404);
-    }
-
-    // TODO: Verify chat.orgId === orgId
+    const agentId = c.get('agentId');
+    const convexUrl = c.env.CONVEX_URL;
 
     // Parse request body
     const bodySchema = z.object({
@@ -197,19 +284,61 @@ app.post('/api/chats/:chatId/messages', async (c) => {
     if (!validation.success) {
       return c.json({ 
         error: 'Invalid request', 
-        details: validation.error.errors 
+        details: validation.error.issues 
       }, 400);
     }
 
     const { content, model } = validation.data;
 
-    // Add user message to storage
-    addMessage(chatId, { role: 'user', content });
+    // Determine message history source and persist user message
+    let messages: Array<{ role: string; content: string }>;
 
-    // Get chat history
-    const messages = getMessages(chatId);
+    if (convexUrl) {
+      // Persist user message to Convex
+      await convexMutation(convexUrl, 'conversations:appendEvent', {
+        agentId,
+        conversationId: chatId,
+        event: {
+          eventType: 'message',
+          role: 'user',
+          content,
+        },
+      });
 
-    // Get API key (prefer OPENROUTER_API_KEY for multi-provider support)
+      // Get conversation history from Convex
+      const conversation = await convexQuery<{
+        events: Array<{
+          eventType: string;
+          role?: string;
+          content?: string;
+        }>;
+      }>(convexUrl, 'conversations:get', {
+        agentId,
+        conversationId: chatId,
+      });
+
+      if (!conversation) {
+        return c.json({ error: 'Chat not found' }, 404);
+      }
+
+      // Convert events to messages for LLM
+      messages = conversation.events
+        .filter(e => e.eventType === 'message' && e.role && e.content)
+        .map(e => ({
+          role: e.role as string,
+          content: e.content as string,
+        }));
+    } else {
+      // Fallback to in-memory storage
+      const chat = getChat(chatId);
+      if (!chat) {
+        return c.json({ error: 'Chat not found' }, 404);
+      }
+      addMessage(chatId, { role: 'user', content });
+      messages = getMessages(chatId);
+    }
+
+    // Get API key
     const apiKey = c.env.OPENROUTER_API_KEY || c.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.error('API key not configured');
@@ -217,16 +346,15 @@ app.post('/api/chats/:chatId/messages', async (c) => {
     }
 
     // Run agent with TanStack AI + OpenRouter
-    const agentId = c.get('agentId');
-    
     return runAgentTanStackSSE({
       messages,
       apiKey,
       agentId,
       model,
       chatId,
+      conversationId: convexUrl ? chatId : undefined,
       env: {
-        CONVEX_URL: c.env.CONVEX_URL,
+        CONVEX_URL: convexUrl,
       },
     });
   } catch (error) {

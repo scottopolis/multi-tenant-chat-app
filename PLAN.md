@@ -48,6 +48,7 @@ Convex (configs, history, vectors via @convex-dev/rag)
 - [ ] Store conversation history in Convex
 - [ ] Load history on chat open
 - [ ] Persist across sessions
+- [ ] Add shared secret auth for Worker → Convex HTTP actions
 
 ### Widget Security
 - Read specs/widget-security.md

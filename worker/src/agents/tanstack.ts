@@ -4,6 +4,7 @@ import { getAgentConfig } from '../tenants/config';
 import { resolveSystemPrompt } from './prompts';
 import { getAiTools } from '../tools';
 import { addMessage } from '../storage';
+import { convexMutation } from '../convex/client';
 import type { RunAgentOptions } from './index';
 
 const DEFAULT_MODEL = 'openai/gpt-4.1-mini';
@@ -55,17 +56,18 @@ export async function runAgentTanStack(options: RunAgentOptions) {
 
 export interface RunAgentTanStackSSEOptions extends RunAgentOptions {
   chatId: string;
+  conversationId?: string;
 }
 
 /**
  * Run agent and return SSE Response for streaming.
- * Persists the assistant's response to storage after streaming completes.
+ * Persists the assistant's response to Convex (if configured) or in-memory storage.
  *
- * @param options - RunAgentOptions plus chatId
+ * @param options - RunAgentOptions plus chatId and optional conversationId
  * @returns Response with SSE stream
  */
 export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): Promise<Response> {
-  const { chatId } = options;
+  const { chatId, conversationId, agentId, env = {} } = options;
   const stream = await runAgentTanStack(options);
 
   // Wrap stream to collect content for persistence
@@ -81,7 +83,21 @@ export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): 
     }
     // After stream completes, persist the assistant message
     if (fullContent) {
-      addMessage(chatId, { role: 'assistant', content: fullContent });
+      if (conversationId && env.CONVEX_URL) {
+        // Persist to Convex
+        await convexMutation(env.CONVEX_URL, 'conversations:appendEvent', {
+          agentId,
+          conversationId,
+          event: {
+            eventType: 'message',
+            role: 'assistant',
+            content: fullContent,
+          },
+        });
+      } else {
+        // Fallback to in-memory storage
+        addMessage(chatId, { role: 'assistant', content: fullContent });
+      }
     }
   }
 
