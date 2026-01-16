@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Chat } from './components/Chat';
+import { ChatList } from './components/ChatList';
 import { Button } from './components/ui/button';
 import { createChat } from './lib/api';
-import { MessageSquarePlus, Loader2 } from 'lucide-react';
+import { MessageSquarePlus, Loader2, Menu } from 'lucide-react';
 import { AgentProvider, useAgent } from './contexts/AgentContext';
 
 /**
@@ -32,8 +33,10 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { agentId } = useAgent();
+  const queryClient = useQueryClient();
   const [chatId, setChatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   // Auto-create a chat on mount if none exists
   useEffect(() => {
@@ -53,11 +56,18 @@ function AppContent() {
     try {
       const newChat = await createChat({ title: 'New Chat' }, agentId);
       setChatId(newChat.id);
+      // Refresh chat list
+      queryClient.invalidateQueries({ queryKey: ['chats', agentId] });
     } catch (error) {
       console.error('Failed to create chat:', error);
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleSelectChat = (selectedChatId: string) => {
+    setChatId(selectedChatId);
+    setShowSidebar(false);
   };
 
   if (!chatId) {
@@ -83,31 +93,66 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
-        <h1 className="text-lg font-semibold text-gray-900">Chat Assistant</h1>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleCreateChat}
-          disabled={isCreating}
-        >
-          <MessageSquarePlus className="h-4 w-4 mr-2" />
-          New Chat
-        </Button>
+    <div className="h-screen flex bg-white">
+      {/* Sidebar */}
+      <div
+        className={`${
+          showSidebar ? 'translate-x-0' : '-translate-x-full'
+        } fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 transition-transform duration-200 ease-in-out md:relative md:translate-x-0 ${
+          showSidebar ? '' : 'md:hidden'
+        }`}
+      >
+        <ChatList
+          agentId={agentId}
+          currentChatId={chatId}
+          onSelectChat={handleSelectChat}
+          onClose={() => setShowSidebar(false)}
+        />
       </div>
 
-      {/* Chat */}
-      <div className="flex-1 overflow-hidden bg-gray-50">
-        <Chat 
-          chatId={chatId} 
-          agentId={agentId} 
-          onChatNotFound={() => {
-            // Chat doesn't exist on server (e.g., worker restarted) - create a new one
-            setChatId(null);
-          }}
+      {/* Backdrop for mobile */}
+      {showSidebar && (
+        <div
+          className="fixed inset-0 z-30 bg-black/20 md:hidden"
+          onClick={() => setShowSidebar(false)}
         />
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSidebar(!showSidebar)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg font-semibold text-gray-900">Chat Assistant</h1>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreateChat}
+            disabled={isCreating}
+          >
+            <MessageSquarePlus className="h-4 w-4 mr-2" />
+            New Chat
+          </Button>
+        </div>
+
+        {/* Chat */}
+        <div className="flex-1 overflow-hidden bg-gray-50">
+          <Chat
+            chatId={chatId}
+            agentId={agentId}
+            onChatNotFound={() => {
+              setChatId(null);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

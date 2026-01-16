@@ -110,11 +110,21 @@ export async function getChat(chatId: string, agentId: string = 'default', apiKe
   return response.json();
 }
 
+export interface ChatListItem {
+  id: string;
+  title: string;
+  status?: string;
+  preview: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
- * List all chats
+ * List all chats for the current session
  */
-export async function listChats(agentId: string = 'default', apiKey?: string): Promise<Chat[]> {
-  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
+export async function listChats(agentId: string = 'default', apiKey?: string): Promise<ChatListItem[]> {
+  const sessionId = getSessionId();
+  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}&sessionId=${encodeURIComponent(sessionId)}`, {
     headers: buildHeaders(apiKey),
   });
 
@@ -124,6 +134,20 @@ export async function listChats(agentId: string = 'default', apiKey?: string): P
 
   const data = await response.json();
   return data.chats;
+}
+
+/**
+ * Delete a chat permanently
+ */
+export async function deleteChat(chatId: string, agentId: string = 'default', apiKey?: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${agentId}`, {
+    method: 'DELETE',
+    headers: buildHeaders(apiKey),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete chat: ${response.statusText}`);
+  }
 }
 
 /**

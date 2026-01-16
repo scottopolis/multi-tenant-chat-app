@@ -231,6 +231,20 @@ export const archive = mutation({
 });
 
 /**
+ * Delete a conversation permanently
+ */
+export const remove = mutation({
+  args: {
+    agentId: v.string(),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args) => {
+    await validateAccess(ctx, args.agentId, args.conversationId);
+    await ctx.db.delete(args.conversationId);
+  },
+});
+
+/**
  * Get a conversation with all events
  */
 export const get = query({

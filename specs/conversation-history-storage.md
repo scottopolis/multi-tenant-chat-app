@@ -250,16 +250,16 @@ Minimal implementation for conversation persistence with events.
 
 **Deliverable**: Conversations persist across page refreshes.
 
-### Phase 2: Tool Events + History UI
+### Phase 2: Tool Events + History UI ✅
 
-| # | Task | Description |
-|---|------|-------------|
-| 2.1 | Tool call events | Persist `tool_call` events when agent invokes tools |
-| 2.2 | Tool result events | Persist `tool_result` events after tool execution |
-| 2.3 | Error events | Persist `error` events for failures |
-| 2.4 | Widget: chat list | UI to list and restore previous conversations |
-| 2.5 | Widget: delete | Allow users to delete their conversations |
-| 2.6 | Widget: new chat | Button to start fresh conversation |
+| # | Task | Description | Status |
+|---|------|-------------|--------|
+| 2.1 | Tool call events | Persist `tool_call` events when agent invokes tools | ✅ |
+| 2.2 | Tool result events | Persist `tool_result` events after tool execution | ✅ |
+| 2.3 | Error events | Persist `error` events for failures | ✅ |
+| 2.4 | Widget: chat list | UI to list and restore previous conversations | ✅ |
+| 2.5 | Widget: delete | Allow users to delete their conversations | ✅ |
+| 2.6 | Widget: new chat | Button to start fresh conversation | ✅ |
 
 **Deliverable**: Full event history visible; users can manage conversations.
 

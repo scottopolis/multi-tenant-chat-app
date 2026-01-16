@@ -70,8 +70,29 @@ export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): 
   const { chatId, conversationId, agentId, env = {} } = options;
   const stream = await runAgentTanStack(options);
 
-  // Wrap stream to collect content for persistence
+  // Track accumulated tool call arguments (they come in chunks)
+  const toolCallArgs: Map<string, { name: string; args: string }> = new Map();
   let fullContent = '';
+
+  async function persistEvent(event: {
+    eventType: string;
+    role?: string;
+    content?: string;
+    toolName?: string;
+    toolCallId?: string;
+    toolInput?: unknown;
+    toolResult?: unknown;
+    errorType?: string;
+    errorMessage?: string;
+  }) {
+    if (conversationId && env.CONVEX_URL) {
+      await convexMutation(env.CONVEX_URL, 'conversations:appendEvent', {
+        agentId,
+        conversationId,
+        event,
+      });
+    }
+  }
 
   async function* wrapStream() {
     for await (const chunk of stream) {
@@ -79,20 +100,72 @@ export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): 
       if (chunk.type === 'content' && chunk.delta) {
         fullContent += chunk.delta;
       }
+
+      // Track tool calls (arguments come incrementally)
+      if (chunk.type === 'tool_call') {
+        const { id, function: fn } = chunk.toolCall;
+        const existing = toolCallArgs.get(id);
+        if (existing) {
+          existing.args += fn.arguments;
+        } else {
+          toolCallArgs.set(id, { name: fn.name, args: fn.arguments });
+        }
+      }
+
+      // Persist tool result events
+      if (chunk.type === 'tool_result') {
+        // First, persist the tool_call event (now that we have complete args)
+        const toolInfo = toolCallArgs.get(chunk.toolCallId);
+        if (toolInfo) {
+          let parsedInput: unknown = toolInfo.args;
+          try {
+            parsedInput = JSON.parse(toolInfo.args);
+          } catch {
+            // Keep as string if not valid JSON
+          }
+          await persistEvent({
+            eventType: 'tool_call',
+            toolName: toolInfo.name,
+            toolCallId: chunk.toolCallId,
+            toolInput: parsedInput,
+          });
+          toolCallArgs.delete(chunk.toolCallId);
+        }
+
+        // Then persist the tool_result event
+        let parsedResult: unknown = chunk.content;
+        try {
+          parsedResult = JSON.parse(chunk.content);
+        } catch {
+          // Keep as string if not valid JSON
+        }
+        await persistEvent({
+          eventType: 'tool_result',
+          toolCallId: chunk.toolCallId,
+          toolName: toolInfo?.name,
+          toolResult: parsedResult,
+        });
+      }
+
+      // Persist error events
+      if (chunk.type === 'error') {
+        await persistEvent({
+          eventType: 'error',
+          errorType: chunk.error.code || 'unknown',
+          errorMessage: chunk.error.message,
+        });
+      }
+
       yield chunk;
     }
+
     // After stream completes, persist the assistant message
     if (fullContent) {
       if (conversationId && env.CONVEX_URL) {
-        // Persist to Convex
-        await convexMutation(env.CONVEX_URL, 'conversations:appendEvent', {
-          agentId,
-          conversationId,
-          event: {
-            eventType: 'message',
-            role: 'assistant',
-            content: fullContent,
-          },
+        await persistEvent({
+          eventType: 'message',
+          role: 'assistant',
+          content: fullContent,
         });
       } else {
         // Fallback to in-memory storage

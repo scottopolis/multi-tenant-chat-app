@@ -176,12 +176,53 @@ app.post('/api/chats', async (c) => {
 
 /**
  * GET /api/chats
- * List all chats for the current org and agent
+ * List all chats for the current session and agent
+ * 
+ * Query params:
+ * - sessionId: Required, from widget localStorage
  */
 app.get('/api/chats', async (c) => {
   try {
-    const orgId = c.get('orgId');
     const agentId = c.get('agentId');
+    const convexUrl = c.env.CONVEX_URL;
+    const sessionId = c.req.query('sessionId');
+
+    // Try Convex if configured and sessionId provided
+    if (convexUrl && sessionId) {
+      const conversations = await convexQuery<Array<{
+        _id: string;
+        title?: string;
+        status?: string;
+        createdAt: number;
+        updatedAt: number;
+        lastEventAt: number;
+        events: Array<{ eventType: string; content?: string }>;
+      }>>(convexUrl, 'conversations:listBySession', {
+        agentId,
+        sessionId,
+        limit: 50,
+      });
+
+      // Transform to widget format with preview
+      const chats = (conversations ?? []).map((conv) => {
+        const lastMessage = [...conv.events]
+          .reverse()
+          .find((e) => e.eventType === 'message' && e.content);
+        return {
+          id: conv._id,
+          title: conv.title || 'Untitled',
+          status: conv.status,
+          preview: lastMessage?.content?.slice(0, 100) || '',
+          createdAt: new Date(conv.createdAt).toISOString(),
+          updatedAt: new Date(conv.updatedAt).toISOString(),
+        };
+      });
+
+      return c.json({ chats });
+    }
+
+    // Fallback to in-memory storage
+    const orgId = c.get('orgId');
     const chats = listChats(orgId, agentId);
     
     return c.json({ chats });
@@ -257,6 +298,31 @@ app.get('/api/chats/:chatId', async (c) => {
   } catch (error) {
     console.error('Error getting chat:', error);
     return c.json({ error: 'Failed to get chat' }, 500);
+  }
+});
+
+/**
+ * DELETE /api/chats/:chatId
+ * Delete a conversation permanently
+ */
+app.delete('/api/chats/:chatId', async (c) => {
+  try {
+    const chatId = c.req.param('chatId');
+    const agentId = c.get('agentId');
+    const convexUrl = c.env.CONVEX_URL;
+
+    if (convexUrl) {
+      await convexMutation(convexUrl, 'conversations:remove', {
+        agentId,
+        conversationId: chatId,
+      });
+      return c.json({ success: true });
+    }
+
+    return c.json({ error: 'Delete not supported without Convex' }, 501);
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    return c.json({ error: 'Failed to delete chat' }, 500);
   }
 });
 
