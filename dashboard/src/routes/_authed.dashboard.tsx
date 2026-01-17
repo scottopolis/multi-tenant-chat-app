@@ -32,6 +32,16 @@ function DashboardLayout() {
               >
                 Agents
               </Link>
+              <Link
+                to="/dashboard/conversations"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900 py-4 border-b-2 border-transparent transition-colors"
+                activeProps={{
+                  className:
+                    'text-sm font-medium text-gray-900 py-4 border-b-2 border-gray-900',
+                }}
+              >
+                Conversations
+              </Link>
             </div>
           </div>
         </div>

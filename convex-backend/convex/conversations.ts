@@ -364,3 +364,56 @@ export const listByAgent = query({
     return conversations;
   },
 });
+
+/**
+ * List all conversations for a tenant (dashboard use)
+ * Used when viewing all conversations across agents
+ */
+export const listByTenant = query({
+  args: {
+    tenantId: v.id("tenants"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 50;
+
+    const conversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_tenant_lastEvent", (q) => q.eq("tenantId", args.tenantId))
+      .order("desc")
+      .take(limit);
+
+    return conversations;
+  },
+});
+
+/**
+ * Get a conversation by ID for dashboard (tenant-scoped)
+ * Validates tenant ownership, used by dashboard transcript viewer
+ */
+export const getForDashboard = query({
+  args: {
+    tenantId: v.id("tenants"),
+    conversationId: v.id("conversations"),
+  },
+  handler: async (ctx, args) => {
+    const conversation = await ctx.db.get(args.conversationId);
+
+    if (!conversation) {
+      return null;
+    }
+
+    if (conversation.tenantId !== args.tenantId) {
+      return null;
+    }
+
+    // Get agent info for display
+    const agent = await ctx.db.get(conversation.agentId);
+
+    return {
+      ...conversation,
+      agentName: agent?.name ?? "Unknown Agent",
+      agentStringId: agent?.agentId ?? null,
+    };
+  },
+});

@@ -13,7 +13,9 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed.dashboard'
 import { Route as AuthedDashboardIndexRouteImport } from './routes/_authed.dashboard/index'
+import { Route as AuthedDashboardConversationsIndexRouteImport } from './routes/_authed.dashboard/conversations/index'
 import { Route as AuthedDashboardAgentsIndexRouteImport } from './routes/_authed.dashboard/agents/index'
+import { Route as AuthedDashboardConversationsConversationIdRouteImport } from './routes/_authed.dashboard/conversations/$conversationId'
 import { Route as AuthedDashboardAgentsNewRouteImport } from './routes/_authed.dashboard/agents/new'
 import { Route as AuthedDashboardAgentsAgentIdRouteImport } from './routes/_authed.dashboard/agents/$agentId'
 
@@ -36,10 +38,22 @@ const AuthedDashboardIndexRoute = AuthedDashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedDashboardRoute,
 } as any)
+const AuthedDashboardConversationsIndexRoute =
+  AuthedDashboardConversationsIndexRouteImport.update({
+    id: '/conversations/',
+    path: '/conversations/',
+    getParentRoute: () => AuthedDashboardRoute,
+  } as any)
 const AuthedDashboardAgentsIndexRoute =
   AuthedDashboardAgentsIndexRouteImport.update({
     id: '/agents/',
     path: '/agents/',
+    getParentRoute: () => AuthedDashboardRoute,
+  } as any)
+const AuthedDashboardConversationsConversationIdRoute =
+  AuthedDashboardConversationsConversationIdRouteImport.update({
+    id: '/conversations/$conversationId',
+    path: '/conversations/$conversationId',
     getParentRoute: () => AuthedDashboardRoute,
   } as any)
 const AuthedDashboardAgentsNewRoute =
@@ -61,14 +75,18 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof AuthedDashboardIndexRoute
   '/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
   '/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/dashboard/conversations/$conversationId': typeof AuthedDashboardConversationsConversationIdRoute
   '/dashboard/agents': typeof AuthedDashboardAgentsIndexRoute
+  '/dashboard/conversations': typeof AuthedDashboardConversationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof AuthedDashboardIndexRoute
   '/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
   '/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/dashboard/conversations/$conversationId': typeof AuthedDashboardConversationsConversationIdRoute
   '/dashboard/agents': typeof AuthedDashboardAgentsIndexRoute
+  '/dashboard/conversations': typeof AuthedDashboardConversationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -78,7 +96,9 @@ export interface FileRoutesById {
   '/_authed/dashboard/': typeof AuthedDashboardIndexRoute
   '/_authed/dashboard/agents/$agentId': typeof AuthedDashboardAgentsAgentIdRoute
   '/_authed/dashboard/agents/new': typeof AuthedDashboardAgentsNewRoute
+  '/_authed/dashboard/conversations/$conversationId': typeof AuthedDashboardConversationsConversationIdRoute
   '/_authed/dashboard/agents/': typeof AuthedDashboardAgentsIndexRoute
+  '/_authed/dashboard/conversations/': typeof AuthedDashboardConversationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -88,14 +108,18 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/agents/$agentId'
     | '/dashboard/agents/new'
+    | '/dashboard/conversations/$conversationId'
     | '/dashboard/agents'
+    | '/dashboard/conversations'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
     | '/dashboard/agents/$agentId'
     | '/dashboard/agents/new'
+    | '/dashboard/conversations/$conversationId'
     | '/dashboard/agents'
+    | '/dashboard/conversations'
   id:
     | '__root__'
     | '/'
@@ -104,7 +128,9 @@ export interface FileRouteTypes {
     | '/_authed/dashboard/'
     | '/_authed/dashboard/agents/$agentId'
     | '/_authed/dashboard/agents/new'
+    | '/_authed/dashboard/conversations/$conversationId'
     | '/_authed/dashboard/agents/'
+    | '/_authed/dashboard/conversations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -142,11 +168,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDashboardIndexRouteImport
       parentRoute: typeof AuthedDashboardRoute
     }
+    '/_authed/dashboard/conversations/': {
+      id: '/_authed/dashboard/conversations/'
+      path: '/conversations'
+      fullPath: '/dashboard/conversations'
+      preLoaderRoute: typeof AuthedDashboardConversationsIndexRouteImport
+      parentRoute: typeof AuthedDashboardRoute
+    }
     '/_authed/dashboard/agents/': {
       id: '/_authed/dashboard/agents/'
       path: '/agents'
       fullPath: '/dashboard/agents'
       preLoaderRoute: typeof AuthedDashboardAgentsIndexRouteImport
+      parentRoute: typeof AuthedDashboardRoute
+    }
+    '/_authed/dashboard/conversations/$conversationId': {
+      id: '/_authed/dashboard/conversations/$conversationId'
+      path: '/conversations/$conversationId'
+      fullPath: '/dashboard/conversations/$conversationId'
+      preLoaderRoute: typeof AuthedDashboardConversationsConversationIdRouteImport
       parentRoute: typeof AuthedDashboardRoute
     }
     '/_authed/dashboard/agents/new': {
@@ -170,14 +210,20 @@ interface AuthedDashboardRouteChildren {
   AuthedDashboardIndexRoute: typeof AuthedDashboardIndexRoute
   AuthedDashboardAgentsAgentIdRoute: typeof AuthedDashboardAgentsAgentIdRoute
   AuthedDashboardAgentsNewRoute: typeof AuthedDashboardAgentsNewRoute
+  AuthedDashboardConversationsConversationIdRoute: typeof AuthedDashboardConversationsConversationIdRoute
   AuthedDashboardAgentsIndexRoute: typeof AuthedDashboardAgentsIndexRoute
+  AuthedDashboardConversationsIndexRoute: typeof AuthedDashboardConversationsIndexRoute
 }
 
 const AuthedDashboardRouteChildren: AuthedDashboardRouteChildren = {
   AuthedDashboardIndexRoute: AuthedDashboardIndexRoute,
   AuthedDashboardAgentsAgentIdRoute: AuthedDashboardAgentsAgentIdRoute,
   AuthedDashboardAgentsNewRoute: AuthedDashboardAgentsNewRoute,
+  AuthedDashboardConversationsConversationIdRoute:
+    AuthedDashboardConversationsConversationIdRoute,
   AuthedDashboardAgentsIndexRoute: AuthedDashboardAgentsIndexRoute,
+  AuthedDashboardConversationsIndexRoute:
+    AuthedDashboardConversationsIndexRoute,
 }
 
 const AuthedDashboardRouteWithChildren = AuthedDashboardRoute._addFileChildren(

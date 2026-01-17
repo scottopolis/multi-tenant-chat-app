@@ -28,13 +28,70 @@ Store conversation history in Convex for the multi-tenant chat assistant.
 - Validate `conversation.tenantId === agent.tenantId` before any read/write
 - Worker uses shared secret to authenticate with Convex HTTP actions
 
+### Access Patterns
+
+| Action | Auth Required | Who Can Access |
+|--------|---------------|----------------|
+| **Create conversation** | Public API key | Anyone with widget embedded |
+| **Send message** | Public API key + `conversationId` | Conversation owner (session or user) |
+| **Get conversation by ID** | Public API key + `conversationId` | Conversation owner only |
+| **List conversations by session** | Public API key + `sessionId` | Same browser session |
+| **List conversations by user** | Public API key + `userId` + `userToken` | Verified user only |
+| **List all agent conversations** | Tenant auth (Clerk) | Tenant admins in dashboard |
+
+### Widget Access Rules
+
+1. **Anonymous users**: Can create and access conversations using `sessionId` (stored in localStorage). No cross-device access.
+2. **Identified users**: Tenant passes `userId`. To **list** previous conversations, `userToken` is required to prevent enumeration attacks.
+3. **Single conversation access**: If widget has `conversationId` (from URL or storage), it can restore that specific conversation with just API key + session ownership check.
+
+### Why userToken for listing?
+
+Without verification, anyone could call `listByUser(userId: "victim@email.com")` and enumerate all conversations. The `userToken` (signed by tenant) proves the caller is actually that user.
+
+**Exception**: Getting a single conversation by ID is safe because:
+- `conversationId` is a random UUID (unguessable)
+- We still verify session/user ownership
+
+### Two Authentication Layers
+
+The widget is embedded on third-party sites where the tenant's auth system (not ours) handles user identity.
+
+| Layer | What it does | How it works |
+|-------|--------------|--------------|
+| **Tenant auth** | Widget → Worker | API key in header, identifies agent/tenant |
+| **End-user auth** | Optional, tenant-controlled | Tenant's site passes `userId` (and optionally a signed token) |
+
+### Widget Embed Pattern
+
+```tsx
+// On tenant's website
+<ChatWidget 
+  apiKey="pk_xxx"              // Required: identifies agent/tenant
+  userId={currentUser?.id}     // Optional: tenant's authenticated user ID
+  userToken={signedJWT}        // Optional (Phase 3.5): tenant-signed proof of identity
+/>
+```
+
+### End-User Authentication Modes
+
+| Mode | Security | Setup | Use Case |
+|------|----------|-------|----------|
+| **Anonymous only** | ✅ Safe | None | Public support chat, no login |
+| **Trust mode** | ⚠️ Tenant-trusted | Pass `userId` | Tenant takes responsibility for user identity |
+| **Signed mode** | ✅ Verified | Tenant signs JWT with secret | High-security apps, prevents spoofing |
+
+**Trust mode rationale**: The tenant is already authenticated via API key. By passing a `userId`, they're asserting "this is my user"—we trust that assertion the same way we trust any API call they make.
+
+**Signed mode (future)**: For tenants who want cryptographic proof, they sign a JWT containing `userId` + `exp` with their secret key. Worker verifies before accepting.
+
 ### Ownership Rules
 
 - **Anonymous users**: `sessionId` stored in localStorage, conversation has `userId: null`
-- **Authenticated users**: `userId` from Clerk, can access chats across devices
+- **Authenticated users**: `userId` passed from tenant's site, can access chats across devices
 - **Query logic**: 
-  - Authenticated: `WHERE userId = :userId`
-  - Anonymous: `WHERE sessionId = :sessionId AND userId IS NULL`
+  - Authenticated: `WHERE userId = :userId AND agentId = :agentId`
+  - Anonymous: `WHERE sessionId = :sessionId AND userId IS NULL AND agentId = :agentId`
 - **Optional**: Merge anonymous chats to user account on login
 
 ## Schema Design
@@ -263,28 +320,38 @@ Minimal implementation for conversation persistence with events.
 
 **Deliverable**: Full event history visible; users can manage conversations.
 
-### Phase 3: Authentication Integration
+### Phase 3: Dashboard & Analytics
+
+Tenants should be able to view conversations by agent in a list view. Clicking a conversation should show the transcript and metadata.
 
 | # | Task | Description |
 |---|------|-------------|
-| 3.1 | User ownership | Populate `userId` from Clerk on conversation create |
-| 3.2 | List by user | `conversations.listByUser` query |
-| 3.3 | Cross-device | Authenticated users see chats on any device |
-| 3.4 | Session merge | Optional: merge anonymous chats to user on login |
-
-**Deliverable**: Authenticated users have persistent chat history.
-
-### Phase 4: Dashboard & Analytics
-
-| # | Task | Description |
-|---|------|-------------|
-| 4.1 | Dashboard: list | View all conversations for an agent |
-| 4.2 | Dashboard: viewer | Read-only transcript viewer |
-| 4.3 | Dashboard: search | Search conversations by content |
-| 4.4 | Analytics: usage | Token usage per conversation |
-| 4.5 | Context injection | UI to configure what context goes into prompts |
+| 3.1 | Dashboard: list | View all conversations for an agent |
+| 3.2 | Dashboard: viewer | Read-only transcript viewer |
+| 3.3 | Dashboard: search | Search conversations by content | DEFER TO LATER PHASE
+| 3.4 | Analytics: usage | Token usage per conversation | DEFER TO LATER PHASE
+| 3.5 | Context injection | UI to configure what context goes into prompts | DEFER TO LATER PHASE
 
 **Deliverable**: Tenant admins can view and analyze conversations.
+
+### Phase 4: End-User Authentication (Future)
+
+> **⚠️ Discuss before implementing.** This phase adds significant complexity. Evaluate whether tenants actually need cross-device conversation history before building.
+
+**Analysis**: Session-based persistence (Phases 1-2) covers most chat widget use cases. Anonymous users can restore conversations in the same browser via `sessionId`. Cross-device history requires signed user tokens to prevent enumeration attacks—this means tenants must generate tokens server-side, adding integration burden. Defer until a tenant explicitly requests this feature.
+
+| # | Task | Description |
+|---|------|-------------|
+| 4.1 | Dashboard: signing secret | Generate per-tenant secret for signing user tokens |
+| 4.2 | Widget: userId + userToken props | Accept `userId` and `userToken` props |
+| 4.3 | Worker: verify userToken | Verify HMAC/JWT signature before trusting `userId` |
+| 4.4 | Worker: store userId | Store verified `userId` on conversation create |
+| 4.5 | List by user query | `conversations.listByUser` - requires valid `userToken` |
+| 4.6 | Widget: restore by user | Load conversation list when `userToken` provided |
+| 4.7 | Docs: signing guide | Document how tenants sign tokens server-side |
+| 4.8 | Session merge (optional) | Transfer anonymous session chats to authenticated user |
+
+**Deliverable**: Verified users get cross-device conversation history.
 
 ### Phase 5: Scale & Advanced Features (Future)
 
