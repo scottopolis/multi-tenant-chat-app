@@ -5,11 +5,13 @@
  * API keys are passed from embed.js via postMessage to the widget.
  */
 
+import { getSessionId, getClientContext } from './session';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
 export interface Chat {
   id: string;
-  orgId: string;
+  orgId?: string;
   title?: string;
   createdAt: string;
 }
@@ -26,8 +28,20 @@ export interface ChatWithMessages extends Chat {
   messages: Message[];
 }
 
+export interface ClientContext {
+  pageUrl?: string;
+  referrer?: string;
+  userAgent?: string;
+  locale?: string;
+  timezone?: string;
+  customMetadata?: unknown;
+}
+
 export interface CreateChatRequest {
+  sessionId: string;
+  userId?: string;
   title?: string;
+  context?: ClientContext;
 }
 
 export interface SendMessageRequest {
@@ -48,12 +62,30 @@ function buildHeaders(apiKey?: string, contentType?: string): Record<string, str
 
 /**
  * Create a new chat
+ * 
+ * Automatically includes sessionId and client context.
  */
-export async function createChat(data?: CreateChatRequest, agentId: string = 'default', apiKey?: string): Promise<Chat> {
+export async function createChat(
+  options?: { title?: string; customMetadata?: unknown },
+  agentId: string = 'default',
+  apiKey?: string
+): Promise<Chat> {
+  const sessionId = getSessionId();
+  const clientContext = getClientContext();
+
+  const data: CreateChatRequest = {
+    sessionId,
+    title: options?.title,
+    context: {
+      ...clientContext,
+      customMetadata: options?.customMetadata,
+    },
+  };
+
   const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
     method: 'POST',
     headers: buildHeaders(apiKey, 'application/json'),
-    body: JSON.stringify(data || {}),
+    body: JSON.stringify(data),
   });
 
   if (!response.ok) {
@@ -78,11 +110,21 @@ export async function getChat(chatId: string, agentId: string = 'default', apiKe
   return response.json();
 }
 
+export interface ChatListItem {
+  id: string;
+  title: string;
+  status?: string;
+  preview: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
- * List all chats
+ * List all chats for the current session
  */
-export async function listChats(agentId: string = 'default', apiKey?: string): Promise<Chat[]> {
-  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}`, {
+export async function listChats(agentId: string = 'default', apiKey?: string): Promise<ChatListItem[]> {
+  const sessionId = getSessionId();
+  const response = await fetch(`${API_URL}/api/chats?agent=${agentId}&sessionId=${encodeURIComponent(sessionId)}`, {
     headers: buildHeaders(apiKey),
   });
 
@@ -92,6 +134,20 @@ export async function listChats(agentId: string = 'default', apiKey?: string): P
 
   const data = await response.json();
   return data.chats;
+}
+
+/**
+ * Delete a chat permanently
+ */
+export async function deleteChat(chatId: string, agentId: string = 'default', apiKey?: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/chats/${chatId}?agent=${agentId}`, {
+    method: 'DELETE',
+    headers: buildHeaders(apiKey),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete chat: ${response.statusText}`);
+  }
 }
 
 /**

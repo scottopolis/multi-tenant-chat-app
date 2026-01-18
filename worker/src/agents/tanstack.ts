@@ -4,6 +4,7 @@ import { getAgentConfig } from '../tenants/config';
 import { resolveSystemPrompt } from './prompts';
 import { getAiTools } from '../tools';
 import { addMessage } from '../storage';
+import { convexMutation } from '../convex/client';
 import type { RunAgentOptions } from './index';
 
 const DEFAULT_MODEL = 'openai/gpt-4.1-mini';
@@ -55,21 +56,43 @@ export async function runAgentTanStack(options: RunAgentOptions) {
 
 export interface RunAgentTanStackSSEOptions extends RunAgentOptions {
   chatId: string;
+  conversationId?: string;
 }
 
 /**
  * Run agent and return SSE Response for streaming.
- * Persists the assistant's response to storage after streaming completes.
+ * Persists the assistant's response to Convex (if configured) or in-memory storage.
  *
- * @param options - RunAgentOptions plus chatId
+ * @param options - RunAgentOptions plus chatId and optional conversationId
  * @returns Response with SSE stream
  */
 export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): Promise<Response> {
-  const { chatId } = options;
+  const { chatId, conversationId, agentId, env = {} } = options;
   const stream = await runAgentTanStack(options);
 
-  // Wrap stream to collect content for persistence
+  // Track accumulated tool call arguments (they come in chunks)
+  const toolCallArgs: Map<string, { name: string; args: string }> = new Map();
   let fullContent = '';
+
+  async function persistEvent(event: {
+    eventType: string;
+    role?: string;
+    content?: string;
+    toolName?: string;
+    toolCallId?: string;
+    toolInput?: unknown;
+    toolResult?: unknown;
+    errorType?: string;
+    errorMessage?: string;
+  }) {
+    if (conversationId && env.CONVEX_URL) {
+      await convexMutation(env.CONVEX_URL, 'conversations:appendEvent', {
+        agentId,
+        conversationId,
+        event,
+      });
+    }
+  }
 
   async function* wrapStream() {
     for await (const chunk of stream) {
@@ -77,11 +100,77 @@ export async function runAgentTanStackSSE(options: RunAgentTanStackSSEOptions): 
       if (chunk.type === 'content' && chunk.delta) {
         fullContent += chunk.delta;
       }
+
+      // Track tool calls (arguments come incrementally)
+      if (chunk.type === 'tool_call') {
+        const { id, function: fn } = chunk.toolCall;
+        const existing = toolCallArgs.get(id);
+        if (existing) {
+          existing.args += fn.arguments;
+        } else {
+          toolCallArgs.set(id, { name: fn.name, args: fn.arguments });
+        }
+      }
+
+      // Persist tool result events
+      if (chunk.type === 'tool_result') {
+        // First, persist the tool_call event (now that we have complete args)
+        const toolInfo = toolCallArgs.get(chunk.toolCallId);
+        if (toolInfo) {
+          let parsedInput: unknown = toolInfo.args;
+          try {
+            parsedInput = JSON.parse(toolInfo.args);
+          } catch {
+            // Keep as string if not valid JSON
+          }
+          await persistEvent({
+            eventType: 'tool_call',
+            toolName: toolInfo.name,
+            toolCallId: chunk.toolCallId,
+            toolInput: parsedInput,
+          });
+          toolCallArgs.delete(chunk.toolCallId);
+        }
+
+        // Then persist the tool_result event
+        let parsedResult: unknown = chunk.content;
+        try {
+          parsedResult = JSON.parse(chunk.content);
+        } catch {
+          // Keep as string if not valid JSON
+        }
+        await persistEvent({
+          eventType: 'tool_result',
+          toolCallId: chunk.toolCallId,
+          toolName: toolInfo?.name,
+          toolResult: parsedResult,
+        });
+      }
+
+      // Persist error events
+      if (chunk.type === 'error') {
+        await persistEvent({
+          eventType: 'error',
+          errorType: chunk.error.code || 'unknown',
+          errorMessage: chunk.error.message,
+        });
+      }
+
       yield chunk;
     }
+
     // After stream completes, persist the assistant message
     if (fullContent) {
-      addMessage(chatId, { role: 'assistant', content: fullContent });
+      if (conversationId && env.CONVEX_URL) {
+        await persistEvent({
+          eventType: 'message',
+          role: 'assistant',
+          content: fullContent,
+        });
+      } else {
+        // Fallback to in-memory storage
+        addMessage(chatId, { role: 'assistant', content: fullContent });
+      }
     }
   }
 

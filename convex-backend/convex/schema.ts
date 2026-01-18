@@ -148,6 +148,99 @@ export default defineSchema({
     .index("by_tenant", ["tenantId"]),
 
   /**
+   * Conversations
+   * Chat conversations with embedded events for message history.
+   * Uses single-table design: events stored as array within conversation document.
+   */
+  conversations: defineTable({
+    // Multi-tenant isolation
+    tenantId: v.id("tenants"),
+    agentId: v.id("agents"),
+    orgId: v.optional(v.string()), // Denormalized for convenience
+
+    // Ownership
+    userId: v.optional(v.string()), // Clerk user ID (null for anonymous)
+    sessionId: v.string(), // Always present, from localStorage
+
+    // Display / UX
+    title: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal("active"), v.literal("archived"))
+    ),
+
+    // Provider-level conversation tracking
+    providerConversationId: v.optional(v.string()), // e.g. OpenAI conversationId
+    lastResponseId: v.optional(v.string()), // Last provider response ID
+
+    // Client context (captured at creation, for analytics & prompt injection)
+    context: v.optional(
+      v.object({
+        pageUrl: v.optional(v.string()),
+        referrer: v.optional(v.string()),
+        userAgent: v.optional(v.string()),
+        locale: v.optional(v.string()),
+        timezone: v.optional(v.string()),
+        customMetadata: v.optional(v.any()),
+      })
+    ),
+
+    // Events array - all conversation events stored here
+    events: v.array(
+      v.object({
+        seq: v.number(), // Monotonic sequence for ordering
+        eventType: v.union(
+          v.literal("message"),
+          v.literal("tool_call"),
+          v.literal("tool_result"),
+          v.literal("system"),
+          v.literal("error")
+        ),
+
+        // Message fields
+        role: v.optional(
+          v.union(
+            v.literal("user"),
+            v.literal("assistant"),
+            v.literal("system"),
+            v.literal("tool")
+          )
+        ),
+        content: v.optional(v.string()),
+
+        // Provider info
+        model: v.optional(v.string()),
+        providerResponseId: v.optional(v.string()),
+
+        // Tool fields
+        toolName: v.optional(v.string()),
+        toolCallId: v.optional(v.string()),
+        toolInput: v.optional(v.any()),
+        toolResult: v.optional(v.any()),
+
+        // Error fields
+        errorType: v.optional(v.string()),
+        errorMessage: v.optional(v.string()),
+
+        // Unstructured metadata for this event
+        metadata: v.optional(v.any()),
+
+        createdAt: v.number(),
+      })
+    ),
+
+    // Unstructured metadata for the conversation
+    metadata: v.optional(v.any()),
+
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastEventAt: v.number(),
+  })
+    .index("by_agent_lastEvent", ["agentId", "lastEventAt"])
+    .index("by_tenant_lastEvent", ["tenantId", "lastEventAt"])
+    .index("by_session", ["tenantId", "agentId", "sessionId", "lastEventAt"])
+    .index("by_user", ["tenantId", "agentId", "userId", "lastEventAt"]),
+
+  /**
    * Voice Calls
    * Call logs for analytics and billing.
    */
