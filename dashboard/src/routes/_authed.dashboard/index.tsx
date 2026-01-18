@@ -76,9 +76,7 @@ function DashboardHome() {
           View your account usage and analytics below.
         </p>
       </div>
-      <div className="max-w-2xl">
-        <UsageChart />
-      </div>
+      <UsageChart />
     </div>
   )
 }

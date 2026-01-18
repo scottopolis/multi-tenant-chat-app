@@ -417,3 +417,63 @@ export const getForDashboard = query({
     };
   },
 });
+
+/**
+ * Get usage stats for a tenant (dashboard analytics)
+ * Returns total conversations, total messages, unique sessions, and monthly breakdown
+ */
+export const getUsageStats = query({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, args) => {
+    const conversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_tenant_lastEvent", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+
+    const totalConversations = conversations.length;
+
+    let totalMessages = 0;
+    const uniqueSessions = new Set<string>();
+    const monthlyData: Record<string, number> = {};
+
+    const now = Date.now();
+    const sixMonthsAgo = now - 6 * 30 * 24 * 60 * 60 * 1000;
+
+    for (const conv of conversations) {
+      uniqueSessions.add(conv.sessionId);
+
+      for (const event of conv.events) {
+        if (event.eventType === "message") {
+          totalMessages++;
+
+          if (event.createdAt >= sixMonthsAgo) {
+            const date = new Date(event.createdAt);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+          }
+        }
+      }
+    }
+
+    const sortedMonths = Object.entries(monthlyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([month, messages]) => {
+        const [year, monthNum] = month.split("-");
+        const date = new Date(parseInt(year), parseInt(monthNum) - 1);
+        return {
+          month: date.toLocaleDateString("en-US", { month: "long" }),
+          messages,
+        };
+      });
+
+    return {
+      totalConversations,
+      totalMessages,
+      uniqueSessions: uniqueSessions.size,
+      monthlyData: sortedMonths,
+    };
+  },
+});
