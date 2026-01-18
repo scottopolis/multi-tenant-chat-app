@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Chat } from './components/Chat';
 import { ChatList } from './components/ChatList';
@@ -37,10 +37,12 @@ function AppContent() {
   const [chatId, setChatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const isCreatingRef = useRef(false);
 
   // Auto-create a chat on mount if none exists
   useEffect(() => {
-    if (!chatId) {
+    if (!chatId && !isCreatingRef.current) {
+      isCreatingRef.current = true;
       handleCreateChat();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,10 +51,13 @@ function AppContent() {
   // Reset chat when agent changes
   useEffect(() => {
     setChatId(null);
+    isCreatingRef.current = false;
   }, [agentId]);
 
   const handleCreateChat = async () => {
+    if (isCreating) return;
     setIsCreating(true);
+    isCreatingRef.current = true;
     try {
       const newChat = await createChat({ title: 'New Chat' }, agentId);
       setChatId(newChat.id);
@@ -60,6 +65,7 @@ function AppContent() {
       queryClient.invalidateQueries({ queryKey: ['chats', agentId] });
     } catch (error) {
       console.error('Failed to create chat:', error);
+      isCreatingRef.current = false;
     } finally {
       setIsCreating(false);
     }
