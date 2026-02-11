@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { KnowledgeBase } from './KnowledgeBase'
 import { VoiceSettings } from './VoiceSettings'
 import { EmbedCode } from './EmbedCode'
@@ -51,6 +51,7 @@ interface AgentFormProps {
   submitLabel?: string
   agentId?: string
   agentDbId?: Id<'agents'>
+  initialTab?: string
 }
 
 const BASE_TABS = ['Basic', 'Tools & Output', 'Integrations'] as const
@@ -58,10 +59,17 @@ const ALL_TABS = ['Basic', 'Tools & Output', 'Integrations', 'Security', 'Knowle
 type Tab = (typeof ALL_TABS)[number]
 
 const MODELS = [
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+  { value: 'gpt-5.2', label: 'GPT-5.2' },
   { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+  { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
+  { value: 'llama-4-scout', label: 'Llama 4 Scout' },
+  { value: 'deepseek-v3', label: 'DeepSeek V3' },
+  { value: 'qwen-3-235b', label: 'Qwen 3 235B' },
 ]
 
 const VOICE_MODELS = [
@@ -72,12 +80,39 @@ const VOICE_MODELS = [
 const VOICE_PERSONAS = [
   { value: 'verse', label: 'Verse' },
   { value: 'alloy', label: 'Alloy' },
+  { value: 'ash', label: 'Ash' },
+  { value: 'ballad', label: 'Ballad' },
+  { value: 'coral', label: 'Coral' },
   { value: 'echo', label: 'Echo' },
-  { value: 'fable', label: 'Fable' },
-  { value: 'onyx', label: 'Onyx' },
-  { value: 'nova', label: 'Nova' },
+  { value: 'sage', label: 'Sage' },
   { value: 'shimmer', label: 'Shimmer' },
+  { value: 'marin', label: 'Marin' },
+  { value: 'cedar', label: 'Cedar' },
 ]
+
+const AGENT_TEMPLATES = [
+  {
+    id: 'sales-inbound',
+    name: 'Sales Assistant (Inbound)',
+    description: 'Qualify leads and route to a demo or sales rep.',
+    prompt:
+      'You are a friendly sales assistant for a B2B SaaS company. Your goal is to qualify inbound leads, understand company size, use case, timeline, and decision-makers, and offer to book a demo. Ask 1–2 concise questions at a time. Be helpful, confident, and never make up pricing or product details—ask to connect with sales if unsure.',
+  },
+  {
+    id: 'support-tier1',
+    name: 'Customer Support (Tier 1)',
+    description: 'Triage issues and provide clear troubleshooting steps.',
+    prompt:
+      'You are a customer support assistant. Help users resolve common issues with clear step-by-step instructions. Ask clarifying questions when needed, confirm success, and summarize next steps. If the issue needs escalation, collect key details (account email, product area, error message, steps tried) and explain that a human agent will follow up.',
+  },
+  {
+    id: 'onboarding',
+    name: 'Onboarding Concierge',
+    description: 'Guide new customers through setup and activation.',
+    prompt:
+      'You are an onboarding concierge. Guide new customers through setup, integration, and activation. Provide a short plan, then walk them through each step. Highlight best practices and common pitfalls. If a step requires human help, offer to connect them and capture their goal and timeline.',
+  },
+] as const
 
 const LOCALES = [
   { value: 'en-US', label: 'English (US)' },
@@ -102,9 +137,11 @@ export function AgentForm({
   submitLabel = 'Save',
   agentId,
   agentDbId,
+  initialTab,
 }: AgentFormProps) {
   const tabs = agentId ? ALL_TABS : BASE_TABS
-  const [activeTab, setActiveTab] = useState<Tab>('Basic')
+  const resolvedInitialTab = tabs.includes(initialTab as Tab) ? (initialTab as Tab) : 'Basic'
+  const [activeTab, setActiveTab] = useState<Tab>(resolvedInitialTab)
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState(initialData?.name ?? '')
@@ -126,6 +163,23 @@ export function AgentForm({
   const [domainsInput, setDomainsInput] = useState<string>(
     (initialData?.allowedDomains ?? ['*']).join('\n')
   )
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+
+  useEffect(() => {
+    if (tabs.includes(initialTab as Tab)) {
+      setActiveTab(initialTab as Tab)
+    }
+  }, [initialTab, tabs])
+
+  const applyTemplate = () => {
+    const template = AGENT_TEMPLATES.find((item) => item.id === selectedTemplateId)
+    if (!template) return
+    const hasContent = systemPrompt.trim().length > 0
+    if (hasContent && !window.confirm('Replace the current system prompt with this template?')) {
+      return
+    }
+    setSystemPrompt(template.prompt)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -271,6 +325,46 @@ export function AgentForm({
                   className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                   placeholder="e.g., Customer Support Agent"
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900">
+                Agent Template (optional)
+              </label>
+              <p className="mt-1 text-sm text-gray-500">
+                Start with a proven prompt for sales or support teams.
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                  >
+                    <option value="">No template</option>
+                    {AGENT_TEMPLATES.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTemplateId && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      {AGENT_TEMPLATES.find((item) => item.id === selectedTemplateId)?.description}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={applyTemplate}
+                    disabled={!selectedTemplateId}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Apply template
+                  </button>
+                </div>
               </div>
             </div>
 

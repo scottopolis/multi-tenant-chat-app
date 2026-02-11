@@ -6,10 +6,12 @@ import { AgentForm, type AgentFormData } from '../../../components/AgentForm'
 
 export const Route = createFileRoute('/_authed/dashboard/agents/$agentId')({
   component: EditAgent,
+  validateSearch: (search: { tab?: string }) => ({ tab: search.tab }),
 })
 
 function EditAgent() {
   const { agentId } = Route.useParams()
+  const { tab } = Route.useSearch()
   const navigate = useNavigate()
 
   const agent = useQuery(api.agents.getByAgentId, { agentId })
@@ -96,6 +98,7 @@ function EditAgent() {
         submitLabel="Save Changes"
         agentId={agent.agentId}
         agentDbId={agent._id}
+        initialTab={tab}
       />
     </div>
   )

@@ -5,6 +5,7 @@ import { api } from '../../../../../convex-backend/convex/_generated/api'
 import { useTenant } from '../../../lib/tenant'
 import { AgentForm, type AgentFormData } from '../../../components/AgentForm'
 import type { Id } from '../../../../../convex-backend/convex/_generated/dataModel'
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 
 export const Route = createFileRoute('/_authed/dashboard/agents/new')({
   component: NewAgent,
@@ -83,7 +84,23 @@ function NewAgent() {
         <h2 className="text-2xl font-semibold text-gray-900">
           Create New Agent
         </h2>
+        <p className="mt-2 text-sm text-gray-500">
+          Build a sales or support assistant in minutes. You can refine tools and voice after launch.
+        </p>
       </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>What you need to launch</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-gray-600">
+          <ul className="space-y-2">
+            <li>• Pick a name and add a clear system prompt.</li>
+            <li>• Select a model that matches your response quality needs.</li>
+            <li>• Enable voice only if you have Twilio ready.</li>
+          </ul>
+        </CardContent>
+      </Card>
 
       <AgentForm
         onSubmit={handleSubmit}

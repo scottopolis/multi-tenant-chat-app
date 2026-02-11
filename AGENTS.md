@@ -43,3 +43,15 @@ npm run test:e2e # Run Playwright E2E tests (requires worker running)
 - [PLAN.md](./PLAN.md) - Architecture and implementation plan
 - [docs/](./docs/) - API reference, tools/agents, deployment guides
 - [specs/](./specs/) - Feature specifications
+
+## Current Focus (Dashboard UX)
+
+- Branch: `codex/dashboard-ux-onboarding`
+- Recent work: added a guided launch checklist on the dashboard home, deep links to agent tabs, prompt templates in the agent form, and a readiness badge in the agents list.
+- Key docs: `docs/launch-plan.md`, `docs/ux-improvements.md`, `docs/dashboard-ux.md`
+
+## Next Steps
+
+- Decide whether to convert the agent setup into a wizard or keep tabs with in-form progress and a “Next” CTA.
+- Improve embed flow validation (copy + verification check) and security guidance.
+- Consider upgrading the agents list into a card view with quick actions (Edit Prompt, Embed, Domains, Voice).
