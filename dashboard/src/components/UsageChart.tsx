@@ -26,6 +26,86 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
+type UsageStats = {
+  totalConversations: number
+  totalMessages: number
+  uniqueSessions: number
+  last30Conversations?: number
+  last30Messages?: number
+  monthlyData: Array<{ month: string; messages: number }>
+}
+
+function buildChartData(stats: UsageStats) {
+  return stats.monthlyData.length > 0
+    ? stats.monthlyData
+    : [{ month: "No data", messages: 0 }]
+}
+
+interface MessageVolumeChartProps {
+  stats?: UsageStats | null
+  height?: number
+  showHeader?: boolean
+}
+
+export function MessageVolumeChart({
+  stats,
+  height = 300,
+  showHeader = true,
+}: MessageVolumeChartProps) {
+  if (!stats) {
+    return (
+      <div className="space-y-2 animate-pulse">
+        {showHeader && <div className="h-4 w-32 rounded bg-gray-200" />}
+        <div className="rounded bg-gray-100" style={{ height }} />
+      </div>
+    )
+  }
+
+  const chartData = buildChartData(stats)
+
+  return (
+    <div className="space-y-2">
+      {showHeader && (
+        <div>
+          <p className="text-sm font-medium text-gray-900">Message Volume</p>
+          <p className="text-xs text-gray-500">Messages over the last 6 months</p>
+        </div>
+      )}
+      <ChartContainer config={chartConfig} style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData}
+            margin={{
+              left: 12,
+              right: 12,
+            }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="month"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              tickFormatter={(value) => value.slice(0, 3)}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent indicator="dot" hideLabel />}
+            />
+            <Area
+              dataKey="messages"
+              type="linear"
+              fill="var(--color-messages)"
+              fillOpacity={0.4}
+              stroke="var(--color-messages)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </ChartContainer>
+    </div>
+  )
+}
+
 export function UsageChart() {
   const { tenant } = useTenant()
 
@@ -59,9 +139,7 @@ export function UsageChart() {
     )
   }
 
-  const chartData = stats.monthlyData.length > 0
-    ? stats.monthlyData
-    : [{ month: "No data", messages: 0 }]
+  const chartData = buildChartData(stats)
 
   return (
     <div className="space-y-4">
@@ -120,37 +198,7 @@ export function UsageChart() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={chartData}
-                margin={{
-                  left: 12,
-                  right: 12,
-                }}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  tickFormatter={(value) => value.slice(0, 3)}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator="dot" hideLabel />}
-                />
-                <Area
-                  dataKey="messages"
-                  type="linear"
-                  fill="var(--color-messages)"
-                  fillOpacity={0.4}
-                  stroke="var(--color-messages)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+          <MessageVolumeChart stats={stats} showHeader={false} />
         </CardContent>
       </Card>
     </div>

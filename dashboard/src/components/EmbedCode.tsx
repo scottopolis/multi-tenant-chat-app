@@ -30,7 +30,6 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
   const [position, setPosition] = useState('bottom-right')
   const [icon, setIcon] = useState('chat')
   const [copied, setCopied] = useState<'script' | 'iframe' | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [selectedKeyPrefix, setSelectedKeyPrefix] = useState<string | null>(null)
 
   const apiKeys = useQuery(
@@ -247,7 +246,7 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
         </pre>
       </div>
 
-      {/* Interactive Preview */}
+      {/* Live Preview (disabled for now)
       <div>
         <h4 className="text-sm font-medium text-gray-900 mb-2">Live Preview</h4>
         <p className="text-sm text-gray-500 mb-3">
@@ -255,60 +254,33 @@ export function EmbedCode({ agentId }: EmbedCodeProps) {
         </p>
         <div className="bg-gray-100 border border-gray-200 rounded-xl relative h-[600px] overflow-hidden">
           <div className="absolute top-4 left-4 text-sm text-gray-400">Your website content...</div>
-          
-          {/* Live iframe when open */}
-          {previewOpen && (
-            <iframe
-              src={`${WIDGET_URL}/?agent=${agentId}`}
-              className="absolute border-none rounded-2xl shadow-xl"
-              style={{
-                width: '380px',
-                height: '450px',
-                bottom: '88px',
-                [position === 'bottom-left' ? 'left' : 'right']: '24px',
-              }}
-            />
-          )}
-          
-          {/* Launcher button */}
-          <button
-            type="button"
-            onClick={() => setPreviewOpen(!previewOpen)}
-            className="absolute flex items-center justify-center w-14 h-14 rounded-full shadow-lg cursor-pointer transition-transform hover:scale-105"
+
+          <iframe
+            src={`${WIDGET_URL}/?agent=${agentId}`}
+            className="absolute border-none rounded-2xl shadow-xl"
             style={{
-              backgroundColor: color,
-              bottom: '24px',
+              width: '380px',
+              height: '450px',
+              bottom: '88px',
               [position === 'bottom-left' ? 'left' : 'right']: '24px',
             }}
-          >
-            {previewOpen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            ) : (
-              <>
-                {icon === 'chat' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                )}
-                {icon === 'help' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                )}
-                {icon === 'message' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                  </svg>
-                )}
-              </>
-            )}
-          </button>
+          />
         </div>
+      </div>
+      */}
+      <div>
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Preview Widget</h4>
+        <p className="text-sm text-gray-500 mb-3">
+          Open the same preview experience as the button on the agent page.
+        </p>
+        <a
+          href={`${WIDGET_URL}/?agent=${agentId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Preview widget
+        </a>
       </div>
 
       {/* Auto-Open Tip */}

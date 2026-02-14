@@ -20,6 +20,7 @@ interface SetupChecklistProps {
   title?: string
   description?: string
   steps: SetupStep[]
+  compact?: boolean
 }
 
 const statusStyles: Record<SetupStepStatus, { icon: typeof CheckCircle2; text: string; dot: string }> = {
@@ -44,13 +45,25 @@ export function SetupChecklist({
   title = "Launch Checklist",
   description = "Complete these steps to get your first agent live.",
   steps,
+  compact = false,
 }: SetupChecklistProps) {
   const completedCount = steps.filter((step) => step.status === "complete").length
   const totalCount = steps.length
 
+  const headerClassName = compact ? "gap-1.5" : "gap-2"
+  const contentClassName = compact ? "space-y-3" : "space-y-4"
+  const itemClassName = compact
+    ? "flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3"
+    : "flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4"
+  const iconWrapperClassName = compact ? "flex h-7 w-7 items-center justify-center rounded-full border" : "flex h-8 w-8 items-center justify-center rounded-full border"
+  const titleClassName = compact ? "text-sm font-medium" : "text-sm font-medium"
+  const descriptionClassName = compact ? "mt-1 text-xs text-gray-500" : "mt-1 text-sm text-gray-500"
+  const ctaClassName = compact ? "mt-2" : "mt-3"
+  const ctaTextClassName = compact ? "inline-flex items-center text-xs font-medium text-gray-900 hover:text-gray-600" : "inline-flex items-center text-sm font-medium text-gray-900 hover:text-gray-600"
+
   return (
     <Card>
-      <CardHeader className="gap-2">
+      <CardHeader className={headerClassName}>
         <div className="flex items-center justify-between gap-4">
           <div>
             <CardTitle>{title}</CardTitle>
@@ -61,19 +74,19 @@ export function SetupChecklist({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className={contentClassName}>
         {steps.map((step) => {
           const styles = statusStyles[step.status]
           const Icon = styles.icon
 
           return (
-            <div key={step.id} className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full border ${styles.dot}`}>
+            <div key={step.id} className={itemClassName}>
+              <div className={`${iconWrapperClassName} ${styles.dot}`}>
                 <Icon className={`h-4 w-4 ${styles.text}`} />
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between gap-3">
-                  <p className={`text-sm font-medium ${styles.text}`}>{step.title}</p>
+                  <p className={`${titleClassName} ${styles.text}`}>{step.title}</p>
                   {step.status === "complete" && (
                     <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       Done
@@ -85,15 +98,15 @@ export function SetupChecklist({
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-gray-500">{step.description}</p>
+                <p className={descriptionClassName}>{step.description}</p>
                 {step.to && step.cta && (
-                  <div className="mt-3">
+                  <div className={ctaClassName}>
                     <Link
                       to={step.to}
                       params={step.params}
                       search={step.search}
                       hash={step.hash}
-                      className="inline-flex items-center text-sm font-medium text-gray-900 hover:text-gray-600"
+                      className={ctaTextClassName}
                     >
                       {step.cta}
                       <ArrowRight className="ml-2 h-4 w-4" />

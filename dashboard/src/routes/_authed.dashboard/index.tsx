@@ -4,7 +4,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useTenant } from '../../lib/tenant'
 import { api } from '../../../../convex-backend/convex/_generated/api'
-import { UsageChart } from '../../components/UsageChart'
+import { MessageVolumeChart } from '../../components/UsageChart'
 import { useQuery } from 'convex/react'
 import { SetupChecklist } from '../../components/SetupChecklist'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -21,6 +21,7 @@ function DashboardHome() {
   const tenantId = tenant?.id as Id<'tenants'> | undefined
   const agents = useQuery(api.agents.listByTenant, tenantId ? { tenantId } : 'skip')
   const apiKeys = useQuery(api.apiKeys.listByTenant, tenantId ? { tenantId } : 'skip')
+  const usageStats = useQuery(api.conversations.getUsageStats, tenantId ? { tenantId } : 'skip')
   const [isProvisioning, setIsProvisioning] = useState(false)
   const [provisionError, setProvisionError] = useState<string | null>(null)
 
@@ -148,77 +149,55 @@ function DashboardHome() {
           >
             Create Agent
           </Link>
-          <Link
-            to="/dashboard/conversations"
-            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            View Conversations
-          </Link>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <Card>
+          <CardHeader className="gap-1.5">
+            <CardTitle>Account status</CardTitle>
+            <CardDescription>Last 30 days of activity across your agents.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Conversations</p>
+                <p className="mt-2 text-2xl font-semibold text-gray-900 tabular-nums">
+                  {usageStats ? usageStats.last30Conversations.toLocaleString() : '—'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">last 30 days</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Messages</p>
+                <p className="mt-2 text-2xl font-semibold text-gray-900 tabular-nums">
+                  {usageStats ? usageStats.last30Messages.toLocaleString() : '—'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">last 30 days</p>
+              </div>
+            </div>
+            <div className="mt-5 border-t border-gray-200 pt-4">
+              <MessageVolumeChart stats={usageStats ?? null} height={220} />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                to="/dashboard/conversations"
+                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                View conversations
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
         <SetupChecklist
+          compact
           steps={checklistSteps.map((step) => ({
             ...step,
             status: step.status,
           }))}
         />
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Next best action</CardTitle>
-              <CardDescription>
-                Recommended focus for invite-only onboarding.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-gray-600">
-              <p>
-                {hasAgents
-                  ? 'Polish your system prompt and verify the embed works on a staging page.'
-                  : 'Create your first agent and define a sales/support prompt.'}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  to={hasAgents ? `/dashboard/agents/${primaryAgent?.agentId}` : '/dashboard/agents/new'}
-                  className="inline-flex items-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white hover:bg-gray-800 transition-colors"
-                >
-                  {hasAgents ? 'Open agent' : 'Create agent'}
-                </Link>
-                <Link
-                  to="/dashboard/agents"
-                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Review agents
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Invite-only beta</CardTitle>
-              <CardDescription>Operational reminders before inviting customers.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-gray-600">
-              <ul className="space-y-2">
-                <li>• Set allowed domains for each customer site.</li>
-                <li>• Verify at least one test conversation per agent.</li>
-                <li>• Share support contact details with pilot customers.</li>
-              </ul>
-              <Link
-                to="/dashboard/agents"
-                className="inline-flex items-center text-sm font-medium text-gray-900 hover:text-gray-600"
-              >
-                Review agent settings
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
-      <UsageChart />
     </div>
   )
 }
