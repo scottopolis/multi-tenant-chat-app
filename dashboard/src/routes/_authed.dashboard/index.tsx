@@ -86,7 +86,7 @@ function DashboardHome() {
       title: 'Create your first agent',
       description: 'Define the agent name and basic capabilities.',
       status: hasAgents ? 'complete' : 'pending',
-      href: '/dashboard/agents/new',
+      to: '/dashboard/agents/new',
       cta: hasAgents ? 'Create another agent' : 'Create agent',
     },
     {
@@ -94,7 +94,8 @@ function DashboardHome() {
       title: 'Add a system prompt',
       description: 'Set guidance for sales/support tone and policy boundaries.',
       status: hasSystemPrompt ? 'complete' : 'pending',
-      href: primaryAgent ? `/dashboard/agents/${primaryAgent.agentId}` : '/dashboard/agents',
+      to: primaryAgent ? '/dashboard/agents/$agentId' : '/dashboard/agents',
+      params: primaryAgent ? { agentId: primaryAgent.agentId } : undefined,
       cta: 'Edit prompt',
     },
     {
@@ -102,7 +103,9 @@ function DashboardHome() {
       title: 'Generate an API key',
       description: 'Keys authenticate widget traffic from your sites.',
       status: hasApiKeys ? 'complete' : 'pending',
-      href: primaryAgent ? `/dashboard/agents/${primaryAgent.agentId}?tab=Embed` : '/dashboard/agents',
+      to: primaryAgent ? '/dashboard/agents/$agentId' : '/dashboard/agents',
+      params: primaryAgent ? { agentId: primaryAgent.agentId } : undefined,
+      hash: primaryAgent ? 'agent-embed' : undefined,
       cta: hasApiKeys ? 'Manage keys' : 'Create key',
     },
     {
@@ -110,7 +113,9 @@ function DashboardHome() {
       title: 'Lock down allowed domains',
       description: 'Limit which domains can embed your widget.',
       status: hasRestrictedDomains ? 'complete' : 'optional',
-      href: primaryAgent ? `/dashboard/agents/${primaryAgent.agentId}?tab=Security` : '/dashboard/agents',
+      to: primaryAgent ? '/dashboard/agents/$agentId' : '/dashboard/agents',
+      params: primaryAgent ? { agentId: primaryAgent.agentId } : undefined,
+      hash: primaryAgent ? 'agent-security' : undefined,
       cta: 'Update domains',
     },
     {
@@ -118,7 +123,9 @@ function DashboardHome() {
       title: 'Install the widget',
       description: 'Copy the embed snippet and test it on your site.',
       status: hasAgents && hasApiKeys ? 'pending' : 'optional',
-      href: primaryAgent ? `/dashboard/agents/${primaryAgent.agentId}?tab=Embed` : '/dashboard/agents',
+      to: primaryAgent ? '/dashboard/agents/$agentId' : '/dashboard/agents',
+      params: primaryAgent ? { agentId: primaryAgent.agentId } : undefined,
+      hash: primaryAgent ? 'agent-embed' : undefined,
       cta: 'View embed code',
     },
   ] as const

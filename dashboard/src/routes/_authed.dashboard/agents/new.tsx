@@ -7,6 +7,13 @@ import { AgentForm, type AgentFormData } from '../../../components/AgentForm'
 import type { Id } from '../../../../../convex-backend/convex/_generated/dataModel'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 
+const DEFAULT_VOICE_CONFIG = {
+  voiceModel: 'gpt-realtime',
+  voiceName: 'verse',
+  locale: 'en-US',
+  bargeInEnabled: true,
+}
+
 export const Route = createFileRoute('/_authed/dashboard/agents/new')({
   component: NewAgent,
 })
@@ -38,21 +45,18 @@ function NewAgent() {
         langfuseHost: data.langfuse.host || undefined,
         langfusePromptName: data.langfuse.promptName || undefined,
         langfuseLabel: data.langfuse.label || undefined,
+        allowedDomains: data.allowedDomains,
       })
 
-      if (data.capabilities.voice && data.voiceConfig) {
-        await createVoiceAgent({
-          tenantId: tenant.id as Id<'tenants'>,
-          agentId: newAgentId,
-          voiceModel: data.voiceConfig.voiceModel,
-          voiceName: data.voiceConfig.voiceName,
-          locale: data.voiceConfig.locale,
-          bargeInEnabled: data.voiceConfig.bargeInEnabled,
-          enabled: true,
-        })
-      }
-
-      navigate({ to: '/dashboard/agents' })
+      await createVoiceAgent({
+        tenantId: tenant.id as Id<'tenants'>,
+        agentId: newAgentId,
+        voiceModel: DEFAULT_VOICE_CONFIG.voiceModel,
+        voiceName: DEFAULT_VOICE_CONFIG.voiceName,
+        locale: DEFAULT_VOICE_CONFIG.locale,
+        bargeInEnabled: DEFAULT_VOICE_CONFIG.bargeInEnabled,
+        enabled: true,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -97,7 +101,7 @@ function NewAgent() {
           <ul className="space-y-2">
             <li>• Pick a name and add a clear system prompt.</li>
             <li>• Select a model that matches your response quality needs.</li>
-            <li>• Enable voice only if you have Twilio ready.</li>
+            <li>• Voice is enabled by default. Configure Twilio when you are ready.</li>
           </ul>
         </CardContent>
       </Card>

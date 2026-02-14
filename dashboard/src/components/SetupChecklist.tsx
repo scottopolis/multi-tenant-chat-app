@@ -9,7 +9,10 @@ export interface SetupStep {
   title: string
   description: string
   status: SetupStepStatus
-  href?: string
+  to?: string
+  params?: Record<string, string>
+  search?: Record<string, string>
+  hash?: string
   cta?: string
 }
 
@@ -83,10 +86,13 @@ export function SetupChecklist({
                   )}
                 </div>
                 <p className="mt-1 text-sm text-gray-500">{step.description}</p>
-                {step.href && step.cta && (
+                {step.to && step.cta && (
                   <div className="mt-3">
                     <Link
-                      to={step.href}
+                      to={step.to}
+                      params={step.params}
+                      search={step.search}
+                      hash={step.hash}
                       className="inline-flex items-center text-sm font-medium text-gray-900 hover:text-gray-600"
                     >
                       {step.cta}

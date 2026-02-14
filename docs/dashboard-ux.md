@@ -27,18 +27,14 @@ The home page surfaces an onboarding checklist with real-time status from Convex
 The checklist provides direct links into the correct agent tabs.
 
 ## Agent Setup UX
-Agent creation uses the “Basic” tab, then expands into:
-- Tools & Output
-- Integrations (Langfuse)
-- Security (domain allowlist)
-- Knowledge Base
-- Voice
-- Embed
+Agent configuration uses a single-page, sectioned layout with progressive disclosure:
+- Agent basics (name, system prompt)
+- Model and tools
+- Knowledge base, voice, and embed settings
+- Advanced settings at the bottom for security and integrations
 
-The dashboard supports direct deep links via `?tab=` for faster navigation.
+The dashboard supports direct deep links via `?tab=` by scrolling to the relevant section.
 
-### Templates
-The Basic tab includes optional templates for sales, support, and onboarding. Templates are meant to speed up early usage and are safe to edit before going live.
 
 ## Suggested Enhancements (Next Iteration)
 - Agent templates (sales/support/onboarding) to prefill system prompts.

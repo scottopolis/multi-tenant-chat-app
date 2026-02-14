@@ -9,6 +9,10 @@ export const Route = createFileRoute('/_authed/dashboard/agents/$agentId')({
   validateSearch: (search: { tab?: string }) => ({ tab: search.tab }),
 })
 
+const WIDGET_URL = import.meta.env.DEV
+  ? 'http://localhost:5173'
+  : 'https://multi-tenant-chat-app.pages.dev'
+
 function EditAgent() {
   const { agentId } = Route.useParams()
   const { tab } = Route.useSearch()
@@ -38,7 +42,6 @@ function EditAgent() {
         langfuseLabel: data.langfuse.label || undefined,
         allowedDomains: data.allowedDomains,
       })
-      navigate({ to: '/dashboard/agents' })
     } finally {
       setIsSubmitting(false)
     }
@@ -50,10 +53,8 @@ function EditAgent() {
 
   const handleDelete = async () => {
     if (!agent) return
-    if (window.confirm('Are you sure you want to delete this agent?')) {
-      await deleteAgent({ id: agent._id })
-      navigate({ to: '/dashboard/agents' })
-    }
+    await deleteAgent({ id: agent._id })
+    navigate({ to: '/dashboard/agents' })
   }
 
   if (agent === undefined) {
@@ -74,11 +75,21 @@ function EditAgent() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-gray-900">
-          Edit Agent
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">ID: {agent.agentId}</p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900">
+            Edit Agent
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">ID: {agent.agentId}</p>
+        </div>
+        <a
+          href={`${WIDGET_URL}/?agent=${agent.agentId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          Preview widget
+        </a>
       </div>
 
       <AgentForm

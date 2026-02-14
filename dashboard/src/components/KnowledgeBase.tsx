@@ -229,6 +229,7 @@ export function KnowledgeBase({ agentId, workerUrl = 'http://localhost:8787' }: 
                     {file.status}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleDelete(file.id)}
                     disabled={deletingId === file.id}
                     className="text-red-600 hover:text-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
