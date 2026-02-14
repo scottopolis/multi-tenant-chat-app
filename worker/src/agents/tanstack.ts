@@ -49,7 +49,7 @@ export async function runAgentTanStack(options: RunAgentOptions) {
     adapter,
     messages: tanstackMessages,
     tools,
-    system: instructions,
+    systemPrompts: [instructions],
     agentLoopStrategy: maxIterations(8),
   });
 }

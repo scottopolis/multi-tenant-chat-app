@@ -148,7 +148,8 @@ export const getConfigByAgentDbId = query({
       .withIndex("by_agent", (q) => q.eq("agentId", agentId))
       .first();
 
-    if (!voiceAgent || !voiceAgent.enabled) {
+    const enabled = voiceAgent?.enabled ?? true;
+    if (!voiceAgent || !enabled) {
       return null;
     }
 
@@ -164,13 +165,13 @@ export const getConfigByAgentDbId = query({
       tenantId: voiceAgent.tenantId,
       agentName: agent.name,
       systemPrompt: agent.systemPrompt || "You are a helpful voice assistant.",
-      sttProvider: voiceAgent.sttProvider,
-      ttsProvider: voiceAgent.ttsProvider,
-      sttModel: voiceAgent.sttModel,
-      ttsModel: voiceAgent.ttsModel,
+      sttProvider: voiceAgent.sttProvider ?? "deepgram",
+      ttsProvider: voiceAgent.ttsProvider ?? "deepgram",
+      sttModel: voiceAgent.sttModel ?? "nova-3",
+      ttsModel: voiceAgent.ttsModel ?? "aura-2-thalia-en",
       ttsVoice: voiceAgent.ttsVoice,
-      locale: voiceAgent.locale,
-      bargeInEnabled: voiceAgent.bargeInEnabled,
+      locale: voiceAgent.locale ?? "en-US",
+      bargeInEnabled: voiceAgent.bargeInEnabled ?? true,
     };
   },
 });

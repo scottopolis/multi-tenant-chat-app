@@ -94,14 +94,17 @@ export default defineSchema({
   voiceAgents: defineTable({
     tenantId: v.id("tenants"),
     agentId: v.id("agents"),
-    sttProvider: v.string(), // "deepgram"
-    ttsProvider: v.string(), // "deepgram"
-    sttModel: v.string(), // "nova-3" / "nova-3-multilingual"
-    ttsModel: v.string(), // "aura-2"
+    sttProvider: v.optional(v.string()), // "deepgram"
+    ttsProvider: v.optional(v.string()), // "deepgram"
+    sttModel: v.optional(v.string()), // "nova-3" / "nova-3-multilingual"
+    ttsModel: v.optional(v.string()), // "aura-2"
     ttsVoice: v.optional(v.string()), // TTS voice persona
-    locale: v.string(), // "en-US"
-    bargeInEnabled: v.boolean(), // Allow interruptions
-    enabled: v.boolean(),
+    locale: v.optional(v.string()), // "en-US"
+    bargeInEnabled: v.optional(v.boolean()), // Allow interruptions
+    enabled: v.optional(v.boolean()),
+    // Legacy OpenAI Realtime fields (backward compatibility)
+    voiceModel: v.optional(v.string()),
+    voiceName: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

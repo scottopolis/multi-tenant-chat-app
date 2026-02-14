@@ -56,10 +56,28 @@ These are stored in `voiceCalls` for analytics and billing.
 ## Notes
 
 - Twilio Media Streams provide 8kHz μ-law audio. The Worker converts this directly for Deepgram STT and sends TTS audio back in the same format.
-- Browser preview uses 24kHz PCM16 in/out to preserve higher fidelity.
+- Browser preview uses 24kHz linear16 (PCM16) in/out to preserve higher fidelity.
+
+## TTS Lifecycle
+
+Each LLM response opens a new `speak.live` WebSocket connection:
+
+1. `sendText(text)` + `flush()` queues synthesis.
+2. Audio chunks arrive via `LiveTTSEvents.Audio` as raw PCM (no container header).
+3. `LiveTTSEvents.Flushed` signals all audio for the flush has been sent.
+4. The pipeline calls `requestClose()` to tear down the connection, which fires `LiveTTSEvents.Close` and resolves the turn.
+
+The SDK emits audio as a `Buffer` (a `Uint8Array` subclass). The pipeline copies it via `.slice().buffer` to avoid referencing an oversized backing `ArrayBuffer`.
+
+## Browser Preview Details
+
+- The dashboard sets `binaryType = 'arraybuffer'` on its WebSocket so binary TTS chunks arrive as `ArrayBuffer` (not `Blob`).
+- Chunks are scheduled for gapless playback via the Web Audio API (`AudioBufferSourceNode` with `nextPlayTime` tracking).
+- Barge-in is disabled for preview to avoid echo loops. The `UtteranceEnd` handler also suppresses stale transcripts while TTS is playing.
 
 ## Where to Look in Code
 
-- Pipeline: `/Users/sbolinger/Documents/Personal/Playground/multi-tenant-chat-assistant/worker/src/voice/deepgramPipeline.ts`
-- Twilio call session: `/Users/sbolinger/Documents/Personal/Playground/multi-tenant-chat-assistant/worker/src/voice/VoiceCallSession.ts`
-- Web voice preview: `/Users/sbolinger/Documents/Personal/Playground/multi-tenant-chat-assistant/worker/src/voice/WebVoiceSession.ts`
+- Pipeline: `worker/src/voice/deepgramPipeline.ts`
+- Twilio call session: `worker/src/voice/VoiceCallSession.ts`
+- Web voice preview: `worker/src/voice/WebVoiceSession.ts`
+- Browser playback: `dashboard/src/components/VoicePreview.tsx`

@@ -118,6 +118,7 @@ export function AgentForm({
   } = useForm<AgentFormValues>({
     defaultValues: buildDefaultValues(initialData),
     mode: 'onChange',
+    shouldUnregister: true,
   })
 
   const { fields: mcpServerFields, append, remove } = useFieldArray({
@@ -157,7 +158,7 @@ export function AgentForm({
     return () => clearTimeout(timer)
   }, [])
 
-  const hasOutputSchema = outputSchema.trim().length > 0
+  const hasOutputSchema = (outputSchema ?? '').trim().length > 0
 
   useEffect(() => {
     reset(buildDefaultValues(initialData))
@@ -198,21 +199,26 @@ export function AgentForm({
     append({ url: '', authHeader: '', transport: 'http' })
   }
 
+  const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype
+
   const collectFieldPaths = (value: unknown, prefix = ''): string[] => {
     if (!value || typeof value !== 'object') return []
     if (Array.isArray(value)) {
       return value.flatMap((item, index) => {
         if (item === true) return [`${prefix}[${index}]`]
-        if (item && typeof item === 'object') {
+        if (isPlainObject(item)) {
           return collectFieldPaths(item, `${prefix}[${index}]`)
         }
         return []
       })
     }
+    if (!isPlainObject(value)) return []
+
     return Object.entries(value).flatMap(([key, entry]) => {
       const path = prefix ? `${prefix}.${key}` : key
       if (entry === true) return [path]
-      if (entry && typeof entry === 'object') {
+      if (isPlainObject(entry) || Array.isArray(entry)) {
         return collectFieldPaths(entry, path)
       }
       return []
@@ -672,7 +678,7 @@ export function AgentForm({
             </button>
             <button
               type="submit"
-              disabled={isBusy || !isDirty || !isValid}
+              disabled={isBusy || !isDirty || hasInvalidPaths}
               className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isBusy ? 'Saving...' : submitLabel}

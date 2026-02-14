@@ -130,3 +130,17 @@ Twilio/Web audio → Worker DO → Deepgram STT (streaming) → Worker LLM/tools
 1. Should we support both OpenAI Realtime and Deepgram side-by-side long-term?
 2. Do we need per-tenant Deepgram keys (BYO billing) or centralized billing with internal chargeback?
 3. Which Deepgram models should be the default for STT/TTS?
+
+## Resolved Issues
+
+### Browser Voice Preview Playback (Fixed)
+
+Four issues prevented reliable browser audio playback:
+
+1. **SDK Buffer extraction**: The Deepgram SDK emits `LiveTTSEvents.Audio` with a Node.js `Buffer` (a `Uint8Array` subclass). Accessing `.buffer` on it returns the underlying `ArrayBuffer`, which can be larger than the actual audio slice. Fixed by copying via `.slice().buffer` when the backing buffer size doesn't match.
+
+2. **TTS connection lifecycle**: After `flush()`, Deepgram sends all audio and emits a `Flushed` event but keeps the WebSocket open. The pipeline's `speakResponse` promise only resolved on `Close`, which never fired promptly. This left `processing = true` and blocked all subsequent transcripts. Fixed by listening for `Flushed` to trigger `onTtsEnd` and `requestClose()`, so `Close` fires immediately after.
+
+3. **Browser WebSocket binaryType**: The dashboard's WebSocket defaulted to `binaryType = 'blob'`, causing async `Blob.arrayBuffer()` conversions that could reorder or drop chunks. Fixed by setting `binaryType = 'arraybuffer'` so binary messages arrive synchronously as `ArrayBuffer`.
+
+4. **UtteranceEnd echo suppression**: The STT `UtteranceEnd` handler didn't check `isSpeaking`, so it could enqueue stale/echo transcripts picked up during TTS playback. Fixed by guarding `UtteranceEnd` with the same `isSpeaking && !bargeInEnabled` check used for final transcripts, and clearing `lastTranscript` when TTS starts.

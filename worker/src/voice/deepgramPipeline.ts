@@ -31,6 +31,7 @@ export type DeepgramVoicePipelineOptions = {
   output: AudioFormat;
   onAudio: (audio: ArrayBuffer) => void;
   onInterrupt?: () => void;
+  onTtsEnd?: () => void;
 };
 
 export class DeepgramVoicePipeline {
@@ -40,6 +41,7 @@ export class DeepgramVoicePipeline {
   private readonly output: AudioFormat;
   private readonly onAudio: (audio: ArrayBuffer) => void;
   private readonly onInterrupt?: () => void;
+  private readonly onTtsEnd?: () => void;
   private readonly deepgram = createClient;
   private sttConnection: any;
   private ttsConnection: any;
@@ -52,6 +54,7 @@ export class DeepgramVoicePipeline {
   private ttsCharacters = 0;
   private sttReady = false;
   private pendingAudio: Uint8Array[] = [];
+  private lastTranscript = '';
 
   constructor(options: DeepgramVoicePipelineOptions) {
     this.config = options.config;
@@ -60,6 +63,7 @@ export class DeepgramVoicePipeline {
     this.output = options.output;
     this.onAudio = options.onAudio;
     this.onInterrupt = options.onInterrupt;
+    this.onTtsEnd = options.onTtsEnd;
   }
 
   async start(): Promise<void> {
@@ -74,12 +78,16 @@ export class DeepgramVoicePipeline {
       encoding: this.input.encoding,
       sample_rate: this.input.sampleRate,
       interim_results: true,
+      vad_events: true,
+      utterance_end_ms: 1000,
+      endpointing: 300,
       smart_format: true,
       language: this.config.locale,
     });
 
     this.sttConnection.on(LiveTranscriptionEvents.Open, () => {
       this.sttReady = true;
+      console.log('[DeepgramPipeline] STT connection open');
       if (this.pendingAudio.length > 0) {
         for (const chunk of this.pendingAudio) {
           this.sttConnection.send(chunk);
@@ -90,7 +98,16 @@ export class DeepgramVoicePipeline {
 
     this.sttConnection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
       const transcript = data?.channel?.alternatives?.[0]?.transcript?.trim();
+      if (transcript) {
+        console.log(
+          `[DeepgramPipeline] Transcript${data.is_final ? ' (final)' : ''}: ${transcript}`
+        );
+      }
       if (!transcript) {
+        return;
+      }
+
+      if (this.isSpeaking && !this.config.bargeInEnabled) {
         return;
       }
 
@@ -99,7 +116,22 @@ export class DeepgramVoicePipeline {
       }
 
       if (data.is_final) {
+        this.lastTranscript = '';
         this.enqueueTranscript(transcript);
+        return;
+      }
+
+      this.lastTranscript = transcript;
+    });
+
+    this.sttConnection.on(LiveTranscriptionEvents.UtteranceEnd, () => {
+      if (this.isSpeaking && !this.config.bargeInEnabled) {
+        this.lastTranscript = '';
+        return;
+      }
+      if (this.lastTranscript) {
+        this.enqueueTranscript(this.lastTranscript);
+        this.lastTranscript = '';
       }
     });
 
@@ -204,6 +236,7 @@ export class DeepgramVoicePipeline {
       console.error('[DeepgramPipeline] Missing OPENROUTER_API_KEY or OPENAI_API_KEY for LLM');
       return '';
     }
+    console.log(`[DeepgramPipeline] Generating response for: ${userText}`);
 
     const messages = [...this.history, { role: 'user' as const, content: userText }];
 
@@ -211,7 +244,6 @@ export class DeepgramVoicePipeline {
       messages,
       apiKey,
       agentId: this.config.agentId || 'default',
-      systemPrompt: this.config.systemPrompt,
       env: {
         CONVEX_URL: this.env.CONVEX_URL,
       },
@@ -227,6 +259,7 @@ export class DeepgramVoicePipeline {
       }
     }
 
+    console.log(`[DeepgramPipeline] LLM response length: ${content.length}`);
     if (content) {
       this.history.push({ role: 'user', content: userText });
       this.history.push({ role: 'assistant', content });
@@ -239,6 +272,7 @@ export class DeepgramVoicePipeline {
     if (!text) return;
 
     this.isSpeaking = true;
+    this.lastTranscript = '';
     this.ttsCharacters += text.length;
 
     const client = this.deepgram(this.env.DEEPGRAM_API_KEY);
@@ -267,14 +301,36 @@ export class DeepgramVoicePipeline {
         tts.flush();
       });
 
-      tts.on(LiveTTSEvents.Audio, (data: ArrayBuffer) => {
+      tts.on(LiveTTSEvents.Audio, (data: unknown) => {
         if (this.responseId !== responseId) {
           return;
         }
-        const audioBuffer = data instanceof ArrayBuffer ? data : (data as any)?.buffer;
-        if (audioBuffer) {
+        // The SDK emits a Buffer (Uint8Array subclass). Using `.buffer` directly
+        // can return the *entire* backing ArrayBuffer which may be larger than
+        // the actual audio slice. Copy to a correctly-sized ArrayBuffer.
+        let audioBuffer: ArrayBuffer | undefined;
+        if (data instanceof ArrayBuffer) {
+          audioBuffer = data;
+        } else if (data instanceof Uint8Array) {
+          audioBuffer = data.buffer.byteLength === data.byteLength
+            ? data.buffer
+            : data.slice().buffer;
+        } else if (data && typeof data === 'object' && 'buffer' in data) {
+          const d = data as Uint8Array;
+          audioBuffer = d.buffer.byteLength === d.byteLength
+            ? d.buffer
+            : d.slice().buffer;
+        }
+        if (audioBuffer && audioBuffer.byteLength > 0) {
           this.onAudio(audioBuffer);
         }
+      });
+
+      tts.on(LiveTTSEvents.Flushed, () => {
+        if (this.onTtsEnd) {
+          this.onTtsEnd();
+        }
+        tts.requestClose?.();
       });
 
       tts.on(LiveTTSEvents.Error, (error: unknown) => {
@@ -288,9 +344,7 @@ export class DeepgramVoicePipeline {
     });
 
     this.isSpeaking = false;
-    if (this.ttsConnection) {
-      this.ttsConnection = undefined;
-    }
+    this.ttsConnection = undefined;
   }
 }
 
