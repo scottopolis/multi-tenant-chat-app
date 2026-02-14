@@ -92,6 +92,9 @@ function AgentsList() {
                   Model
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   System Prompt
                 </th>
                 <th className="relative py-3 pl-3 pr-6">
@@ -107,6 +110,17 @@ function AgentsList() {
                   </td>
                   <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                     {agent.model}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm">
+                    {agent.systemPrompt && (agent.allowedDomains ?? ['*']).some((domain) => domain !== '*') ? (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                        Ready
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Needs setup
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-4 text-sm text-gray-500 max-w-md truncate">
                     {agent.systemPrompt || '—'}

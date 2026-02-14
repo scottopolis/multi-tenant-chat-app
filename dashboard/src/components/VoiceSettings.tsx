@@ -51,12 +51,9 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
   const createVoiceAgent = useMutation(api.voiceAgents.create)
   const updateVoiceAgent = useMutation(api.voiceAgents.update)
-  const deleteVoiceAgent = useMutation(api.voiceAgents.remove)
-
   const createTwilioNumber = useMutation(api.twilioNumbers.create)
   const deleteTwilioNumber = useMutation(api.twilioNumbers.remove)
 
-  const [enabled, setEnabled] = useState(false)
   const [voiceModel, setVoiceModel] = useState('gpt-4o-realtime-preview')
   const [voiceName, setVoiceName] = useState('verse')
   const [locale, setLocale] = useState('en-US')
@@ -73,7 +70,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
   useEffect(() => {
     if (voiceAgent) {
-      setEnabled(voiceAgent.enabled)
       setVoiceModel(voiceAgent.voiceModel)
       setVoiceName(voiceAgent.voiceName || 'verse')
       setLocale(voiceAgent.locale)
@@ -95,9 +91,8 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
           voiceName,
           locale,
           bargeInEnabled,
-          enabled,
         })
-      } else if (enabled) {
+      } else {
         await createVoiceAgent({
           tenantId: tenant.id as Id<'tenants'>,
           agentId: agentDbId,
@@ -112,27 +107,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save voice settings')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleDisableVoice = async () => {
-    if (!voiceAgent) return
-    if (!confirm('Are you sure you want to disable voice for this agent? This will also remove all phone number mappings.')) {
-      return
-    }
-
-    setIsSaving(true)
-    setError(null)
-
-    try {
-      await deleteVoiceAgent({ id: voiceAgent._id })
-      setEnabled(false)
-      setSuccessMessage('Voice disabled successfully')
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disable voice')
     } finally {
       setIsSaving(false)
     }
@@ -200,12 +174,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-medium text-gray-900">Voice Settings</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Enable voice capabilities for this agent via Twilio phone numbers.
-        </p>
-      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -219,21 +187,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
         </div>
       )}
 
-      {/* Enable Voice Toggle */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-          />
-          <span className="text-gray-900 font-medium">Enable voice for this agent</span>
-        </label>
-      </div>
-
-      {enabled && (
-        <>
+      <>
           {/* Voice Configuration */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -299,16 +253,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              {voiceAgent && (
-                <button
-                  type="button"
-                  onClick={handleDisableVoice}
-                  disabled={isSaving}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
-                >
-                  Disable Voice
-                </button>
-              )}
               <button
                 type="button"
                 onClick={handleSave}
@@ -421,6 +365,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => handleDeleteNumber(number._id)}
                         className="text-red-600 hover:text-red-500 text-sm font-medium"
                       >
@@ -472,8 +417,7 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
           {voiceAgent && (
             <VoicePreview agentDbId={agentDbId} />
           )}
-        </>
-      )}
+      </>
     </div>
   )
 }

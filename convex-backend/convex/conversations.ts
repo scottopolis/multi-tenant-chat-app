@@ -440,13 +440,25 @@ export const getUsageStats = query({
 
     const now = Date.now();
     const sixMonthsAgo = now - 6 * 30 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    let last30Conversations = 0;
+    let last30Messages = 0;
 
     for (const conv of conversations) {
       uniqueSessions.add(conv.sessionId);
 
+      if (conv.lastEventAt >= thirtyDaysAgo) {
+        last30Conversations++;
+      }
+
       for (const event of conv.events) {
         if (event.eventType === "message") {
           totalMessages++;
+
+          if (event.createdAt >= thirtyDaysAgo) {
+            last30Messages++;
+          }
 
           if (event.createdAt >= sixMonthsAgo) {
             const date = new Date(event.createdAt);
@@ -473,6 +485,8 @@ export const getUsageStats = query({
       totalConversations,
       totalMessages,
       uniqueSessions: uniqueSessions.size,
+      last30Conversations,
+      last30Messages,
       monthlyData: sortedMonths,
     };
   },
