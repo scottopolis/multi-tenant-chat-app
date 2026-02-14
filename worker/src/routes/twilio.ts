@@ -4,7 +4,7 @@ import { convexQuery, convexMutation } from '../convex/client';
 import { verifyTwilioSignature, formDataToObject } from '../voice/twilioSignature';
 
 type Bindings = {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
   CONVEX_URL: string;
   VOICE_CALL_SESSION: DurableObjectNamespace;
   TWILIO_AUTH_TOKEN?: string;
@@ -16,8 +16,11 @@ export interface TwilioNumberConfig {
   agentId: string;
   voiceAgentId: string;
   phoneNumber: string;
-  voiceModel: string;
-  voiceName?: string;
+  sttProvider: string;
+  ttsProvider: string;
+  sttModel: string;
+  ttsModel: string;
+  ttsVoice?: string;
   locale: string;
   bargeInEnabled: boolean;
   agentName: string;

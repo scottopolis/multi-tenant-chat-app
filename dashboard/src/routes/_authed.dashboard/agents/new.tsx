@@ -8,8 +8,11 @@ import type { Id } from '../../../../../convex-backend/convex/_generated/dataMod
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 
 const DEFAULT_VOICE_CONFIG = {
-  voiceModel: 'gpt-realtime',
-  voiceName: 'verse',
+  sttProvider: 'deepgram',
+  ttsProvider: 'deepgram',
+  sttModel: 'nova-3',
+  ttsModel: 'aura-2-thalia-en',
+  ttsVoice: undefined,
   locale: 'en-US',
   bargeInEnabled: true,
 }
@@ -51,8 +54,11 @@ function NewAgent() {
       await createVoiceAgent({
         tenantId: tenant.id as Id<'tenants'>,
         agentId: newAgentId,
-        voiceModel: DEFAULT_VOICE_CONFIG.voiceModel,
-        voiceName: DEFAULT_VOICE_CONFIG.voiceName,
+        sttProvider: DEFAULT_VOICE_CONFIG.sttProvider,
+        ttsProvider: DEFAULT_VOICE_CONFIG.ttsProvider,
+        sttModel: DEFAULT_VOICE_CONFIG.sttModel,
+        ttsModel: DEFAULT_VOICE_CONFIG.ttsModel,
+        ttsVoice: DEFAULT_VOICE_CONFIG.ttsVoice,
         locale: DEFAULT_VOICE_CONFIG.locale,
         bargeInEnabled: DEFAULT_VOICE_CONFIG.bargeInEnabled,
         enabled: true,

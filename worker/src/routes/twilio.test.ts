@@ -42,7 +42,7 @@ describe('Twilio Routes', () => {
     app = new Hono();
     app.use('*', async (c, next) => {
       c.env = {
-        OPENAI_API_KEY: 'test-api-key',
+        DEEPGRAM_API_KEY: 'test-api-key',
         CONVEX_URL: 'https://test.convex.cloud',
         VOICE_CALL_SESSION: mockDoNamespace,
         TWILIO_AUTH_TOKEN: 'test-auth-token',
@@ -60,8 +60,11 @@ describe('Twilio Routes', () => {
         agentId: 'agent123',
         voiceAgentId: 'va123',
         phoneNumber: '+15551234567',
-        voiceModel: 'gpt-4o-realtime-preview',
-        voiceName: 'verse',
+        sttProvider: 'deepgram',
+        ttsProvider: 'deepgram',
+        sttModel: 'nova-3',
+        ttsModel: 'aura-2-thalia-en',
+        ttsVoice: undefined,
         locale: 'en-US',
         bargeInEnabled: true,
         agentName: 'Test Agent',
@@ -292,7 +295,11 @@ describe('TwiML Generation', () => {
       agentId: 'agent123',
       voiceAgentId: 'va123',
       phoneNumber: '+15551234567',
-      voiceModel: 'gpt-4o-realtime-preview',
+      sttProvider: 'deepgram',
+      ttsProvider: 'deepgram',
+      sttModel: 'nova-3',
+      ttsModel: 'aura-2-thalia-en',
+      ttsVoice: undefined,
       agentName: 'Test',
       systemPrompt: 'Test',
     });
@@ -301,7 +308,7 @@ describe('TwiML Generation', () => {
     const app = new Hono();
     app.use('*', async (c, next) => {
       c.env = {
-        OPENAI_API_KEY: 'test-api-key',
+        DEEPGRAM_API_KEY: 'test-api-key',
         CONVEX_URL: 'https://test.convex.cloud',
         VOICE_CALL_SESSION: {
           idFromName: vi.fn(),

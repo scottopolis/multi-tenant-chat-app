@@ -16,6 +16,7 @@ export { WebVoiceSession } from './voice/WebVoiceSession';
  */
 type Bindings = {
   OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
   OPENROUTER_API_KEY?: string; // Deprecated, keeping for backward compatibility
   LANGFUSE_SECRET_KEY?: string;
   LANGFUSE_PUBLIC_KEY?: string;
@@ -473,4 +474,3 @@ app.onError((err, c) => {
 });
 
 export default app;
-

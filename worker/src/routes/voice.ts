@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import type { DurableObjectNamespace } from '@cloudflare/workers-types';
-import { convexQuery } from '../convex/client';
 
 type Bindings = {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
   CONVEX_URL: string;
   WEB_VOICE_SESSION: DurableObjectNamespace;
 };

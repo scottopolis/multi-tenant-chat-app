@@ -10,20 +10,9 @@ interface VoiceSettingsProps {
   agentDbId: Id<'agents'>
 }
 
-const VOICE_MODELS = [
-  { value: 'gpt-realtime', label: 'GPT Realtime' },
-  { value: 'gpt-4o-realtime-preview', label: 'GPT-4o Realtime Preview' },
-]
-
-const VOICE_PERSONAS = [
-  { value: 'verse', label: 'Verse' },
-  { value: 'alloy', label: 'Alloy' },
-  { value: 'echo', label: 'Echo' },
-  { value: 'fable', label: 'Fable' },
-  { value: 'onyx', label: 'Onyx' },
-  { value: 'nova', label: 'Nova' },
-  { value: 'shimmer', label: 'Shimmer' },
-]
+const DEFAULT_STT_MODEL = 'nova-3'
+const DEFAULT_TTS_MODEL = 'aura-2-thalia-en'
+const DEFAULT_TTS_VOICE = ''
 
 const LOCALES = [
   { value: 'en-US', label: 'English (US)' },
@@ -54,8 +43,9 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   const createTwilioNumber = useMutation(api.twilioNumbers.create)
   const deleteTwilioNumber = useMutation(api.twilioNumbers.remove)
 
-  const [voiceModel, setVoiceModel] = useState('gpt-4o-realtime-preview')
-  const [voiceName, setVoiceName] = useState('verse')
+  const [sttModel, setSttModel] = useState(DEFAULT_STT_MODEL)
+  const [ttsModel, setTtsModel] = useState(DEFAULT_TTS_MODEL)
+  const [ttsVoice, setTtsVoice] = useState(DEFAULT_TTS_VOICE)
   const [locale, setLocale] = useState('en-US')
   const [bargeInEnabled, setBargeInEnabled] = useState(true)
 
@@ -70,8 +60,9 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
 
   useEffect(() => {
     if (voiceAgent) {
-      setVoiceModel(voiceAgent.voiceModel)
-      setVoiceName(voiceAgent.voiceName || 'verse')
+      setSttModel(voiceAgent.sttModel || DEFAULT_STT_MODEL)
+      setTtsModel(voiceAgent.ttsModel || DEFAULT_TTS_MODEL)
+      setTtsVoice(voiceAgent.ttsVoice || DEFAULT_TTS_VOICE)
       setLocale(voiceAgent.locale)
       setBargeInEnabled(voiceAgent.bargeInEnabled)
     }
@@ -84,11 +75,15 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
     setSuccessMessage(null)
 
     try {
+      const normalizedTtsVoice = ttsVoice.trim() ? ttsVoice.trim() : undefined
       if (voiceAgent) {
         await updateVoiceAgent({
           id: voiceAgent._id,
-          voiceModel,
-          voiceName,
+          sttProvider: 'deepgram',
+          ttsProvider: 'deepgram',
+          sttModel,
+          ttsModel,
+          ttsVoice: normalizedTtsVoice,
           locale,
           bargeInEnabled,
         })
@@ -96,8 +91,11 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
         await createVoiceAgent({
           tenantId: tenant.id as Id<'tenants'>,
           agentId: agentDbId,
-          voiceModel,
-          voiceName,
+          sttProvider: 'deepgram',
+          ttsProvider: 'deepgram',
+          sttModel,
+          ttsModel,
+          ttsVoice: normalizedTtsVoice,
           locale,
           bargeInEnabled,
           enabled: true,
@@ -192,38 +190,44 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="voiceModel" className="block text-sm font-medium text-gray-900">
-                  Model
+                <label htmlFor="sttModel" className="block text-sm font-medium text-gray-900">
+                  STT Model
                 </label>
-                <select
-                  id="voiceModel"
-                  value={voiceModel}
-                  onChange={(e) => setVoiceModel(e.target.value)}
+                <input
+                  id="sttModel"
+                  value={sttModel}
+                  onChange={(e) => setSttModel(e.target.value)}
+                  placeholder={DEFAULT_STT_MODEL}
                   className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                >
-                  {VOICE_MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
+                />
               </div>
               <div>
-                <label htmlFor="voiceName" className="block text-sm font-medium text-gray-900">
-                  Voice
+                <label htmlFor="ttsModel" className="block text-sm font-medium text-gray-900">
+                  TTS Model
                 </label>
-                <select
-                  id="voiceName"
-                  value={voiceName}
-                  onChange={(e) => setVoiceName(e.target.value)}
+                <input
+                  id="ttsModel"
+                  value={ttsModel}
+                  onChange={(e) => setTtsModel(e.target.value)}
+                  placeholder={DEFAULT_TTS_MODEL}
                   className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                >
-                  {VOICE_PERSONAS.map((v) => (
-                    <option key={v.value} value={v.value}>{v.label}</option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="ttsVoice" className="block text-sm font-medium text-gray-900">
+                  TTS Voice
+                </label>
+                <input
+                  id="ttsVoice"
+                  value={ttsVoice}
+                  onChange={(e) => setTtsVoice(e.target.value)}
+                  placeholder="Optional voice override"
+                  className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                />
+              </div>
               <div>
                 <label htmlFor="locale" className="block text-sm font-medium text-gray-900">
                   Locale

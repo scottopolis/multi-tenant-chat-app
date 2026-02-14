@@ -86,7 +86,7 @@ VITE_AGENT_ID=default
 - ✅ Agent routing via query parameters (MVP multi-tenancy)
 - ✅ MCP (Model Context Protocol) server integration via HTTP
 - ✅ Embeddable widget with customizable launcher
-- ✅ Voice agents via Twilio + OpenAI Realtime API
+- ✅ Voice agents via Twilio + Deepgram STT/TTS
 - ✅ Comprehensive test coverage (unit + E2E)
 - 🚧 Authentication (placeholder)
 - 🚧 Persistent storage (in-memory for now)
@@ -193,7 +193,7 @@ See [docs/widget.md](./docs/widget.md) for architecture and security details, or
 
 ## Voice Agents
 
-Voice agents allow users to interact with your AI assistant via phone calls using Twilio and OpenAI's Realtime API.
+Voice agents allow users to interact with your AI assistant via phone calls using Twilio and Deepgram STT/TTS, with any LLM for reasoning.
 
 **Quick Setup:**
 
@@ -206,13 +206,15 @@ Voice agents allow users to interact with your AI assistant via phone calls usin
 
 | Setting | Options |
 |---------|---------|
-| Voice | verse, alloy, echo, fable, onyx, nova, shimmer |
+| STT Model | Deepgram STT model (e.g., `nova-3`) |
+| TTS Model | Deepgram TTS model (e.g., `aura-2-*`) |
+| TTS Voice | Optional Deepgram voice override |
 | Locale | en-US, en-GB, es-ES, fr-FR, de-DE, and more |
 | Barge-in | Allow callers to interrupt the AI |
 
 **Web Preview:** Test voice agents directly in the browser without a phone number via the Dashboard's Voice Preview feature.
 
-See [docs/voice-agents.md](./docs/voice-agents.md) for complete setup and configuration guide.
+See [docs/voice-agents.md](./docs/voice-agents.md) for complete setup and configuration guide, and [docs/deepgram-voice.md](./docs/deepgram-voice.md) for Deepgram-specific details.
 
 ## Architecture
 
@@ -259,4 +261,3 @@ See [docs/development.md](./docs/development.md) for development guidelines and 
 ## License
 
 MIT
-

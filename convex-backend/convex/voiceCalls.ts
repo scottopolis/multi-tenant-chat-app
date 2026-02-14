@@ -152,6 +152,9 @@ export const updateUsage = mutation({
     openaiCostUsd: v.optional(v.number()),
     twilioDurationSec: v.optional(v.number()),
     twilioCostUsd: v.optional(v.number()),
+    sttUsageSec: v.optional(v.number()),
+    ttsCharacters: v.optional(v.number()),
+    deepgramCostUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const call = await ctx.db

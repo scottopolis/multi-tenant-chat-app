@@ -94,8 +94,11 @@ export default defineSchema({
   voiceAgents: defineTable({
     tenantId: v.id("tenants"),
     agentId: v.id("agents"),
-    voiceModel: v.string(), // "gpt-4o-realtime-preview"
-    voiceName: v.optional(v.string()), // TTS voice persona: "verse", "alloy", etc.
+    sttProvider: v.string(), // "deepgram"
+    ttsProvider: v.string(), // "deepgram"
+    sttModel: v.string(), // "nova-3" / "nova-3-multilingual"
+    ttsModel: v.string(), // "aura-2"
+    ttsVoice: v.optional(v.string()), // TTS voice persona
     locale: v.string(), // "en-US"
     bargeInEnabled: v.boolean(), // Allow interruptions
     enabled: v.boolean(),
@@ -266,6 +269,9 @@ export default defineSchema({
     openaiCostUsd: v.optional(v.number()),
     twilioDurationSec: v.optional(v.number()),
     twilioCostUsd: v.optional(v.number()),
+    sttUsageSec: v.optional(v.number()),
+    ttsCharacters: v.optional(v.number()),
+    deepgramCostUsd: v.optional(v.number()),
   })
     .index("by_tenant", ["tenantId", "startedAt"])
     .index("by_agent", ["agentId", "startedAt"])

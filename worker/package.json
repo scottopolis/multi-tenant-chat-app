@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.1",
     "@dmitryrechkin/json-schema-to-zod": "^1.0.1",
+    "@deepgram/sdk": "^3.4.2",
     "@openai/agents": "^0.3.7",
     "@openai/agents-extensions": "^0.3.7",
     "@tanstack/ai": "^0.2.2",

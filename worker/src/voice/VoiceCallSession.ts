@@ -1,11 +1,11 @@
 import { DurableObject } from 'cloudflare:workers';
-import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
-import { TwilioRealtimeTransportLayer } from '@openai/agents-extensions';
 import { convexQuery, convexMutation } from '../convex/client';
-import { getTools } from '../tools';
+import { DeepgramVoicePipeline, base64ToUint8Array, uint8ArrayToBase64 } from './deepgramPipeline';
 
 export interface VoiceCallSessionEnv {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
+  OPENROUTER_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   CONVEX_URL: string;
 }
 
@@ -16,8 +16,11 @@ export interface VoiceConfig {
   agentId?: string; // String identifier used for tool lookup (optional for fallback)
   voiceAgentId: string;
   phoneNumber: string;
-  voiceModel: string;
-  voiceName?: string;
+  sttProvider: string;
+  ttsProvider: string;
+  sttModel: string;
+  ttsModel: string;
+  ttsVoice?: string;
   locale: string;
   bargeInEnabled: boolean;
   agentName: string;
@@ -25,8 +28,11 @@ export interface VoiceConfig {
 }
 
 const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | 'agentDbId' | 'voiceAgentId' | 'phoneNumber'> = {
-  voiceModel: 'gpt-4o-realtime-preview',
-  voiceName: 'verse',
+  sttProvider: 'deepgram',
+  ttsProvider: 'deepgram',
+  sttModel: 'nova-3',
+  ttsModel: 'aura-2-thalia-en',
+  ttsVoice: undefined,
   locale: 'en-US',
   bargeInEnabled: true,
   agentName: 'Voice Assistant',
@@ -34,11 +40,11 @@ const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | '
 };
 
 export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
-  private session?: RealtimeSession;
   private callSid?: string;
   private numberId?: string;
-  private voiceConfig?: VoiceConfig;
-  private twilioTransport?: TwilioRealtimeTransportLayer;
+  private twilioSocket?: WebSocket;
+  private streamSid?: string;
+  private pipeline?: DeepgramVoicePipeline;
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -59,6 +65,7 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
     this.ctx.acceptWebSocket(server);
+    this.twilioSocket = server;
 
     console.log(`[VoiceCallSession] Accepted WebSocket for callSid=${this.callSid}, numberId=${this.numberId}`);
 
@@ -66,29 +73,49 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (!this.twilioTransport && typeof message === 'string') {
-      try {
-        const parsed = JSON.parse(message);
-        if (parsed.event === 'connected' || parsed.event === 'start') {
-          console.log(`[VoiceCallSession] Received Twilio ${parsed.event} event, initializing session`);
-          await this.initializeSession(ws);
+    if (typeof message !== 'string') {
+      return;
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(message);
+    } catch {
+      return;
+    }
+
+    if (parsed.event === 'start') {
+      this.streamSid = parsed.start?.streamSid;
+      console.log(`[VoiceCallSession] Received Twilio start event for callSid=${this.callSid}`);
+      if (!this.pipeline) {
+        try {
+          await this.initializeSession();
+        } catch (error) {
+          console.error('[VoiceCallSession] Failed to initialize Deepgram pipeline:', error);
         }
-      } catch {
-        // Not JSON, ignore
       }
+      return;
+    }
+
+    if (parsed.event === 'media' && this.pipeline) {
+      const payload = parsed.media?.payload as string | undefined;
+      if (payload) {
+        const audio = base64ToUint8Array(payload);
+        this.pipeline.handleAudio(audio);
+      }
+      return;
+    }
+
+    if (parsed.event === 'stop') {
+      console.log(`[VoiceCallSession] Received Twilio stop event for callSid=${this.callSid}`);
+      await this.cleanup();
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
     console.log(`[VoiceCallSession] WebSocket closed: code=${code}, reason=${reason}, callSid=${this.callSid}`);
 
-    if (this.session) {
-      try {
-        this.twilioTransport?.close();
-      } catch (error) {
-        console.error('[VoiceCallSession] Error closing session:', error);
-      }
-    }
+    await this.cleanup();
 
     // Update call status to completed
     if (this.callSid && this.env.CONVEX_URL) {
@@ -106,6 +133,7 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error('[VoiceCallSession] WebSocket error:', error);
+    await this.cleanup();
 
     // Update call status to failed
     if (this.callSid && this.env.CONVEX_URL) {
@@ -120,46 +148,46 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     }
   }
 
-  private async initializeSession(twilioSocket: WebSocket): Promise<void> {
+  private async initializeSession(): Promise<void> {
     // Load voice config from Convex
     const config = await this.loadVoiceConfig();
 
-    // Load tools for the agent
-    const tools = config.agentId 
-      ? await getTools(config.agentId, { CONVEX_URL: this.env.CONVEX_URL }, { 
-          convexUrl: this.env.CONVEX_URL 
-        })
-      : [];
+    if (!this.twilioSocket) {
+      throw new Error('Missing Twilio socket');
+    }
 
-    const agent = new RealtimeAgent({
-      name: config.agentName,
-      instructions: config.systemPrompt,
-      tools,
-    });
-
-    this.twilioTransport = new TwilioRealtimeTransportLayer({
-      twilioWebSocket: twilioSocket as any,
-    });
-
-    this.session = new RealtimeSession(agent, {
-      transport: this.twilioTransport,
-      model: config.voiceModel as 'gpt-4o-realtime-preview',
+    this.pipeline = new DeepgramVoicePipeline({
       config: {
-        audio: {
-          output: { voice: (config.voiceName || 'verse') as 'verse' },
-        },
+        agentId: config.agentId,
+        agentName: config.agentName,
+        systemPrompt: config.systemPrompt,
+        locale: config.locale,
+        bargeInEnabled: config.bargeInEnabled,
+        sttModel: config.sttModel,
+        ttsModel: config.ttsModel,
+        ttsVoice: config.ttsVoice,
       },
+      env: {
+        DEEPGRAM_API_KEY: this.env.DEEPGRAM_API_KEY,
+        OPENROUTER_API_KEY: this.env.OPENROUTER_API_KEY,
+        OPENAI_API_KEY: this.env.OPENAI_API_KEY,
+        CONVEX_URL: this.env.CONVEX_URL,
+      },
+      input: {
+        encoding: 'mulaw',
+        sampleRate: 8000,
+      },
+      output: {
+        encoding: 'mulaw',
+        sampleRate: 8000,
+      },
+      onAudio: (audio) => this.sendTwilioAudio(audio),
+      onInterrupt: () => this.sendTwilioInterrupt(),
     });
 
-    this.session.on('error', (error) => {
-      console.error('[VoiceCallSession] Session error:', error);
-    });
+    await this.pipeline.start();
 
-    await this.session.connect({
-      apiKey: this.env.OPENAI_API_KEY,
-    });
-
-    console.log(`[VoiceCallSession] Connected to OpenAI Realtime API for callSid=${this.callSid}`);
+    console.log(`[VoiceCallSession] Deepgram pipeline started for callSid=${this.callSid}`);
   }
 
   private async loadVoiceConfig(): Promise<typeof FALLBACK_CONFIG & Partial<VoiceConfig>> {
@@ -181,7 +209,6 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
         return FALLBACK_CONFIG;
       }
 
-      this.voiceConfig = config;
       console.log(`[VoiceCallSession] Loaded voice config for agent: ${config.agentName}`);
 
       return {
@@ -192,5 +219,45 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
       console.error('[VoiceCallSession] Failed to load voice config:', error);
       return FALLBACK_CONFIG;
     }
+  }
+
+  private async cleanup(): Promise<void> {
+    if (this.pipeline) {
+      try {
+        const usage = this.pipeline.getUsage();
+        if (this.callSid && this.env.CONVEX_URL) {
+          await convexMutation(this.env.CONVEX_URL, 'voiceCalls:updateUsage', {
+            twilioCallSid: this.callSid,
+            sttUsageSec: Math.round(usage.sttUsageSec),
+            ttsCharacters: usage.ttsCharacters,
+          });
+        }
+        await this.pipeline.stop();
+      } catch (error) {
+        console.error('[VoiceCallSession] Error during pipeline cleanup:', error);
+      }
+    }
+    this.pipeline = undefined;
+  }
+
+  private sendTwilioAudio(audio: ArrayBuffer): void {
+    if (!this.twilioSocket || !this.streamSid) return;
+    const payload = uint8ArrayToBase64(new Uint8Array(audio));
+    const message = JSON.stringify({
+      event: 'media',
+      streamSid: this.streamSid,
+      media: { payload },
+    });
+    this.twilioSocket.send(message);
+  }
+
+  private sendTwilioInterrupt(): void {
+    if (!this.twilioSocket || !this.streamSid) return;
+    this.twilioSocket.send(
+      JSON.stringify({
+        event: 'clear',
+        streamSid: this.streamSid,
+      })
+    );
   }
 }

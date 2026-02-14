@@ -43,8 +43,11 @@ export const getByPhoneNumber = query({
       voiceAgentId: twilioNumber.voiceAgentId,
       phoneNumber: twilioNumber.phoneNumber,
       // Voice config
-      voiceModel: voiceAgent.voiceModel,
-      voiceName: voiceAgent.voiceName,
+      sttProvider: voiceAgent.sttProvider,
+      ttsProvider: voiceAgent.ttsProvider,
+      sttModel: voiceAgent.sttModel,
+      ttsModel: voiceAgent.ttsModel,
+      ttsVoice: voiceAgent.ttsVoice,
       locale: voiceAgent.locale,
       bargeInEnabled: voiceAgent.bargeInEnabled,
       // Agent config
