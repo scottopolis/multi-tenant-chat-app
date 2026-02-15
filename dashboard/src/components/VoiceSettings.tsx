@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useState, useEffect } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../convex-backend/convex/_generated/api'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
@@ -76,6 +76,8 @@ export const VoiceSettings = forwardRef<VoiceSettingsHandle, VoiceSettingsProps>
     locale: string
     bargeInEnabled: boolean
   } | null>(null)
+  const hasInitialized = useRef(false)
+  const lastAgentId = useRef<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -101,6 +103,9 @@ export const VoiceSettings = forwardRef<VoiceSettingsHandle, VoiceSettingsProps>
 
   useEffect(() => {
     if (voiceAgent === undefined) return
+    const agentId = voiceAgent?._id ?? null
+    if (hasInitialized.current && lastAgentId.current === agentId) return
+
     const next = normalizeSettings({
       sttModel: voiceAgent?.sttModel,
       ttsModel: voiceAgent?.ttsModel,
@@ -108,21 +113,16 @@ export const VoiceSettings = forwardRef<VoiceSettingsHandle, VoiceSettingsProps>
       locale: voiceAgent?.locale,
       bargeInEnabled: voiceAgent?.bargeInEnabled,
     })
-    const shouldSync =
-      !lastSaved ||
-      next.sttModel !== lastSaved.sttModel ||
-      next.ttsModel !== lastSaved.ttsModel ||
-      next.ttsVoice !== lastSaved.ttsVoice ||
-      next.locale !== lastSaved.locale ||
-      next.bargeInEnabled !== lastSaved.bargeInEnabled
-    if (!shouldSync) return
+
     setSttModel(next.sttModel)
     setTtsModel(next.ttsModel)
     setTtsVoice(next.ttsVoice)
     setLocale(next.locale)
     setBargeInEnabled(next.bargeInEnabled)
     setLastSaved(next)
-  }, [lastSaved, voiceAgent])
+    hasInitialized.current = true
+    lastAgentId.current = agentId
+  }, [voiceAgent])
 
   useEffect(() => {
     if (!onDirtyChange || !lastSaved) return

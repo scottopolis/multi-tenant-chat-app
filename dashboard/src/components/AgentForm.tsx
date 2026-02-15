@@ -84,6 +84,55 @@ const TAB_TO_SECTION: Record<Tab, string> = {
   Embed: SECTION_IDS.embed,
 }
 
+function Section({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="rounded-xl border border-gray-200 bg-white p-6 space-y-6">
+      <div>
+        <h3 className="text-base font-medium text-gray-900">{title}</h3>
+        {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function CollapsibleSection({
+  id,
+  title,
+  description,
+  children,
+  defaultOpen = true,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  return (
+    <details id={id} className="group rounded-xl border border-gray-200 bg-white" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+        <div>
+          <p className="text-base font-medium text-gray-900">{title}</p>
+          {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
+        </div>
+        <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-gray-200 px-6 py-6 space-y-6">{children}</div>
+    </details>
+  )
+}
+
 export function AgentForm({
   initialData,
   onSubmit: onSubmitForm,
@@ -245,51 +294,6 @@ export function AgentForm({
 
   const invalidFieldPaths = collectFieldPaths(errors)
   const hasInvalidPaths = invalidFieldPaths.length > 0
-
-  const Section = ({
-    id,
-    title,
-    description,
-    children,
-  }: {
-    id: string
-    title: string
-    description?: string
-    children: ReactNode
-  }) => (
-    <section id={id} className="rounded-xl border border-gray-200 bg-white p-6 space-y-6">
-      <div>
-        <h3 className="text-base font-medium text-gray-900">{title}</h3>
-        {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-      </div>
-      {children}
-    </section>
-  )
-
-  const CollapsibleSection = ({
-    id,
-    title,
-    description,
-    children,
-    defaultOpen = true,
-  }: {
-    id: string
-    title: string
-    description?: string
-    children: ReactNode
-    defaultOpen?: boolean
-  }) => (
-    <details id={id} className="group rounded-xl border border-gray-200 bg-white" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
-        <div>
-          <p className="text-base font-medium text-gray-900">{title}</p>
-          {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-        </div>
-        <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="border-t border-gray-200 px-6 py-6 space-y-6">{children}</div>
-    </details>
-  )
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
