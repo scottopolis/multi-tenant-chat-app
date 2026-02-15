@@ -54,8 +54,8 @@ const MODELS = [
   { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
   { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
   { value: 'llama-4-scout', label: 'Llama 4 Scout' },
   { value: 'deepseek-v3', label: 'DeepSeek V3' },
@@ -97,11 +97,17 @@ export function AgentForm({
 }: AgentFormProps) {
   const [error, setError] = useState<string | null>(null)
 
+  const isEmptyMcpServer = (server?: Partial<McpServer> | null) => {
+    const url = server?.url?.trim() ?? ''
+    const authHeader = server?.authHeader?.trim() ?? ''
+    return url.length === 0 && authHeader.length === 0
+  }
+
   const buildDefaultValues = (data?: Partial<AgentFormData>): AgentFormValues => ({
     name: data?.name ?? '',
     systemPrompt: data?.systemPrompt ?? '',
     model: data?.model ?? 'gpt-4.1-mini',
-    mcpServers: data?.mcpServers ?? [],
+    mcpServers: (data?.mcpServers ?? []).filter((server) => !isEmptyMcpServer(server)),
     outputSchema: data?.outputSchema ?? '',
     langfuse: data?.langfuse ?? {},
     allowedDomains: data?.allowedDomains ?? ['*'],
@@ -114,6 +120,7 @@ export function AgentForm({
     handleSubmit,
     watch,
     reset,
+    getValues,
     formState: { errors, isDirty, isValid, dirtyFields, isSubmitting: isFormSubmitting },
   } = useForm<AgentFormValues>({
     defaultValues: buildDefaultValues(initialData),
@@ -167,12 +174,12 @@ export function AgentForm({
   const handleFormSubmit = async (values: AgentFormValues) => {
     setError(null)
 
-    const parsedDomains = values.allowedDomainsInput
+    const parsedDomains = (values.allowedDomainsInput ?? '')
       .split(/[\n,]/)
       .map((domain) => domain.trim())
       .filter((domain) => domain.length > 0)
 
-    const cleanedServers = values.mcpServers
+    const cleanedServers = (values.mcpServers ?? [])
       .map((server) => ({
         url: server.url.trim(),
         authHeader: server.authHeader?.trim() || undefined,
@@ -197,6 +204,13 @@ export function AgentForm({
 
   const addMcpServer = () => {
     append({ url: '', authHeader: '', transport: 'http' })
+  }
+
+  const pruneEmptyServer = (index: number) => {
+    const row = getValues(`mcpServers.${index}`)
+    if (isEmptyMcpServer(row)) {
+      remove(index)
+    }
   }
 
   const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -281,7 +295,7 @@ export function AgentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8 pb-28">
+    <form onSubmit={handleSubmit(handleFormSubmit)} noValidate className="space-y-8 pb-28">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-700 text-sm">{error}</p>
@@ -390,34 +404,41 @@ export function AgentForm({
                       </button>
                     </div>
                     <div>
-                      <input
-                        type="url"
-                        defaultValue={server.url}
-                        {...register(`mcpServers.${index}.url`, {
-                          required: 'Server URL is required',
-                          validate: (value) =>
-                            value.trim().length > 0 || 'Server URL is required',
-                        })}
-                        placeholder="https://mcp-server.example.com"
-                        className={`block w-full rounded-lg border bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm ${
-                          errors.mcpServers?.[index]?.url ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {errors.mcpServers?.[index]?.url && (
-                        <p className="mt-2 text-sm text-red-600">
-                          {errors.mcpServers?.[index]?.url?.message}
-                        </p>
-                      )}
+                      {(() => {
+                        const urlField = register(`mcpServers.${index}.url`)
+                        return (
+                          <input
+                            type="url"
+                            defaultValue={server.url}
+                            {...urlField}
+                            onBlur={(event) => {
+                              urlField.onBlur(event)
+                              pruneEmptyServer(index)
+                            }}
+                            placeholder="https://mcp-server.example.com"
+                            className="block w-full rounded-lg border bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm border-gray-300"
+                          />
+                        )
+                      })()}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <input
-                          type="text"
-                          defaultValue={server.authHeader ?? ''}
-                          {...register(`mcpServers.${index}.authHeader`)}
-                          placeholder="Authorization header (optional)"
-                          className="block w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                        />
+                        {(() => {
+                          const authField = register(`mcpServers.${index}.authHeader`)
+                          return (
+                            <input
+                              type="text"
+                              defaultValue={server.authHeader ?? ''}
+                              {...authField}
+                              onBlur={(event) => {
+                                authField.onBlur(event)
+                                pruneEmptyServer(index)
+                              }}
+                              placeholder="Authorization header (optional)"
+                              className="block w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                            />
+                          )
+                        })()}
                       </div>
                       <div>
                         <select
@@ -678,7 +699,7 @@ export function AgentForm({
             </button>
             <button
               type="submit"
-              disabled={isBusy || !isDirty || hasInvalidPaths}
+              disabled={isBusy || !isDirty}
               className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isBusy ? 'Saving...' : submitLabel}

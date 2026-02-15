@@ -55,6 +55,11 @@ export class DeepgramVoicePipeline {
   private sttReady = false;
   private pendingAudio: Uint8Array[] = [];
   private lastTranscript = '';
+  private sttAudioInFlight = false;
+  private sttAudioStartAt: number | null = null;
+  private sttFirstTranscriptAt: number | null = null;
+  private sttUtteranceId = 0;
+  private sttActiveUtteranceId: number | null = null;
 
   constructor(options: DeepgramVoicePipelineOptions) {
     this.config = options.config;
@@ -98,7 +103,17 @@ export class DeepgramVoicePipeline {
 
     this.sttConnection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
       const transcript = data?.channel?.alternatives?.[0]?.transcript?.trim();
+      const now = Date.now();
       if (transcript) {
+        if (!this.sttFirstTranscriptAt) {
+          this.sttFirstTranscriptAt = now;
+          if (this.sttAudioStartAt) {
+            console.log(
+              `[DeepgramPipeline] STT first transcript latency ms=${now - this.sttAudioStartAt} ` +
+                `utteranceId=${this.sttActiveUtteranceId ?? this.sttUtteranceId + 1}`
+            );
+          }
+        }
         console.log(
           `[DeepgramPipeline] Transcript${data.is_final ? ' (final)' : ''}: ${transcript}`
         );
@@ -111,12 +126,18 @@ export class DeepgramVoicePipeline {
         return;
       }
 
-      if (!data.is_final && this.config.bargeInEnabled && this.isSpeaking) {
-        this.interrupt();
-      }
-
       if (data.is_final) {
+        if (this.config.bargeInEnabled && this.isSpeaking) {
+          this.interrupt();
+        }
         this.lastTranscript = '';
+        if (this.sttFirstTranscriptAt) {
+          console.log(
+            `[DeepgramPipeline] STT final latency ms=${now - this.sttFirstTranscriptAt} ` +
+              `utteranceId=${this.sttActiveUtteranceId ?? this.sttUtteranceId + 1} ` +
+              `chars=${transcript.length}`
+          );
+        }
         this.enqueueTranscript(transcript);
         return;
       }
@@ -125,11 +146,22 @@ export class DeepgramVoicePipeline {
     });
 
     this.sttConnection.on(LiveTranscriptionEvents.UtteranceEnd, () => {
+      const now = Date.now();
       if (this.isSpeaking && !this.config.bargeInEnabled) {
         this.lastTranscript = '';
         return;
       }
       if (this.lastTranscript) {
+        if (this.config.bargeInEnabled && this.isSpeaking) {
+          this.interrupt();
+        }
+        if (this.sttFirstTranscriptAt) {
+          console.log(
+            `[DeepgramPipeline] STT utterance end latency ms=${now - this.sttFirstTranscriptAt} ` +
+              `utteranceId=${this.sttActiveUtteranceId ?? this.sttUtteranceId + 1} ` +
+              `chars=${this.lastTranscript.length}`
+          );
+        }
         this.enqueueTranscript(this.lastTranscript);
         this.lastTranscript = '';
       }
@@ -150,6 +182,12 @@ export class DeepgramVoicePipeline {
       return;
     }
     this.sttAudioBytes += data.byteLength;
+    if (!this.sttAudioInFlight) {
+      this.sttAudioInFlight = true;
+      this.sttAudioStartAt = Date.now();
+      this.sttFirstTranscriptAt = null;
+      this.sttActiveUtteranceId = this.sttUtteranceId + 1;
+    }
     if (!this.sttReady) {
       this.pendingAudio.push(data);
       return;
@@ -206,7 +244,13 @@ export class DeepgramVoicePipeline {
   }
 
   private enqueueTranscript(transcript: string): void {
+    if (this.sttActiveUtteranceId) {
+      this.sttUtteranceId = this.sttActiveUtteranceId;
+    } else {
+      this.sttUtteranceId += 1;
+    }
     this.queue.push(transcript);
+    this.resetSttPerf();
     void this.processQueue();
   }
 
@@ -219,24 +263,21 @@ export class DeepgramVoicePipeline {
       if (!transcript) continue;
 
       const currentResponseId = ++this.responseId;
-      const response = await this.generateResponse(transcript, currentResponseId);
-      if (!response || this.responseId !== currentResponseId) {
-        continue;
-      }
-
-      await this.speakResponse(response, currentResponseId);
+      await this.generateAndSpeakStreaming(transcript, currentResponseId);
     }
 
     this.processing = false;
   }
 
-  private async generateResponse(userText: string, responseId: number): Promise<string> {
+  private async generateAndSpeakStreaming(userText: string, responseId: number): Promise<void> {
     const apiKey = this.env.OPENROUTER_API_KEY || this.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.error('[DeepgramPipeline] Missing OPENROUTER_API_KEY or OPENAI_API_KEY for LLM');
-      return '';
+      return;
     }
     console.log(`[DeepgramPipeline] Generating response for: ${userText}`);
+    const llmStart = Date.now();
+    let llmFirstTokenAt: number | null = null;
 
     const messages = [...this.history, { role: 'user' as const, content: userText }];
 
@@ -249,35 +290,54 @@ export class DeepgramVoicePipeline {
       },
     });
 
-    let content = '';
-    for await (const chunk of stream) {
-      if (this.responseId !== responseId) {
-        return '';
-      }
-      if (chunk.type === 'content' && chunk.delta) {
-        content += chunk.delta;
-      }
-    }
-
-    console.log(`[DeepgramPipeline] LLM response length: ${content.length}`);
-    if (content) {
-      this.history.push({ role: 'user', content: userText });
-      this.history.push({ role: 'assistant', content });
-    }
-
-    return content;
-  }
-
-  private async speakResponse(text: string, responseId: number): Promise<void> {
-    if (!text) return;
-
     this.isSpeaking = true;
     this.lastTranscript = '';
-    this.ttsCharacters += text.length;
 
     const client = this.deepgram(this.env.DEEPGRAM_API_KEY);
+    const ttsStart = Date.now();
+    let ttsOpenAt: number | null = null;
+    let ttsFirstAudioAt: number | null = null;
+    let sentCharacters = 0;
+    let pendingText = '';
+    const queuedText: string[] = [];
 
-    await new Promise<void>((resolve) => {
+    const sendTextChunk = (text: string) => {
+      if (!text) return;
+      sentCharacters += text.length;
+      if (this.ttsConnection?.sendText) {
+        this.ttsConnection.sendText(text);
+      } else {
+        queuedText.push(text);
+      }
+    };
+
+    const flushPendingText = () => {
+      if (!pendingText) return;
+      sendTextChunk(pendingText);
+      pendingText = '';
+    };
+
+    const flushReadyQueue = () => {
+      if (!this.ttsConnection?.sendText || queuedText.length === 0) return;
+      for (const chunk of queuedText) {
+        this.ttsConnection.sendText(chunk);
+      }
+      queuedText.length = 0;
+    };
+
+    const pickChunkBoundary = (text: string): number => {
+      if (text.length < 80) return -1;
+      const max = Math.min(text.length, 240);
+      const window = text.slice(0, max);
+      const match = window.match(/[\.\?\!]\s|\n/g);
+      if (match && match.length > 0) {
+        const idx = window.lastIndexOf(match[match.length - 1]);
+        if (idx >= 20) return idx + match[match.length - 1].length;
+      }
+      return text.length >= 160 ? 160 : -1;
+    };
+
+    const ttsPromise = new Promise<void>((resolve) => {
       const ttsOptions: Record<string, unknown> = {
         model: this.config.ttsModel,
         encoding: this.output.encoding,
@@ -289,16 +349,19 @@ export class DeepgramVoicePipeline {
       }
 
       const tts = client.speak.live(ttsOptions);
-
       this.ttsConnection = tts;
 
       tts.on(LiveTTSEvents.Open, () => {
+        ttsOpenAt = Date.now();
+        console.log(
+          `[DeepgramPipeline] TTS socket open in ms=${ttsOpenAt - ttsStart} ` +
+            `responseId=${responseId}`
+        );
         if (this.responseId !== responseId) {
           tts.finish?.();
           return;
         }
-        tts.sendText(text);
-        tts.flush();
+        flushReadyQueue();
       });
 
       tts.on(LiveTTSEvents.Audio, (data: unknown) => {
@@ -322,11 +385,24 @@ export class DeepgramVoicePipeline {
             : d.slice().buffer;
         }
         if (audioBuffer && audioBuffer.byteLength > 0) {
+          if (!ttsFirstAudioAt) {
+            ttsFirstAudioAt = Date.now();
+            const base = ttsOpenAt ?? ttsStart;
+            console.log(
+              `[DeepgramPipeline] TTS first audio latency ms=${ttsFirstAudioAt - base} ` +
+                `responseId=${responseId}`
+            );
+          }
           this.onAudio(audioBuffer);
         }
       });
 
       tts.on(LiveTTSEvents.Flushed, () => {
+        const now = Date.now();
+        const base = ttsOpenAt ?? ttsStart;
+        console.log(
+          `[DeepgramPipeline] TTS flushed in ms=${now - base} responseId=${responseId}`
+        );
         if (this.onTtsEnd) {
           this.onTtsEnd();
         }
@@ -339,12 +415,80 @@ export class DeepgramVoicePipeline {
       });
 
       tts.on(LiveTTSEvents.Close, () => {
+        console.log(
+          `[DeepgramPipeline] TTS done in ms=${Date.now() - ttsStart} ` +
+            `responseId=${responseId} chars=${sentCharacters}`
+        );
         resolve();
       });
     });
 
+    let content = '';
+    let cancelled = false;
+    try {
+      for await (const chunk of stream) {
+        if (this.responseId !== responseId) {
+          cancelled = true;
+          break;
+        }
+        if (chunk.type === 'content' && chunk.delta) {
+          if (!llmFirstTokenAt) {
+            llmFirstTokenAt = Date.now();
+            console.log(
+              `[DeepgramPipeline] LLM first token latency ms=${llmFirstTokenAt - llmStart} ` +
+                `responseId=${responseId}`
+            );
+          }
+          content += chunk.delta;
+          pendingText += chunk.delta;
+          const boundary = pickChunkBoundary(pendingText);
+          if (boundary > 0) {
+            sendTextChunk(pendingText.slice(0, boundary));
+            pendingText = pendingText.slice(boundary);
+          }
+        }
+      }
+    } finally {
+      if (cancelled) {
+        this.ttsConnection?.requestClose?.();
+        this.ttsConnection?.finish?.();
+        this.ttsConnection?.close?.();
+      }
+    }
+
+    if (cancelled) {
+      this.isSpeaking = false;
+      this.ttsConnection = undefined;
+      return;
+    }
+
+    if (pendingText) {
+      flushPendingText();
+    }
+
+    console.log(
+      `[DeepgramPipeline] LLM done in ms=${Date.now() - llmStart} ` +
+        `responseId=${responseId} chars=${content.length}`
+    );
+
+    if (content) {
+      this.history.push({ role: 'user', content: userText });
+      this.history.push({ role: 'assistant', content });
+    }
+
+    this.ttsCharacters += sentCharacters;
+    this.ttsConnection?.flush?.();
+    await ttsPromise;
+
     this.isSpeaking = false;
     this.ttsConnection = undefined;
+  }
+
+  private resetSttPerf(): void {
+    this.sttAudioInFlight = false;
+    this.sttAudioStartAt = null;
+    this.sttFirstTranscriptAt = null;
+    this.sttActiveUtteranceId = null;
   }
 }
 

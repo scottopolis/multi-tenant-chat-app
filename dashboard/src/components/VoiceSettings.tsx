@@ -15,54 +15,6 @@ const DEFAULT_STT_MODEL = 'nova-3'
 const DEFAULT_TTS_MODEL = 'aura-2-thalia-en'
 const DEFAULT_TTS_VOICE = ''
 
-const STT_MODEL_OPTIONS = [
-  { value: 'flux-general-en', label: 'flux-general-en (turn-taking STT)' },
-  { value: 'nova-3', label: 'nova-3' },
-  { value: 'nova-3-general', label: 'nova-3-general' },
-  { value: 'nova-3-medical', label: 'nova-3-medical' },
-  { value: 'nova-2', label: 'nova-2' },
-  { value: 'nova-2-general', label: 'nova-2-general' },
-  { value: 'nova-2-meeting', label: 'nova-2-meeting' },
-  { value: 'nova-2-phonecall', label: 'nova-2-phonecall' },
-  { value: 'nova-2-finance', label: 'nova-2-finance' },
-  { value: 'nova-2-conversationalai', label: 'nova-2-conversationalai' },
-  { value: 'nova-2-voicemail', label: 'nova-2-voicemail' },
-  { value: 'nova-2-video', label: 'nova-2-video' },
-  { value: 'nova-2-medical', label: 'nova-2-medical' },
-  { value: 'nova-2-drivethru', label: 'nova-2-drivethru' },
-  { value: 'nova-2-automotive', label: 'nova-2-automotive' },
-  { value: 'nova-2-atc', label: 'nova-2-atc' },
-  { value: 'nova', label: 'nova (legacy)' },
-  { value: 'nova-general', label: 'nova-general (legacy)' },
-  { value: 'nova-phonecall', label: 'nova-phonecall (legacy)' },
-  { value: 'nova-medical', label: 'nova-medical (legacy)' },
-  { value: 'enhanced', label: 'enhanced (legacy)' },
-  { value: 'enhanced-general', label: 'enhanced-general (legacy)' },
-  { value: 'enhanced-meeting', label: 'enhanced-meeting (legacy)' },
-  { value: 'enhanced-phonecall', label: 'enhanced-phonecall (legacy)' },
-  { value: 'enhanced-finance', label: 'enhanced-finance (legacy)' },
-  { value: 'base', label: 'base (legacy)' },
-  { value: 'base-general', label: 'base-general (legacy)' },
-  { value: 'base-meeting', label: 'base-meeting (legacy)' },
-  { value: 'base-phonecall', label: 'base-phonecall (legacy)' },
-  { value: 'base-finance', label: 'base-finance (legacy)' },
-  { value: 'base-conversationalai', label: 'base-conversationalai (legacy)' },
-  { value: 'base-voicemail', label: 'base-voicemail (legacy)' },
-  { value: 'base-video', label: 'base-video (legacy)' },
-]
-
-const TTS_MODEL_OPTIONS = [
-  { value: 'aura-2-thalia-en', label: 'aura-2-thalia-en (featured)' },
-  { value: 'aura-2-andromeda-en', label: 'aura-2-andromeda-en (featured)' },
-  { value: 'aura-2-helena-en', label: 'aura-2-helena-en (featured)' },
-  { value: 'aura-2-apollo-en', label: 'aura-2-apollo-en (featured)' },
-  { value: 'aura-2-arcas-en', label: 'aura-2-arcas-en (featured)' },
-  { value: 'aura-2-aries-en', label: 'aura-2-aries-en (featured)' },
-  { value: 'aura-2-celeste-es', label: 'aura-2-celeste-es (featured)' },
-  { value: 'aura-2-estrella-es', label: 'aura-2-estrella-es (featured)' },
-  { value: 'aura-2-nestor-es', label: 'aura-2-nestor-es (featured)' },
-]
-
 const TTS_VOICE_OPTIONS = [
   { value: 'thalia', label: 'Thalia', model: 'aura-2-thalia-en' },
   { value: 'andromeda', label: 'Andromeda', model: 'aura-2-andromeda-en' },
@@ -109,7 +61,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   const [ttsVoice, setTtsVoice] = useState(DEFAULT_TTS_VOICE)
   const [locale, setLocale] = useState('en-US')
   const [bargeInEnabled, setBargeInEnabled] = useState(true)
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -316,90 +267,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                 </label>
               </div>
             </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((prev) => !prev)}
-                className="text-sm text-gray-700 hover:text-gray-900"
-              >
-                {showAdvanced ? 'Hide advanced model settings' : 'Show advanced model settings'}
-              </button>
-            </div>
-
-            {showAdvanced && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="sttModel" className="block text-sm font-medium text-gray-900">
-                    STT Model
-                  </label>
-                  <input
-                    id="sttModel"
-                    value={sttModel}
-                    onChange={(e) => setSttModel(e.target.value)}
-                    list="stt-model-options"
-                    placeholder={DEFAULT_STT_MODEL}
-                    className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  />
-                  <datalist id="stt-model-options">
-                    {STT_MODEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </datalist>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Choose a Deepgram STT model or type a custom model string.
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="ttsModel" className="block text-sm font-medium text-gray-900">
-                    TTS Model
-                  </label>
-                  <input
-                    id="ttsModel"
-                    value={ttsModel}
-                    onChange={(e) => setTtsModel(e.target.value)}
-                    list="tts-model-options"
-                    placeholder={DEFAULT_TTS_MODEL}
-                    className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  />
-                  <datalist id="tts-model-options">
-                    {TTS_MODEL_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </datalist>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Aura model names include the voice. You can also type any valid Deepgram TTS model.
-                  </p>
-                </div>
-                <div>
-                  <label htmlFor="ttsVoice" className="block text-sm font-medium text-gray-900">
-                    TTS Voice Override (optional)
-                  </label>
-                  <input
-                    id="ttsVoice"
-                    value={ttsVoice}
-                    onChange={(e) => setTtsVoice(e.target.value)}
-                    list="tts-voice-options"
-                    placeholder="Leave blank to use the model's default voice"
-                    className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  />
-                  <datalist id="tts-voice-options">
-                    {TTS_VOICE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </datalist>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Only set this if your TTS model supports a separate voice parameter.
-                  </p>
-                </div>
-              </div>
-            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button
