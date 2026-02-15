@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { forwardRef, useImperativeHandle, useState, useEffect } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../convex-backend/convex/_generated/api'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
@@ -6,9 +6,14 @@ import { useTenant } from '../lib/tenant'
 import { VoicePreview } from './VoicePreview'
 import { getWorkerHost } from '../lib/workerHost'
 
+export interface VoiceSettingsHandle {
+  save: () => Promise<void>
+}
+
 interface VoiceSettingsProps {
   agentId: string
   agentDbId: Id<'agents'>
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 const DEFAULT_STT_MODEL = 'nova-3'
@@ -41,7 +46,10 @@ const LOCALES = [
   { value: 'zh-CN', label: 'Chinese (Simplified)' },
 ]
 
-export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsProps) {
+export const VoiceSettings = forwardRef<VoiceSettingsHandle, VoiceSettingsProps>(function VoiceSettings(
+  { agentId: _agentId, agentDbId, onDirtyChange },
+  ref
+) {
   void _agentId
   const { tenant } = useTenant()
 
@@ -61,8 +69,14 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   const [ttsVoice, setTtsVoice] = useState(DEFAULT_TTS_VOICE)
   const [locale, setLocale] = useState('en-US')
   const [bargeInEnabled, setBargeInEnabled] = useState(true)
+  const [lastSaved, setLastSaved] = useState<{
+    sttModel: string
+    ttsModel: string
+    ttsVoice: string
+    locale: string
+    bargeInEnabled: boolean
+  } | null>(null)
 
-  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -71,27 +85,64 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
   const [newDescription, setNewDescription] = useState('')
   const [isAddingNumber, setIsAddingNumber] = useState(false)
 
-  useEffect(() => {
-    if (voiceAgent) {
-      setSttModel(voiceAgent.sttModel || DEFAULT_STT_MODEL)
-      setTtsModel(voiceAgent.ttsModel || DEFAULT_TTS_MODEL)
-      setTtsVoice(voiceAgent.ttsVoice || DEFAULT_TTS_VOICE)
-      setLocale(voiceAgent.locale)
-      setBargeInEnabled(voiceAgent.bargeInEnabled)
-    }
-  }, [voiceAgent])
+  const normalizeSettings = (settings: {
+    sttModel?: string
+    ttsModel?: string
+    ttsVoice?: string
+    locale?: string
+    bargeInEnabled?: boolean
+  }) => ({
+    sttModel: settings.sttModel || DEFAULT_STT_MODEL,
+    ttsModel: settings.ttsModel || DEFAULT_TTS_MODEL,
+    ttsVoice: (settings.ttsVoice || DEFAULT_TTS_VOICE).trim(),
+    locale: settings.locale || 'en-US',
+    bargeInEnabled: settings.bargeInEnabled ?? true,
+  })
 
-  const selectedVoice = useMemo(() => {
-    const byModel = TTS_VOICE_OPTIONS.find((option) => option.model === ttsModel)
-    if (byModel) return byModel.value
-    const match = ttsModel.match(/^aura-\d+-([a-z]+)-/i)
-    if (match) return match[1].toLowerCase()
-    return ''
-  }, [ttsModel])
+  useEffect(() => {
+    if (voiceAgent === undefined) return
+    const next = normalizeSettings({
+      sttModel: voiceAgent?.sttModel,
+      ttsModel: voiceAgent?.ttsModel,
+      ttsVoice: voiceAgent?.ttsVoice,
+      locale: voiceAgent?.locale,
+      bargeInEnabled: voiceAgent?.bargeInEnabled,
+    })
+    const shouldSync =
+      !lastSaved ||
+      next.sttModel !== lastSaved.sttModel ||
+      next.ttsModel !== lastSaved.ttsModel ||
+      next.ttsVoice !== lastSaved.ttsVoice ||
+      next.locale !== lastSaved.locale ||
+      next.bargeInEnabled !== lastSaved.bargeInEnabled
+    if (!shouldSync) return
+    setSttModel(next.sttModel)
+    setTtsModel(next.ttsModel)
+    setTtsVoice(next.ttsVoice)
+    setLocale(next.locale)
+    setBargeInEnabled(next.bargeInEnabled)
+    setLastSaved(next)
+  }, [lastSaved, voiceAgent])
+
+  useEffect(() => {
+    if (!onDirtyChange || !lastSaved) return
+    const normalized = normalizeSettings({ sttModel, ttsModel, ttsVoice, locale, bargeInEnabled })
+    const dirty =
+      normalized.sttModel !== lastSaved.sttModel ||
+      normalized.ttsModel !== lastSaved.ttsModel ||
+      normalized.ttsVoice !== lastSaved.ttsVoice ||
+      normalized.locale !== lastSaved.locale ||
+      normalized.bargeInEnabled !== lastSaved.bargeInEnabled
+    onDirtyChange(dirty)
+  }, [bargeInEnabled, lastSaved, locale, onDirtyChange, sttModel, ttsModel, ttsVoice])
+
+  const hasKnownVoice = TTS_VOICE_OPTIONS.some((option) => option.model === ttsModel)
+  const voiceOptions = hasKnownVoice
+    ? TTS_VOICE_OPTIONS
+    : [{ value: 'custom', label: `Custom (${ttsModel})`, model: ttsModel }, ...TTS_VOICE_OPTIONS]
 
   const handleSave = async () => {
-    if (!tenant) return
-    setIsSaving(true)
+    if (!tenant || voiceAgent === undefined) return
     setError(null)
     setSuccessMessage(null)
 
@@ -122,14 +173,23 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
           enabled: true,
         })
       }
+      setLastSaved(
+        normalizeSettings({
+          sttModel,
+          ttsModel,
+          ttsVoice,
+          locale,
+          bargeInEnabled,
+        })
+      )
       setSuccessMessage('Voice settings saved successfully')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save voice settings')
-    } finally {
-      setIsSaving(false)
     }
   }
+
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave])
 
   const handleAddNumber = async () => {
     if (!tenant || !voiceAgent || !newPhoneNumber) return
@@ -217,18 +277,15 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
                 </label>
                 <select
                   id="ttsVoiceSelect"
-                  value={selectedVoice}
+                  value={ttsModel}
                   onChange={(e) => {
-                    const next = TTS_VOICE_OPTIONS.find((option) => option.value === e.target.value)
-                    if (next) {
-                      setTtsModel(next.model)
-                      setTtsVoice('')
-                    }
+                    setTtsModel(e.target.value)
+                    setTtsVoice('')
                   }}
                   className="mt-2 block w-full rounded-lg border border-gray-300 bg-white py-2.5 px-3 text-gray-900 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                 >
-                  {TTS_VOICE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
+                  {voiceOptions.map((option) => (
+                    <option key={option.model} value={option.model}>
                       {option.label}
                     </option>
                   ))}
@@ -268,16 +325,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {isSaving ? 'Saving...' : 'Save Voice Settings'}
-              </button>
-            </div>
           </div>
 
           {/* Phone Numbers Section */}
@@ -436,4 +483,6 @@ export function VoiceSettings({ agentId: _agentId, agentDbId }: VoiceSettingsPro
       </>
     </div>
   )
-}
+})
+
+VoiceSettings.displayName = 'VoiceSettings'

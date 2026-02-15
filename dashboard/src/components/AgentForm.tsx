@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { ChevronDown } from 'lucide-react'
 import { KnowledgeBase } from './KnowledgeBase'
-import { VoiceSettings } from './VoiceSettings'
+import { VoiceSettings, type VoiceSettingsHandle } from './VoiceSettings'
 import { EmbedCode } from './EmbedCode'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
 
@@ -96,6 +96,8 @@ export function AgentForm({
   initialTab,
 }: AgentFormProps) {
   const [error, setError] = useState<string | null>(null)
+  const voiceSettingsRef = useRef<VoiceSettingsHandle | null>(null)
+  const [voiceDirty, setVoiceDirty] = useState(false)
 
   const isEmptyMcpServer = (server?: Partial<McpServer> | null) => {
     const url = server?.url?.trim() ?? ''
@@ -137,6 +139,7 @@ export function AgentForm({
   const outputSchema = watch('outputSchema')
   const domainsInput = watch('allowedDomainsInput') ?? ''
   const isBusy = isSubmitting || isFormSubmitting
+  const hasUnsavedChanges = isDirty || voiceDirty
 
   useEffect(() => {
     if (!initialTab) return
@@ -197,6 +200,7 @@ export function AgentForm({
         langfuse: values.langfuse,
         allowedDomains: parsedDomains.length > 0 ? parsedDomains : ['*'],
       })
+      await voiceSettingsRef.current?.save()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
@@ -493,7 +497,12 @@ export function AgentForm({
             title="Voice settings"
             description="Manage phone numbers and call behavior."
           >
-            <VoiceSettings agentId={agentId} agentDbId={agentDbId} />
+            <VoiceSettings
+              ref={voiceSettingsRef}
+              agentId={agentId}
+              agentDbId={agentDbId}
+              onDirtyChange={setVoiceDirty}
+            />
           </CollapsibleSection>
         )}
 
@@ -680,12 +689,12 @@ export function AgentForm({
       <div className="sticky bottom-0 z-20 border-t border-gray-200 bg-gray-50/95 backdrop-blur">
         <div className="flex justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3 text-sm">
-            {isDirty ? (
+            {hasUnsavedChanges ? (
               <span className="text-amber-700 font-medium">Unsaved changes</span>
             ) : (
               <span className="text-gray-500">All changes saved</span>
             )}
-            {isDirty && hasInvalidPaths && (
+            {hasUnsavedChanges && hasInvalidPaths && (
               <span className="text-red-600">Fix highlighted fields</span>
             )}
           </div>
@@ -699,7 +708,7 @@ export function AgentForm({
             </button>
             <button
               type="submit"
-              disabled={isBusy || !isDirty}
+              disabled={isBusy || !hasUnsavedChanges}
               className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isBusy ? 'Saving...' : submitLabel}

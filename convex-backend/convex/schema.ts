@@ -255,6 +255,7 @@ export default defineSchema({
     agentId: v.id("agents"),
     voiceAgentId: v.id("voiceAgents"),
     twilioNumberId: v.id("twilioNumbers"),
+    conversationId: v.optional(v.id("conversations")),
     twilioCallSid: v.string(),
     fromNumber: v.string(),
     toNumber: v.string(),

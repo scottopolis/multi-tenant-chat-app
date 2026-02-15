@@ -96,6 +96,7 @@ voiceRoutes.get('/preview', async (c) => {
   const url = new URL(c.req.url);
   url.searchParams.set('agentDbId', agentDbId);
   url.searchParams.set('tenantId', tenantId);
+  url.searchParams.set('source', 'preview');
 
   return stub.fetch(url.toString(), {
     headers: c.req.raw.headers,

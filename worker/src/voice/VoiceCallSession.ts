@@ -42,6 +42,8 @@ const FALLBACK_CONFIG: Omit<VoiceConfig, 'numberId' | 'tenantId' | 'agentId' | '
 export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
   private callSid?: string;
   private numberId?: string;
+  private conversationId?: string;
+  private agentId?: string;
   private twilioSocket?: WebSocket;
   private streamSid?: string;
   private pipeline?: DeepgramVoicePipeline;
@@ -56,6 +58,8 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
 
     this.callSid = url.searchParams.get('callSid') || undefined;
     this.numberId = url.searchParams.get('numberId') || undefined;
+    this.conversationId = url.searchParams.get('conversationId') || undefined;
+    this.agentId = undefined;
 
     if (!this.callSid) {
       return new Response('Missing callSid', { status: 400 });
@@ -183,6 +187,32 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
       },
       onAudio: (audio) => this.sendTwilioAudio(audio),
       onInterrupt: () => this.sendTwilioInterrupt(),
+      onTranscriptFinal: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'user',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: 'twilio',
+            callSid: this.callSid,
+            utteranceId: meta.utteranceId,
+          },
+        });
+      },
+      onAssistantMessage: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'assistant',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: 'twilio',
+            callSid: this.callSid,
+            responseId: meta.responseId,
+          },
+        });
+      },
     });
 
     await this.pipeline.start();
@@ -211,6 +241,8 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
 
       console.log(`[VoiceCallSession] Loaded voice config for agent: ${config.agentName}`);
 
+      this.agentId = config.agentId;
+
       return {
         ...FALLBACK_CONFIG,
         ...config,
@@ -218,6 +250,27 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
     } catch (error) {
       console.error('[VoiceCallSession] Failed to load voice config:', error);
       return FALLBACK_CONFIG;
+    }
+  }
+
+  private async appendConversationEvent(event: {
+    eventType: string;
+    role?: string;
+    content?: string;
+    metadata?: unknown;
+  }): Promise<void> {
+    if (!this.conversationId || !this.agentId || !this.env.CONVEX_URL) {
+      return;
+    }
+
+    try {
+      await convexMutation(this.env.CONVEX_URL, 'conversations:appendEvent', {
+        agentId: this.agentId,
+        conversationId: this.conversationId,
+        event,
+      });
+    } catch (error) {
+      console.error('[VoiceCallSession] Failed to append conversation event:', error);
     }
   }
 

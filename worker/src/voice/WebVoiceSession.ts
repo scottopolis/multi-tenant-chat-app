@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { convexQuery } from '../convex/client';
+import { convexQuery, convexMutation } from '../convex/client';
 import { DeepgramVoicePipeline } from './deepgramPipeline';
 
 export interface WebVoiceSessionEnv {
@@ -41,6 +41,9 @@ const MAX_SESSION_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
   private agentDbId?: string;
   private tenantId?: string;
+  private agentId?: string;
+  private conversationId?: string;
+  private source?: string;
   private pipeline?: DeepgramVoicePipeline;
 
   async fetch(request: Request): Promise<Response> {
@@ -53,6 +56,7 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
 
     this.agentDbId = url.searchParams.get('agentDbId') || undefined;
     this.tenantId = url.searchParams.get('tenantId') || undefined;
+    this.source = url.searchParams.get('source') || 'web';
 
     if (!this.agentDbId) {
       return new Response('Missing agentDbId', { status: 400 });
@@ -123,10 +127,38 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
       }
     }
     this.pipeline = undefined;
+    this.conversationId = undefined;
+    this.agentId = undefined;
   }
 
   private async initializeSession(browserSocket: WebSocket): Promise<void> {
     const config = await this.loadVoiceConfig();
+    this.agentId = config.agentId;
+
+    if (this.env.CONVEX_URL && config.agentId && this.tenantId) {
+      try {
+        const sessionSuffix = Math.random().toString(36).slice(2, 8);
+        this.conversationId = await convexMutation<string>(this.env.CONVEX_URL, 'conversations:create', {
+          agentId: config.agentId,
+          sessionId: `voice:${this.source}:${this.tenantId}:${Date.now()}:${sessionSuffix}`,
+          title: this.source === 'preview' ? 'Voice preview' : 'Voice chat',
+          context: {
+            locale: config.locale,
+            customMetadata: {
+              channel: 'voice',
+              source: this.source,
+            },
+          },
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            agentDbId: this.agentDbId,
+          },
+        });
+      } catch (error) {
+        console.error('[WebVoiceSession] Failed to create conversation:', error);
+      }
+    }
 
     this.pipeline = new DeepgramVoicePipeline({
       config: {
@@ -162,6 +194,30 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
         if (browserSocket.readyState === WebSocket.OPEN) {
           browserSocket.send(JSON.stringify({ type: 'interrupt' }));
         }
+      },
+      onTranscriptFinal: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'user',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            utteranceId: meta.utteranceId,
+          },
+        });
+      },
+      onAssistantMessage: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'assistant',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            responseId: meta.responseId,
+          },
+        });
       },
     });
 
@@ -204,6 +260,27 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
     } catch (error) {
       console.error('[WebVoiceSession] Failed to load voice config:', error);
       return FALLBACK_CONFIG;
+    }
+  }
+
+  private async appendConversationEvent(event: {
+    eventType: string;
+    role?: string;
+    content?: string;
+    metadata?: unknown;
+  }): Promise<void> {
+    if (!this.conversationId || !this.agentId || !this.env.CONVEX_URL) {
+      return;
+    }
+
+    try {
+      await convexMutation(this.env.CONVEX_URL, 'conversations:appendEvent', {
+        agentId: this.agentId,
+        conversationId: this.conversationId,
+        event,
+      });
+    } catch (error) {
+      console.error('[WebVoiceSession] Failed to append conversation event:', error);
     }
   }
 }

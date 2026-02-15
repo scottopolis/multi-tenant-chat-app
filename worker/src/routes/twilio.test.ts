@@ -93,7 +93,9 @@ describe('Twilio Routes', () => {
       const body = await res.text();
       expect(body).toContain('<?xml version="1.0"');
       expect(body).toContain('<Response>');
-      expect(body).toContain('<Stream url="wss://worker.example.com/twilio/media?callSid=CA1234567890&amp;numberId=num123"');
+      expect(body).toContain(
+        '<Stream url="wss://worker.example.com/twilio/media?callSid=CA1234567890&amp;numberId=num123&amp;conversationId=call123"'
+      );
       expect(body).toContain('</Response>');
 
       expect(convexQuery).toHaveBeenCalledWith(

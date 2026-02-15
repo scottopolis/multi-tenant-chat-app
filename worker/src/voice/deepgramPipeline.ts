@@ -32,6 +32,8 @@ export type DeepgramVoicePipelineOptions = {
   onAudio: (audio: ArrayBuffer) => void;
   onInterrupt?: () => void;
   onTtsEnd?: () => void;
+  onTranscriptFinal?: (text: string, meta: { utteranceId: number }) => void | Promise<void>;
+  onAssistantMessage?: (text: string, meta: { responseId: number }) => void | Promise<void>;
 };
 
 export class DeepgramVoicePipeline {
@@ -42,6 +44,14 @@ export class DeepgramVoicePipeline {
   private readonly onAudio: (audio: ArrayBuffer) => void;
   private readonly onInterrupt?: () => void;
   private readonly onTtsEnd?: () => void;
+  private readonly onTranscriptFinal?: (
+    text: string,
+    meta: { utteranceId: number }
+  ) => void | Promise<void>;
+  private readonly onAssistantMessage?: (
+    text: string,
+    meta: { responseId: number }
+  ) => void | Promise<void>;
   private readonly deepgram = createClient;
   private sttConnection: any;
   private ttsConnection: any;
@@ -69,6 +79,8 @@ export class DeepgramVoicePipeline {
     this.onAudio = options.onAudio;
     this.onInterrupt = options.onInterrupt;
     this.onTtsEnd = options.onTtsEnd;
+    this.onTranscriptFinal = options.onTranscriptFinal;
+    this.onAssistantMessage = options.onAssistantMessage;
   }
 
   async start(): Promise<void> {
@@ -248,6 +260,12 @@ export class DeepgramVoicePipeline {
       this.sttUtteranceId = this.sttActiveUtteranceId;
     } else {
       this.sttUtteranceId += 1;
+    }
+    if (this.onTranscriptFinal) {
+      Promise.resolve(this.onTranscriptFinal(transcript, { utteranceId: this.sttUtteranceId }))
+        .catch((error) => {
+          console.error('[DeepgramPipeline] Failed to persist transcript:', error);
+        });
     }
     this.queue.push(transcript);
     this.resetSttPerf();
@@ -472,6 +490,13 @@ export class DeepgramVoicePipeline {
     );
 
     if (content) {
+      if (this.onAssistantMessage) {
+        try {
+          await this.onAssistantMessage(content, { responseId });
+        } catch (error) {
+          console.error('[DeepgramPipeline] Failed to persist assistant message:', error);
+        }
+      }
       this.history.push({ role: 'user', content: userText });
       this.history.push({ role: 'assistant', content });
     }

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -372,18 +373,19 @@ export const listByAgent = query({
 export const listByTenant = query({
   args: {
     tenantId: v.id("tenants"),
-    limit: v.optional(v.number()),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const limit = args.limit ?? 50;
+    const paginationOpts = {
+      ...args.paginationOpts,
+      numItems: Math.min(args.paginationOpts.numItems, 20),
+    };
 
-    const conversations = await ctx.db
+    return await ctx.db
       .query("conversations")
       .withIndex("by_tenant_lastEvent", (q) => q.eq("tenantId", args.tenantId))
       .order("desc")
-      .take(limit);
-
-    return conversations;
+      .paginate(paginationOpts);
   },
 });
 
