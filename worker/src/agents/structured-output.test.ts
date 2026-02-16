@@ -56,7 +56,7 @@ describe('Structured Output', () => {
 
     expect(chat).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: 'Resolved prompt',
+        systemPrompts: ['Resolved prompt'],
       })
     );
   });
@@ -83,7 +83,7 @@ describe('Structured Output', () => {
 
     expect(chat).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: 'Resolved prompt',
+        systemPrompts: ['Resolved prompt'],
       })
     );
   });
