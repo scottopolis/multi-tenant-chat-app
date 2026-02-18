@@ -25,7 +25,8 @@ export async function runAgentTanStack(options: RunAgentOptions) {
   const agentConfig = await getAgentConfig(agentId, { CONVEX_URL: env.CONVEX_URL });
 
   // 2. Determine model - use OpenRouter format (provider/model)
-  const model = requestedModel || agentConfig.model || DEFAULT_MODEL;
+  const rawModel = requestedModel || agentConfig.model || DEFAULT_MODEL;
+  const model = normalizeOpenRouterModel(rawModel);
 
   // 3. Resolve system prompt
   const instructions = await resolveSystemPrompt(agentConfig, agentId, systemPrompt, env);
@@ -49,9 +50,21 @@ export async function runAgentTanStack(options: RunAgentOptions) {
     adapter,
     messages: tanstackMessages,
     tools,
-    system: instructions,
+    systemPrompts: [instructions],
     agentLoopStrategy: maxIterations(8),
   });
+}
+
+function normalizeOpenRouterModel(model: string): string {
+  if (model.includes('/')) return model;
+  switch (model) {
+    case 'gemini-2.5-flash':
+      return 'google/gemini-2.5-flash';
+    case 'gemini-2.5-flash-lite':
+      return 'google/gemini-2.5-flash-lite';
+    default:
+      return model;
+  }
 }
 
 export interface RunAgentTanStackSSEOptions extends RunAgentOptions {

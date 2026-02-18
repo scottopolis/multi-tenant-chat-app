@@ -1,11 +1,12 @@
 import { DurableObject } from 'cloudflare:workers';
-import { RealtimeSession, RealtimeAgent } from '@openai/agents/realtime';
-import { CloudflareRealtimeTransportLayer } from '@openai/agents-extensions';
-import { convexQuery } from '../convex/client';
-import { getTools } from '../tools';
+import { convexQuery, convexMutation } from '../convex/client';
+import { DeepgramVoicePipeline } from './deepgramPipeline';
+import { appendVoicePrompt } from './voicePrompt';
 
 export interface WebVoiceSessionEnv {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
+  OPENROUTER_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   CONVEX_URL: string;
 }
 
@@ -15,15 +16,21 @@ export interface WebVoiceConfig {
   tenantId: string;
   agentName: string;
   systemPrompt: string;
-  voiceModel: string;
-  voiceName?: string;
+  sttProvider: string;
+  ttsProvider: string;
+  sttModel: string;
+  ttsModel: string;
+  ttsVoice?: string;
   locale: string;
   bargeInEnabled: boolean;
 }
 
 const FALLBACK_CONFIG: Omit<WebVoiceConfig, 'agentDbId' | 'tenantId'> = {
-  voiceModel: 'gpt-4o-realtime-preview',
-  voiceName: 'verse',
+  sttProvider: 'deepgram',
+  ttsProvider: 'deepgram',
+  sttModel: 'nova-3',
+  ttsModel: 'aura-2-thalia-en',
+  ttsVoice: undefined,
   locale: 'en-US',
   bargeInEnabled: true,
   agentName: 'Voice Assistant',
@@ -33,11 +40,12 @@ const FALLBACK_CONFIG: Omit<WebVoiceConfig, 'agentDbId' | 'tenantId'> = {
 const MAX_SESSION_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
 export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
-  private session?: RealtimeSession;
   private agentDbId?: string;
   private tenantId?: string;
-  private cloudflareTransport?: CloudflareRealtimeTransportLayer;
-  private browserSocket?: WebSocket;
+  private agentId?: string;
+  private conversationId?: string;
+  private source?: string;
+  private pipeline?: DeepgramVoicePipeline;
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -49,6 +57,7 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
 
     this.agentDbId = url.searchParams.get('agentDbId') || undefined;
     this.tenantId = url.searchParams.get('tenantId') || undefined;
+    this.source = url.searchParams.get('source') || 'web';
 
     if (!this.agentDbId) {
       return new Response('Missing agentDbId', { status: 400 });
@@ -73,8 +82,6 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
     }
 
     this.ctx.acceptWebSocket(server);
-    this.browserSocket = server;
-
     console.log(`[WebVoiceSession] Accepted WebSocket for agentDbId=${this.agentDbId}, tenantId=${this.tenantId}`);
 
     // Set alarm for max session duration
@@ -87,8 +94,8 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    if (this.session && message instanceof ArrayBuffer) {
-      this.session.sendAudio(message);
+    if (this.pipeline && message instanceof ArrayBuffer) {
+      this.pipeline.handleAudio(new Uint8Array(message));
     }
   }
 
@@ -113,85 +120,126 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
   }
 
   private async cleanup(): Promise<void> {
-    if (this.cloudflareTransport) {
+    if (this.pipeline) {
       try {
-        this.cloudflareTransport.close();
+        await this.pipeline.stop();
       } catch (error) {
         console.error('[WebVoiceSession] Error closing transport:', error);
       }
     }
-    this.session = undefined;
-    this.cloudflareTransport = undefined;
-    this.browserSocket = undefined;
+    this.pipeline = undefined;
+    this.conversationId = undefined;
+    this.agentId = undefined;
   }
 
   private async initializeSession(browserSocket: WebSocket): Promise<void> {
     const config = await this.loadVoiceConfig();
+    this.agentId = config.agentId;
 
-    // Load tools for the agent
-    const tools = config.agentId 
-      ? await getTools(config.agentId, { CONVEX_URL: this.env.CONVEX_URL }, { 
-          convexUrl: this.env.CONVEX_URL 
-        })
-      : [];
+    if (this.env.CONVEX_URL && config.agentId && this.tenantId) {
+      try {
+        const sessionSuffix = Math.random().toString(36).slice(2, 8);
+        this.conversationId = await convexMutation<string>(this.env.CONVEX_URL, 'conversations:create', {
+          agentId: config.agentId,
+          sessionId: `voice:${this.source}:${this.tenantId}:${Date.now()}:${sessionSuffix}`,
+          title: this.source === 'preview' ? 'Voice preview' : 'Voice chat',
+          context: {
+            locale: config.locale,
+            customMetadata: {
+              channel: 'voice',
+              source: this.source,
+            },
+          },
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            agentDbId: this.agentDbId,
+          },
+        });
+      } catch (error) {
+        console.error('[WebVoiceSession] Failed to create conversation:', error);
+      }
+    }
 
-    const agent = new RealtimeAgent({
-      name: config.agentName,
-      instructions: config.systemPrompt,
-      tools,
-    });
-
-    // Create Cloudflare transport to connect to OpenAI Realtime API
-    // This transport handles the fetch-based WebSocket upgrade required by workerd
-    this.cloudflareTransport = new CloudflareRealtimeTransportLayer({
-      url: `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(config.voiceModel)}`,
-    });
-
-    this.session = new RealtimeSession(agent, {
-      transport: this.cloudflareTransport,
-      model: config.voiceModel as 'gpt-4o-realtime-preview',
+    this.pipeline = new DeepgramVoicePipeline({
       config: {
-        inputAudioFormat: 'pcm16',
-        outputAudioFormat: 'pcm16',
-        audio: {
-          output: { voice: (config.voiceName || 'verse') as 'verse' },
-        },
-        turnDetection: {
-          type: 'semantic_vad',
-          eagerness: 'medium',
-          createResponse: true,
-          interruptResponse: true,
-        },
+        agentId: config.agentId,
+        agentName: config.agentName,
+        systemPrompt: config.systemPrompt,
+        locale: config.locale,
+        bargeInEnabled: config.bargeInEnabled,
+        sttModel: config.sttModel,
+        ttsModel: config.ttsModel,
+        ttsVoice: config.ttsVoice,
+      },
+      env: {
+        DEEPGRAM_API_KEY: this.env.DEEPGRAM_API_KEY,
+        OPENROUTER_API_KEY: this.env.OPENROUTER_API_KEY,
+        OPENAI_API_KEY: this.env.OPENAI_API_KEY,
+        CONVEX_URL: this.env.CONVEX_URL,
+      },
+      input: {
+        encoding: 'linear16',
+        sampleRate: 24000,
+      },
+      output: {
+        encoding: 'linear16',
+        sampleRate: 24000,
+      },
+      onAudio: (audio) => {
+        if (browserSocket.readyState === WebSocket.OPEN) {
+          browserSocket.send(audio);
+        }
+      },
+      onInterrupt: () => {
+        if (browserSocket.readyState === WebSocket.OPEN) {
+          browserSocket.send(JSON.stringify({ type: 'interrupt' }));
+        }
+      },
+      onTranscriptFinal: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'user',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            utteranceId: meta.utteranceId,
+          },
+        });
+      },
+      onAssistantMessage: async (text, meta) => {
+        await this.appendConversationEvent({
+          eventType: 'message',
+          role: 'assistant',
+          content: text,
+          metadata: {
+            channel: 'voice',
+            source: this.source,
+            responseId: meta.responseId,
+          },
+        });
       },
     });
 
-    this.session.on('audio', (event) => {
-      if (browserSocket.readyState === WebSocket.OPEN && event.data) {
-        browserSocket.send(event.data);
-      }
-    });
+    try {
+      await this.pipeline.start();
+    } catch (error) {
+      console.error('[WebVoiceSession] Failed to start Deepgram pipeline:', error);
+      browserSocket.close(1011, 'Voice pipeline failed');
+      return;
+    }
 
-    this.session.on('audio_interrupted', () => {
-      if (browserSocket.readyState === WebSocket.OPEN) {
-        browserSocket.send(JSON.stringify({ type: 'interrupt' }));
-      }
-    });
-
-    this.session.on('error', (error) => {
-      console.error('[WebVoiceSession] Session error:', error);
-    });
-
-    await this.session.connect({
-      apiKey: this.env.OPENAI_API_KEY,
-    });
-
-    console.log(`[WebVoiceSession] Connected to OpenAI Realtime API for agentDbId=${this.agentDbId}`);
+    console.log(`[WebVoiceSession] Deepgram pipeline started for agentDbId=${this.agentDbId}`);
   }
 
   private async loadVoiceConfig(): Promise<typeof FALLBACK_CONFIG & Partial<WebVoiceConfig>> {
     if (!this.agentDbId || !this.env.CONVEX_URL) {
       console.log('[WebVoiceSession] No agentDbId or CONVEX_URL, using fallback config');
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
     }
 
     try {
@@ -204,18 +252,50 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
 
       if (!config) {
         console.log(`[WebVoiceSession] No config found for agentDbId=${this.agentDbId}, using fallback`);
-        return FALLBACK_CONFIG;
+        return {
+          ...FALLBACK_CONFIG,
+          systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+        };
       }
 
       console.log(`[WebVoiceSession] Loaded voice config for agent: ${config.agentName}`);
 
-      return {
+      const mergedConfig = {
         ...FALLBACK_CONFIG,
         ...config,
       };
+
+      return {
+        ...mergedConfig,
+        systemPrompt: appendVoicePrompt(mergedConfig.systemPrompt),
+      };
     } catch (error) {
       console.error('[WebVoiceSession] Failed to load voice config:', error);
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
+    }
+  }
+
+  private async appendConversationEvent(event: {
+    eventType: string;
+    role?: string;
+    content?: string;
+    metadata?: unknown;
+  }): Promise<void> {
+    if (!this.conversationId || !this.agentId || !this.env.CONVEX_URL) {
+      return;
+    }
+
+    try {
+      await convexMutation(this.env.CONVEX_URL, 'conversations:appendEvent', {
+        agentId: this.agentId,
+        conversationId: this.conversationId,
+        event,
+      });
+    } catch (error) {
+      console.error('[WebVoiceSession] Failed to append conversation event:', error);
     }
   }
 }

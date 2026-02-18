@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery } from 'convex/react'
+import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../../convex-backend/convex/_generated/api'
 import { useTenant } from '../../../lib/tenant'
 import {
@@ -14,10 +14,18 @@ export const Route = createFileRoute('/_authed/dashboard/conversations/')({
 
 function ConversationsList() {
   const { tenant, isLoading: tenantLoading } = useTenant()
+  const PAGE_SIZE = 20
+  const MAX_CONVERSATIONS = 100
 
-  const conversations = useQuery(
+  const {
+    results: conversations,
+    status,
+    loadMore,
+    isLoading: conversationsLoading,
+  } = usePaginatedQuery(
     api.conversations.listByTenant,
-    tenant ? { tenantId: tenant.id as any } : 'skip'
+    tenant ? { tenantId: tenant.id as any } : 'skip',
+    { initialNumItems: PAGE_SIZE }
   )
 
   const agents = useQuery(
@@ -25,7 +33,7 @@ function ConversationsList() {
     tenant ? { tenantId: tenant.id as any } : 'skip'
   )
 
-  const isLoading = tenantLoading || conversations === undefined
+  const isLoading = tenantLoading || conversationsLoading
 
   if (isLoading) {
     return (
@@ -44,6 +52,10 @@ function ConversationsList() {
   }
 
   const agentMap = new Map(agents?.map((a) => [a._id, a]) ?? [])
+  const hasConversations = conversations.length > 0
+  const maxReached = conversations.length >= MAX_CONVERSATIONS
+  const canLoadMore = status === 'CanLoadMore' && !maxReached
+  const remaining = Math.max(MAX_CONVERSATIONS - conversations.length, 0)
 
   return (
     <div>
@@ -56,7 +68,7 @@ function ConversationsList() {
         </div>
       </div>
 
-      {conversations.length === 0 ? (
+      {!hasConversations ? (
         <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
           <svg
             className="mx-auto h-12 w-12 text-gray-400"
@@ -134,6 +146,23 @@ function ConversationsList() {
           </table>
         </div>
       )}
+      {hasConversations ? (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Showing {conversations.length} conversation{conversations.length === 1 ? '' : 's'}
+            {maxReached ? ' (max 100)' : ''}
+          </p>
+          {canLoadMore ? (
+            <button
+              type="button"
+              onClick={() => loadMore(Math.min(PAGE_SIZE, remaining))}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+            >
+              Load more
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { ChevronDown } from 'lucide-react'
 import { KnowledgeBase } from './KnowledgeBase'
-import { VoiceSettings } from './VoiceSettings'
+import { VoiceSettings, type VoiceSettingsHandle } from './VoiceSettings'
 import { EmbedCode } from './EmbedCode'
 import type { Id } from '../../../convex-backend/convex/_generated/dataModel'
 
@@ -54,8 +54,8 @@ const MODELS = [
   { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'google/gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
   { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' },
   { value: 'llama-4-scout', label: 'Llama 4 Scout' },
   { value: 'deepseek-v3', label: 'DeepSeek V3' },
@@ -84,6 +84,55 @@ const TAB_TO_SECTION: Record<Tab, string> = {
   Embed: SECTION_IDS.embed,
 }
 
+function Section({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="rounded-xl border border-gray-200 bg-white p-6 space-y-6">
+      <div>
+        <h3 className="text-base font-medium text-gray-900">{title}</h3>
+        {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function CollapsibleSection({
+  id,
+  title,
+  description,
+  children,
+  defaultOpen = true,
+}: {
+  id: string
+  title: string
+  description?: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  return (
+    <details id={id} className="group rounded-xl border border-gray-200 bg-white" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+        <div>
+          <p className="text-base font-medium text-gray-900">{title}</p>
+          {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
+        </div>
+        <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-gray-200 px-6 py-6 space-y-6">{children}</div>
+    </details>
+  )
+}
+
 export function AgentForm({
   initialData,
   onSubmit: onSubmitForm,
@@ -96,12 +145,20 @@ export function AgentForm({
   initialTab,
 }: AgentFormProps) {
   const [error, setError] = useState<string | null>(null)
+  const voiceSettingsRef = useRef<VoiceSettingsHandle | null>(null)
+  const [voiceDirty, setVoiceDirty] = useState(false)
+
+  const isEmptyMcpServer = (server?: Partial<McpServer> | null) => {
+    const url = server?.url?.trim() ?? ''
+    const authHeader = server?.authHeader?.trim() ?? ''
+    return url.length === 0 && authHeader.length === 0
+  }
 
   const buildDefaultValues = (data?: Partial<AgentFormData>): AgentFormValues => ({
     name: data?.name ?? '',
     systemPrompt: data?.systemPrompt ?? '',
     model: data?.model ?? 'gpt-4.1-mini',
-    mcpServers: data?.mcpServers ?? [],
+    mcpServers: (data?.mcpServers ?? []).filter((server) => !isEmptyMcpServer(server)),
     outputSchema: data?.outputSchema ?? '',
     langfuse: data?.langfuse ?? {},
     allowedDomains: data?.allowedDomains ?? ['*'],
@@ -114,10 +171,12 @@ export function AgentForm({
     handleSubmit,
     watch,
     reset,
+    getValues,
     formState: { errors, isDirty, isValid, dirtyFields, isSubmitting: isFormSubmitting },
   } = useForm<AgentFormValues>({
     defaultValues: buildDefaultValues(initialData),
     mode: 'onChange',
+    shouldUnregister: true,
   })
 
   const { fields: mcpServerFields, append, remove } = useFieldArray({
@@ -129,6 +188,7 @@ export function AgentForm({
   const outputSchema = watch('outputSchema')
   const domainsInput = watch('allowedDomainsInput') ?? ''
   const isBusy = isSubmitting || isFormSubmitting
+  const hasUnsavedChanges = isDirty || voiceDirty
 
   useEffect(() => {
     if (!initialTab) return
@@ -157,7 +217,7 @@ export function AgentForm({
     return () => clearTimeout(timer)
   }, [])
 
-  const hasOutputSchema = outputSchema.trim().length > 0
+  const hasOutputSchema = (outputSchema ?? '').trim().length > 0
 
   useEffect(() => {
     reset(buildDefaultValues(initialData))
@@ -166,12 +226,12 @@ export function AgentForm({
   const handleFormSubmit = async (values: AgentFormValues) => {
     setError(null)
 
-    const parsedDomains = values.allowedDomainsInput
+    const parsedDomains = (values.allowedDomainsInput ?? '')
       .split(/[\n,]/)
       .map((domain) => domain.trim())
       .filter((domain) => domain.length > 0)
 
-    const cleanedServers = values.mcpServers
+    const cleanedServers = (values.mcpServers ?? [])
       .map((server) => ({
         url: server.url.trim(),
         authHeader: server.authHeader?.trim() || undefined,
@@ -189,6 +249,7 @@ export function AgentForm({
         langfuse: values.langfuse,
         allowedDomains: parsedDomains.length > 0 ? parsedDomains : ['*'],
       })
+      await voiceSettingsRef.current?.save()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
@@ -198,21 +259,33 @@ export function AgentForm({
     append({ url: '', authHeader: '', transport: 'http' })
   }
 
+  const pruneEmptyServer = (index: number) => {
+    const row = getValues(`mcpServers.${index}`)
+    if (isEmptyMcpServer(row)) {
+      remove(index)
+    }
+  }
+
+  const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype
+
   const collectFieldPaths = (value: unknown, prefix = ''): string[] => {
     if (!value || typeof value !== 'object') return []
     if (Array.isArray(value)) {
       return value.flatMap((item, index) => {
         if (item === true) return [`${prefix}[${index}]`]
-        if (item && typeof item === 'object') {
+        if (isPlainObject(item)) {
           return collectFieldPaths(item, `${prefix}[${index}]`)
         }
         return []
       })
     }
+    if (!isPlainObject(value)) return []
+
     return Object.entries(value).flatMap(([key, entry]) => {
       const path = prefix ? `${prefix}.${key}` : key
       if (entry === true) return [path]
-      if (entry && typeof entry === 'object') {
+      if (isPlainObject(entry) || Array.isArray(entry)) {
         return collectFieldPaths(entry, path)
       }
       return []
@@ -222,51 +295,6 @@ export function AgentForm({
   const invalidFieldPaths = collectFieldPaths(errors)
   const hasInvalidPaths = invalidFieldPaths.length > 0
 
-  const Section = ({
-    id,
-    title,
-    description,
-    children,
-  }: {
-    id: string
-    title: string
-    description?: string
-    children: ReactNode
-  }) => (
-    <section id={id} className="rounded-xl border border-gray-200 bg-white p-6 space-y-6">
-      <div>
-        <h3 className="text-base font-medium text-gray-900">{title}</h3>
-        {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-      </div>
-      {children}
-    </section>
-  )
-
-  const CollapsibleSection = ({
-    id,
-    title,
-    description,
-    children,
-    defaultOpen = true,
-  }: {
-    id: string
-    title: string
-    description?: string
-    children: ReactNode
-    defaultOpen?: boolean
-  }) => (
-    <details id={id} className="group rounded-xl border border-gray-200 bg-white" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
-        <div>
-          <p className="text-base font-medium text-gray-900">{title}</p>
-          {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-        </div>
-        <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="border-t border-gray-200 px-6 py-6 space-y-6">{children}</div>
-    </details>
-  )
-
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
     if (element) {
@@ -275,7 +303,7 @@ export function AgentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8 pb-28">
+    <form onSubmit={handleSubmit(handleFormSubmit)} noValidate className="space-y-8 pb-28">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-700 text-sm">{error}</p>
@@ -384,34 +412,41 @@ export function AgentForm({
                       </button>
                     </div>
                     <div>
-                      <input
-                        type="url"
-                        defaultValue={server.url}
-                        {...register(`mcpServers.${index}.url`, {
-                          required: 'Server URL is required',
-                          validate: (value) =>
-                            value.trim().length > 0 || 'Server URL is required',
-                        })}
-                        placeholder="https://mcp-server.example.com"
-                        className={`block w-full rounded-lg border bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm ${
-                          errors.mcpServers?.[index]?.url ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {errors.mcpServers?.[index]?.url && (
-                        <p className="mt-2 text-sm text-red-600">
-                          {errors.mcpServers?.[index]?.url?.message}
-                        </p>
-                      )}
+                      {(() => {
+                        const urlField = register(`mcpServers.${index}.url`)
+                        return (
+                          <input
+                            type="url"
+                            defaultValue={server.url}
+                            {...urlField}
+                            onBlur={(event) => {
+                              urlField.onBlur(event)
+                              pruneEmptyServer(index)
+                            }}
+                            placeholder="https://mcp-server.example.com"
+                            className="block w-full rounded-lg border bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm border-gray-300"
+                          />
+                        )
+                      })()}
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <input
-                          type="text"
-                          defaultValue={server.authHeader ?? ''}
-                          {...register(`mcpServers.${index}.authHeader`)}
-                          placeholder="Authorization header (optional)"
-                          className="block w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                        />
+                        {(() => {
+                          const authField = register(`mcpServers.${index}.authHeader`)
+                          return (
+                            <input
+                              type="text"
+                              defaultValue={server.authHeader ?? ''}
+                              {...authField}
+                              onBlur={(event) => {
+                                authField.onBlur(event)
+                                pruneEmptyServer(index)
+                              }}
+                              placeholder="Authorization header (optional)"
+                              className="block w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                            />
+                          )
+                        })()}
                       </div>
                       <div>
                         <select
@@ -466,7 +501,12 @@ export function AgentForm({
             title="Voice settings"
             description="Manage phone numbers and call behavior."
           >
-            <VoiceSettings agentId={agentId} agentDbId={agentDbId} />
+            <VoiceSettings
+              ref={voiceSettingsRef}
+              agentId={agentId}
+              agentDbId={agentDbId}
+              onDirtyChange={setVoiceDirty}
+            />
           </CollapsibleSection>
         )}
 
@@ -653,12 +693,12 @@ export function AgentForm({
       <div className="sticky bottom-0 z-20 border-t border-gray-200 bg-gray-50/95 backdrop-blur">
         <div className="flex justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3 text-sm">
-            {isDirty ? (
+            {hasUnsavedChanges ? (
               <span className="text-amber-700 font-medium">Unsaved changes</span>
             ) : (
               <span className="text-gray-500">All changes saved</span>
             )}
-            {isDirty && hasInvalidPaths && (
+            {hasUnsavedChanges && hasInvalidPaths && (
               <span className="text-red-600">Fix highlighted fields</span>
             )}
           </div>
@@ -672,7 +712,7 @@ export function AgentForm({
             </button>
             <button
               type="submit"
-              disabled={isBusy || !isDirty || !isValid}
+              disabled={isBusy || !hasUnsavedChanges}
               className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isBusy ? 'Saving...' : submitLabel}

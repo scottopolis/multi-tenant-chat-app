@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import type { DurableObjectNamespace } from '@cloudflare/workers-types';
-import { convexQuery } from '../convex/client';
 
 type Bindings = {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
   CONVEX_URL: string;
   WEB_VOICE_SESSION: DurableObjectNamespace;
 };
@@ -97,6 +96,7 @@ voiceRoutes.get('/preview', async (c) => {
   const url = new URL(c.req.url);
   url.searchParams.set('agentDbId', agentDbId);
   url.searchParams.set('tenantId', tenantId);
+  url.searchParams.set('source', 'preview');
 
   return stub.fetch(url.toString(), {
     headers: c.req.raw.headers,

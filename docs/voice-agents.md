@@ -7,13 +7,15 @@ This guide covers how to set up and test voice agents with Twilio integration.
 Voice agents allow users to interact with your AI assistant via phone calls. The system uses:
 
 - **Twilio** for phone number management and call handling
-- **OpenAI Realtime API** for real-time voice conversations
+- **Deepgram** for streaming speech-to-text (STT) and text-to-speech (TTS)
 - **Cloudflare Durable Objects** for persistent WebSocket connections
+- **Your LLM** (OpenRouter, OpenAI, or other) for reasoning and tools
+- **Deepgram streaming pipeline** for live STT → LLM → TTS with barge-in support
 
 ## Prerequisites
 
 - Twilio account with a phone number ([twilio.com](https://www.twilio.com))
-- OpenAI API key with Realtime API access
+- Deepgram API key
 - Worker deployed to Cloudflare (or running locally with ngrok for testing)
 
 ## Architecture
@@ -27,15 +29,20 @@ Voice agents allow users to interact with your AI assistant via phone calls. The
        │ 1. Call     │  │   (Hono)        │    │   - One per CallSid         │ │
        ▼             │  │                 │    │   - Manages WS lifecycle    │ │
 ┌─────────────┐      │  │ /twilio/voice   │    │                             │ │
-│   Twilio    │──────┼──│ /twilio/media   │────│   Twilio ↔ OpenAI Bridge    │ │
-│   (Phone)   │      │  │ /twilio/status  │    │                             │ │
+│   Twilio    │──────┼──│ /twilio/media   │────│   Twilio ↔ Deepgram Bridge │ │
+│   (Phone)   │      │  │ /twilio/status  │    │   Deepgram STT/TTS streams │ │
 └─────────────┘      │  └─────────────────┘    └─────────────────────────────┘ │
                      └─────────────────────────────────────────────────────────┘
                                                           │
                                                           ▼
                                                 ┌─────────────────┐
-                                                │ OpenAI Realtime │
-                                                │      API        │
+                                                │   Deepgram STT  │
+                                                │   Deepgram TTS  │
+                                                └─────────────────┘
+                                                           │
+                                                           ▼
+                                                ┌─────────────────┐
+                                                │      LLM        │
                                                 └─────────────────┘
 ```
 
@@ -46,8 +53,9 @@ Voice agents allow users to interact with your AI assistant via phone calls. The
 1. Navigate to the Dashboard → Agents → Create New Agent
 2. Under **Capabilities**, check the **Voice** option (you can also enable Web Chat)
 3. Configure voice settings:
-   - **Model**: GPT Realtime (default)
-   - **Voice**: Choose a voice persona (verse, alloy, echo, etc.)
+   - **STT Model**: Deepgram STT model (e.g., `nova-3`)
+   - **TTS Model**: Deepgram TTS model (e.g., `aura-2-thalia-en`)
+   - **TTS Voice**: Optional voice override (leave blank to use model default)
    - **Locale**: Select the language/region
    - **Barge-in**: Enable to allow callers to interrupt the AI
 4. Fill in the agent name and system prompt
@@ -112,7 +120,9 @@ Copy the ngrok HTTPS URL (e.g., `https://abc123.ngrok.io`) and use it for Twilio
 Add to `worker/.dev.vars`:
 
 ```bash
-OPENAI_API_KEY=your-openai-key
+DEEPGRAM_API_KEY=your-deepgram-key
+DEEPGRAM_API_URL=optional-deepgram-api-url
+OPENROUTER_API_KEY=your-llm-key (or OPENAI_API_KEY if using OpenAI directly)
 TWILIO_AUTH_TOKEN=your-twilio-auth-token  # For webhook signature verification
 CONVEX_URL=your-convex-deployment-url
 ```
@@ -145,20 +155,25 @@ CONVEX_URL=your-convex-deployment-url
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| **Model** | OpenAI Realtime model to use | gpt-realtime |
-| **Voice** | TTS voice persona | verse |
+| **STT Model** | Deepgram STT model | nova-3 |
+| **TTS Model** | Deepgram TTS model | aura-2-thalia-en |
+| **TTS Voice** | Optional voice override | (blank) |
 | **Locale** | Language/region for speech | en-US |
 | **Barge-in** | Allow caller to interrupt AI | enabled |
 
-### Available Voices
+### Notes on TTS voices
 
-- `verse` - Balanced, natural
-- `alloy` - Neutral, clear
-- `echo` - Warm, friendly
-- `fable` - Expressive, storytelling
-- `onyx` - Deep, authoritative
-- `nova` - Bright, energetic
-- `shimmer` - Soft, calm
+Deepgram TTS voices are model-specific. Use the voice setting only if you need to override the model default.
+
+## Global Voice System Prompt
+
+For voice sessions only, the worker appends this suffix to every agent system prompt:
+
+```
+You are a voice agent, talking out loud to a customer. Format your replies for a speech conversation, do not use special characters or formatting, read long urls, or be overly verbose.
+```
+
+This is applied automatically for both Twilio calls and web voice preview.
 
 ## Production Deployment
 
@@ -172,7 +187,8 @@ npm run deploy
 ### 2. Set Production Secrets
 
 ```bash
-wrangler secret put OPENAI_API_KEY
+wrangler secret put DEEPGRAM_API_KEY
+wrangler secret put OPENROUTER_API_KEY # or OPENAI_API_KEY
 wrangler secret put TWILIO_AUTH_TOKEN
 wrangler secret put CONVEX_URL
 ```
@@ -191,8 +207,9 @@ Voice call records are stored in Convex (`voiceCalls` table) with:
 - Call duration
 - Start/end timestamps
 - Status (in_progress, completed, failed)
-- OpenAI token usage (when available)
+- LLM token usage (when available)
 - Twilio costs (via status callbacks)
+- Deepgram usage metrics (STT seconds, TTS characters)
 
 View call history in the Dashboard (coming in Phase 4).
 
@@ -215,6 +232,11 @@ You can test your voice agent directly in the browser without needing a phone nu
 - Audio is captured at 24kHz mono PCM16
 - Sessions auto-disconnect after 10 minutes
 - Requires a valid session token (automatically generated)
+
+### Audio Formats
+
+- **Twilio calls**: 8kHz μ-law audio in/out
+- **Browser preview**: 24kHz linear16 (PCM16) in/out
 
 ### Limitations
 

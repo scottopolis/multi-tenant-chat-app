@@ -375,7 +375,10 @@ mathReasoningTool.on('*', (event) => {
  * - file_search tool (if agent has a vectorStoreId)
  * - Webhook tools (future)
  */
-export const builtinTools: any[] = [];
+export const builtinTools: any[] = [
+  currentTime,
+  calculator,
+];
 
 /**
  * Example tools for reference (not exported to agents):
@@ -387,4 +390,3 @@ export const builtinTools: any[] = [];
  * - fetchExternalData: Tool with custom error handling
  * - mathReasoningTool: Agent-based tool with streaming
  */
-

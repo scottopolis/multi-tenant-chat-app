@@ -25,7 +25,7 @@ describe('Voice Preview Routes', () => {
     app = new Hono();
     app.use('*', async (c, next) => {
       c.env = {
-        OPENAI_API_KEY: 'test-api-key',
+        DEEPGRAM_API_KEY: 'test-api-key',
         CONVEX_URL: 'https://test.convex.cloud',
         WEB_VOICE_SESSION: mockDoNamespace,
       };
@@ -199,7 +199,7 @@ describe('Voice Preview Routes', () => {
 
       const res = await app.fetch(req);
 
-      expect(mockDoNamespace.idFromName).toHaveBeenCalledWith(expect.stringContaining('preview-agent123-'));
+      expect(mockDoNamespace.idFromName).toHaveBeenCalledWith('preview-tenant123-agent123');
       expect(mockDoNamespace.get).toHaveBeenCalledWith('mock-do-id');
       expect(res.status).toBe(200);
     });

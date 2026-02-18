@@ -53,3 +53,41 @@ export const setDefaultApiKeyScopes = mutation({
     return { total: keys.length, updated };
   },
 });
+
+/**
+ * Migration: Backfill required voice agent fields for Deepgram pipeline
+ *
+ * Run this once after deploying schema changes to populate
+ * new required fields for existing voice agents.
+ *
+ * Usage:
+ *   npx convex run migrations:setDefaultVoiceAgentFields
+ */
+export const setDefaultVoiceAgentFields = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const voiceAgents = await ctx.db.query("voiceAgents").collect();
+
+    let updated = 0;
+    for (const voiceAgent of voiceAgents) {
+      const patch: Record<string, unknown> = {};
+
+      if (voiceAgent.sttProvider === undefined) patch.sttProvider = "deepgram";
+      if (voiceAgent.ttsProvider === undefined) patch.ttsProvider = "deepgram";
+      if (voiceAgent.sttModel === undefined) patch.sttModel = "nova-3";
+      if (voiceAgent.ttsModel === undefined) patch.ttsModel = "aura-2-thalia-en";
+      if (voiceAgent.locale === undefined) patch.locale = "en-US";
+      if (voiceAgent.bargeInEnabled === undefined) patch.bargeInEnabled = true;
+      if (voiceAgent.enabled === undefined) patch.enabled = true;
+      if (voiceAgent.createdAt === undefined) patch.createdAt = Date.now();
+
+      if (Object.keys(patch).length > 0) {
+        patch.updatedAt = Date.now();
+        await ctx.db.patch(voiceAgent._id, patch);
+        updated++;
+      }
+    }
+
+    return { total: voiceAgents.length, updated };
+  },
+});

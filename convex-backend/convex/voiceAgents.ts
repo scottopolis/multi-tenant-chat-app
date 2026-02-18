@@ -50,8 +50,11 @@ export const create = mutation({
   args: {
     tenantId: v.id("tenants"),
     agentId: v.id("agents"),
-    voiceModel: v.string(),
-    voiceName: v.optional(v.string()),
+    sttProvider: v.string(),
+    ttsProvider: v.string(),
+    sttModel: v.string(),
+    ttsModel: v.string(),
+    ttsVoice: v.optional(v.string()),
     locale: v.string(),
     bargeInEnabled: v.boolean(),
     enabled: v.boolean(),
@@ -71,8 +74,11 @@ export const create = mutation({
     return await ctx.db.insert("voiceAgents", {
       tenantId: args.tenantId,
       agentId: args.agentId,
-      voiceModel: args.voiceModel,
-      voiceName: args.voiceName,
+      sttProvider: args.sttProvider,
+      ttsProvider: args.ttsProvider,
+      sttModel: args.sttModel,
+      ttsModel: args.ttsModel,
+      ttsVoice: args.ttsVoice,
       locale: args.locale,
       bargeInEnabled: args.bargeInEnabled,
       enabled: args.enabled,
@@ -88,8 +94,11 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("voiceAgents"),
-    voiceModel: v.optional(v.string()),
-    voiceName: v.optional(v.string()),
+    sttProvider: v.optional(v.string()),
+    ttsProvider: v.optional(v.string()),
+    sttModel: v.optional(v.string()),
+    ttsModel: v.optional(v.string()),
+    ttsVoice: v.optional(v.string()),
     locale: v.optional(v.string()),
     bargeInEnabled: v.optional(v.boolean()),
     enabled: v.optional(v.boolean()),
@@ -139,7 +148,8 @@ export const getConfigByAgentDbId = query({
       .withIndex("by_agent", (q) => q.eq("agentId", agentId))
       .first();
 
-    if (!voiceAgent || !voiceAgent.enabled) {
+    const enabled = voiceAgent?.enabled ?? true;
+    if (!voiceAgent || !enabled) {
       return null;
     }
 
@@ -155,10 +165,13 @@ export const getConfigByAgentDbId = query({
       tenantId: voiceAgent.tenantId,
       agentName: agent.name,
       systemPrompt: agent.systemPrompt || "You are a helpful voice assistant.",
-      voiceModel: voiceAgent.voiceModel,
-      voiceName: voiceAgent.voiceName,
-      locale: voiceAgent.locale,
-      bargeInEnabled: voiceAgent.bargeInEnabled,
+      sttProvider: voiceAgent.sttProvider ?? "deepgram",
+      ttsProvider: voiceAgent.ttsProvider ?? "deepgram",
+      sttModel: voiceAgent.sttModel ?? "nova-3",
+      ttsModel: voiceAgent.ttsModel ?? "aura-2-thalia-en",
+      ttsVoice: voiceAgent.ttsVoice,
+      locale: voiceAgent.locale ?? "en-US",
+      bargeInEnabled: voiceAgent.bargeInEnabled ?? true,
     };
   },
 });

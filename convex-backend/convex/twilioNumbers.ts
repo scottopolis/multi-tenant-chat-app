@@ -43,8 +43,11 @@ export const getByPhoneNumber = query({
       voiceAgentId: twilioNumber.voiceAgentId,
       phoneNumber: twilioNumber.phoneNumber,
       // Voice config
-      voiceModel: voiceAgent.voiceModel,
-      voiceName: voiceAgent.voiceName,
+      sttProvider: voiceAgent.sttProvider,
+      ttsProvider: voiceAgent.ttsProvider,
+      sttModel: voiceAgent.sttModel,
+      ttsModel: voiceAgent.ttsModel,
+      ttsVoice: voiceAgent.ttsVoice,
       locale: voiceAgent.locale,
       bargeInEnabled: voiceAgent.bargeInEnabled,
       // Agent config
@@ -60,7 +63,40 @@ export const getByPhoneNumber = query({
 export const getById = query({
   args: { id: v.id("twilioNumbers") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const twilioNumber = await ctx.db.get(args.id);
+    if (!twilioNumber) {
+      return null;
+    }
+
+    const voiceAgent = await ctx.db.get(twilioNumber.voiceAgentId);
+    if (!voiceAgent || !voiceAgent.enabled) {
+      return null;
+    }
+
+    const agent = await ctx.db.get(twilioNumber.agentId);
+    if (!agent) {
+      return null;
+    }
+
+    return {
+      numberId: twilioNumber._id,
+      tenantId: twilioNumber.tenantId,
+      agentDbId: twilioNumber.agentId,
+      agentId: agent.agentId,
+      voiceAgentId: twilioNumber.voiceAgentId,
+      phoneNumber: twilioNumber.phoneNumber,
+      // Voice config
+      sttProvider: voiceAgent.sttProvider,
+      ttsProvider: voiceAgent.ttsProvider,
+      sttModel: voiceAgent.sttModel,
+      ttsModel: voiceAgent.ttsModel,
+      ttsVoice: voiceAgent.ttsVoice,
+      locale: voiceAgent.locale,
+      bargeInEnabled: voiceAgent.bargeInEnabled,
+      // Agent config
+      agentName: agent.name,
+      systemPrompt: agent.systemPrompt || "",
+    };
   },
 });
 

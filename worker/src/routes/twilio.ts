@@ -4,7 +4,7 @@ import { convexQuery, convexMutation } from '../convex/client';
 import { verifyTwilioSignature, formDataToObject } from '../voice/twilioSignature';
 
 type Bindings = {
-  OPENAI_API_KEY: string;
+  DEEPGRAM_API_KEY: string;
   CONVEX_URL: string;
   VOICE_CALL_SESSION: DurableObjectNamespace;
   TWILIO_AUTH_TOKEN?: string;
@@ -16,8 +16,11 @@ export interface TwilioNumberConfig {
   agentId: string;
   voiceAgentId: string;
   phoneNumber: string;
-  voiceModel: string;
-  voiceName?: string;
+  sttProvider: string;
+  ttsProvider: string;
+  sttModel: string;
+  ttsModel: string;
+  ttsVoice?: string;
   locale: string;
   bargeInEnabled: boolean;
   agentName: string;
@@ -96,13 +99,36 @@ twilioRoutes.post('/voice', async (c) => {
   }
 
   // Create voice call record in Convex
+  let conversationId: string | undefined;
   if (c.env.CONVEX_URL) {
     try {
+      if (numberConfig.agentId) {
+        conversationId = await convexMutation<string>(c.env.CONVEX_URL, 'conversations:create', {
+          agentId: numberConfig.agentId,
+          sessionId: `voice:twilio:${callSid}`,
+          title: 'Voice call',
+          context: {
+            locale: numberConfig.locale,
+            customMetadata: {
+              channel: 'voice',
+              source: 'twilio',
+            },
+          },
+          metadata: {
+            channel: 'voice',
+            source: 'twilio',
+            callSid,
+            from,
+            to,
+          },
+        });
+      }
       await convexMutation(c.env.CONVEX_URL, 'voiceCalls:create', {
         tenantId: numberConfig.tenantId,
         agentId: numberConfig.agentId,
         voiceAgentId: numberConfig.voiceAgentId,
         twilioNumberId: numberConfig.numberId,
+        conversationId,
         twilioCallSid: callSid,
         fromNumber: from,
         toNumber: to,
@@ -117,11 +143,15 @@ twilioRoutes.post('/voice', async (c) => {
   const protocol = c.req.header('X-Forwarded-Proto') || 'https';
   const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
 
+  const conversationParam = conversationId
+    ? `&amp;conversationId=${encodeURIComponent(conversationId)}`
+    : '';
+
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Hello! Please wait while I connect you to the assistant.</Say>
   <Connect>
-    <Stream url="${wsProtocol}://${host}/twilio/media?callSid=${encodeURIComponent(callSid)}&amp;numberId=${encodeURIComponent(numberConfig.numberId)}"/>
+    <Stream url="${wsProtocol}://${host}/twilio/media?callSid=${encodeURIComponent(callSid)}&amp;numberId=${encodeURIComponent(numberConfig.numberId)}${conversationParam}"/>
   </Connect>
 </Response>`;
 
@@ -131,6 +161,7 @@ twilioRoutes.post('/voice', async (c) => {
 twilioRoutes.get('/media', async (c) => {
   const callSid = c.req.query('callSid');
   const numberId = c.req.query('numberId');
+  const conversationId = c.req.query('conversationId');
 
   if (!callSid || !numberId) {
     return c.text('Missing params', 400);
@@ -149,6 +180,9 @@ twilioRoutes.get('/media', async (c) => {
   const url = new URL(c.req.url);
   url.searchParams.set('callSid', callSid);
   url.searchParams.set('numberId', numberId);
+  if (conversationId) {
+    url.searchParams.set('conversationId', conversationId);
+  }
 
   return stub.fetch(url.toString(), {
     headers: c.req.raw.headers,
