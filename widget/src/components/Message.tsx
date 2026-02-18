@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/hooks/useChat';
 import { Loader2 } from 'lucide-react';
 import { parseMessageContent } from '@/lib/structured-output';
+import { ToolMessage } from './ToolMessage';
 
 /**
  * Message component
@@ -25,6 +26,10 @@ interface MessageProps {
 }
 
 export function Message({ message, onSuggestionClick, isLatestMessage = false }: MessageProps) {
+  if (message.toolEventType) {
+    return <ToolMessage message={message} />;
+  }
+
   const isUser = message.role === 'user';
 
   // Parse content to detect structured responses

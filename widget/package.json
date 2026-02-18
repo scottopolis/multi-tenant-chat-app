@@ -14,6 +14,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@mcp-ui/client": "latest",
     "@radix-ui/react-select": "^2.2.6",
     "@tanstack/react-query": "^5.62.11",
     "class-variance-authority": "^0.7.1",
