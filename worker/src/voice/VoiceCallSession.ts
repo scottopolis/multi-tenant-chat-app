@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { convexQuery, convexMutation } from '../convex/client';
 import { DeepgramVoicePipeline, base64ToUint8Array, uint8ArrayToBase64 } from './deepgramPipeline';
+import { appendVoicePrompt } from './voicePrompt';
 
 export interface VoiceCallSessionEnv {
   DEEPGRAM_API_KEY: string;
@@ -223,7 +224,10 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
   private async loadVoiceConfig(): Promise<typeof FALLBACK_CONFIG & Partial<VoiceConfig>> {
     if (!this.numberId || !this.env.CONVEX_URL) {
       console.log('[VoiceCallSession] No numberId or CONVEX_URL, using fallback config');
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
     }
 
     try {
@@ -236,20 +240,31 @@ export class VoiceCallSession extends DurableObject<VoiceCallSessionEnv> {
 
       if (!config) {
         console.log(`[VoiceCallSession] No config found for numberId=${this.numberId}, using fallback`);
-        return FALLBACK_CONFIG;
+        return {
+          ...FALLBACK_CONFIG,
+          systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+        };
       }
 
       console.log(`[VoiceCallSession] Loaded voice config for agent: ${config.agentName}`);
 
       this.agentId = config.agentId;
 
-      return {
+      const mergedConfig = {
         ...FALLBACK_CONFIG,
         ...config,
       };
+
+      return {
+        ...mergedConfig,
+        systemPrompt: appendVoicePrompt(mergedConfig.systemPrompt),
+      };
     } catch (error) {
       console.error('[VoiceCallSession] Failed to load voice config:', error);
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
     }
   }
 

@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { convexQuery, convexMutation } from '../convex/client';
 import { DeepgramVoicePipeline } from './deepgramPipeline';
+import { appendVoicePrompt } from './voicePrompt';
 
 export interface WebVoiceSessionEnv {
   DEEPGRAM_API_KEY: string;
@@ -235,7 +236,10 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
   private async loadVoiceConfig(): Promise<typeof FALLBACK_CONFIG & Partial<WebVoiceConfig>> {
     if (!this.agentDbId || !this.env.CONVEX_URL) {
       console.log('[WebVoiceSession] No agentDbId or CONVEX_URL, using fallback config');
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
     }
 
     try {
@@ -248,18 +252,29 @@ export class WebVoiceSession extends DurableObject<WebVoiceSessionEnv> {
 
       if (!config) {
         console.log(`[WebVoiceSession] No config found for agentDbId=${this.agentDbId}, using fallback`);
-        return FALLBACK_CONFIG;
+        return {
+          ...FALLBACK_CONFIG,
+          systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+        };
       }
 
       console.log(`[WebVoiceSession] Loaded voice config for agent: ${config.agentName}`);
 
-      return {
+      const mergedConfig = {
         ...FALLBACK_CONFIG,
         ...config,
       };
+
+      return {
+        ...mergedConfig,
+        systemPrompt: appendVoicePrompt(mergedConfig.systemPrompt),
+      };
     } catch (error) {
       console.error('[WebVoiceSession] Failed to load voice config:', error);
-      return FALLBACK_CONFIG;
+      return {
+        ...FALLBACK_CONFIG,
+        systemPrompt: appendVoicePrompt(FALLBACK_CONFIG.systemPrompt),
+      };
     }
   }
 

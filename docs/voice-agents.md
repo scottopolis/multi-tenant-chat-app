@@ -10,6 +10,7 @@ Voice agents allow users to interact with your AI assistant via phone calls. The
 - **Deepgram** for streaming speech-to-text (STT) and text-to-speech (TTS)
 - **Cloudflare Durable Objects** for persistent WebSocket connections
 - **Your LLM** (OpenRouter, OpenAI, or other) for reasoning and tools
+- **Deepgram streaming pipeline** for live STT → LLM → TTS with barge-in support
 
 ## Prerequisites
 
@@ -29,7 +30,7 @@ Voice agents allow users to interact with your AI assistant via phone calls. The
        ▼             │  │                 │    │   - Manages WS lifecycle    │ │
 ┌─────────────┐      │  │ /twilio/voice   │    │                             │ │
 │   Twilio    │──────┼──│ /twilio/media   │────│   Twilio ↔ Deepgram Bridge │ │
-│   (Phone)   │      │  │ /twilio/status  │    │                             │ │
+│   (Phone)   │      │  │ /twilio/status  │    │   Deepgram STT/TTS streams │ │
 └─────────────┘      │  └─────────────────┘    └─────────────────────────────┘ │
                      └─────────────────────────────────────────────────────────┘
                                                           │
@@ -120,6 +121,7 @@ Add to `worker/.dev.vars`:
 
 ```bash
 DEEPGRAM_API_KEY=your-deepgram-key
+DEEPGRAM_API_URL=optional-deepgram-api-url
 OPENROUTER_API_KEY=your-llm-key (or OPENAI_API_KEY if using OpenAI directly)
 TWILIO_AUTH_TOKEN=your-twilio-auth-token  # For webhook signature verification
 CONVEX_URL=your-convex-deployment-url
@@ -163,6 +165,16 @@ CONVEX_URL=your-convex-deployment-url
 
 Deepgram TTS voices are model-specific. Use the voice setting only if you need to override the model default.
 
+## Global Voice System Prompt
+
+For voice sessions only, the worker appends this suffix to every agent system prompt:
+
+```
+You are a voice agent, talking out loud to a customer. Format your replies for a speech conversation, do not use special characters or formatting, read long urls, or be overly verbose.
+```
+
+This is applied automatically for both Twilio calls and web voice preview.
+
 ## Production Deployment
 
 ### 1. Deploy Worker
@@ -197,6 +209,7 @@ Voice call records are stored in Convex (`voiceCalls` table) with:
 - Status (in_progress, completed, failed)
 - LLM token usage (when available)
 - Twilio costs (via status callbacks)
+- Deepgram usage metrics (STT seconds, TTS characters)
 
 View call history in the Dashboard (coming in Phase 4).
 
@@ -219,6 +232,11 @@ You can test your voice agent directly in the browser without needing a phone nu
 - Audio is captured at 24kHz mono PCM16
 - Sessions auto-disconnect after 10 minutes
 - Requires a valid session token (automatically generated)
+
+### Audio Formats
+
+- **Twilio calls**: 8kHz μ-law audio in/out
+- **Browser preview**: 24kHz linear16 (PCM16) in/out
 
 ### Limitations
 
