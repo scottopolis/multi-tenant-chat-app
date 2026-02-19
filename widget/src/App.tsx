@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chat } from './components/Chat';
-import { ChatList } from './components/ChatList';
 import { Button } from './components/ui/button';
 import { createChat, listChats } from './lib/api';
-import { MessageSquarePlus, Loader2, Menu } from 'lucide-react';
+import { MessageSquarePlus, Loader2 } from 'lucide-react';
 import { AgentProvider, useAgent } from './contexts/AgentContext';
 
 /**
@@ -36,7 +35,6 @@ function AppContent() {
   const queryClient = useQueryClient();
   const [chatId, setChatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
 
   const { data: chats, isLoading: isChatsLoading } = useQuery({
     queryKey: ['chats', agentId],
@@ -68,11 +66,6 @@ function AppContent() {
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleSelectChat = (selectedChatId: string) => {
-    setChatId(selectedChatId);
-    setShowSidebar(false);
   };
 
   if (!chatId) {
