@@ -19,9 +19,9 @@ export function ToolMessage({ message }: ToolMessageProps) {
   }
 
   return (
-    <div className="flex px-6 py-3">
-      <div className="max-w-[85%] w-full">
-        <div className="rounded-xl px-4 py-3 bg-white border border-gray-200 text-gray-900">
+    <div className="flex items-start px-6 py-3">
+      <div className="max-w-[85%] w-full h-fit">
+        <div className="rounded-xl px-4 py-3 bg-white border border-gray-200 text-gray-900 h-fit">
           <McpToolUi toolResult={message.toolResult} />
         </div>
       </div>

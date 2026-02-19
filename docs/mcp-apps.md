@@ -41,9 +41,9 @@ Open questions:
 - Should tool events be returned in `GET /api/chats/:chatId` so MCP UIs persist on reload? (Yes, this is required.)
 - Should the worker provide a typed “tool event” stream to the widget (instead of relying on SSE tool events)?
 
-Suggested next steps:
+Status:
 1. Ensure tool events are included in chat history responses so UI persists on reload. (Done for Convex.)
-2. Add MCP tools to the TanStack AI path so MCP servers are available for chat (still TODO).
+2. Add MCP tools to the TanStack AI path so MCP servers are available for chat. (Done — `getAiTools` now loads MCP tools.)
 
 ## Summary
 

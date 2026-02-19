@@ -1,5 +1,5 @@
 import { builtinTools } from './builtin';
-import { getMCPTools } from '../mcp';
+import { getMCPTools, getMCPToolsTanStack } from '../mcp';
 import { getAgentConfig, type AgentConfigEnv } from '../tenants/config';
 import { createKnowledgeBaseSearchTool, createKnowledgeBaseSearchToolTanStack } from './vectorSearch';
 
@@ -115,14 +115,35 @@ export { builtinTools } from './builtin';
  */
 export async function getAiTools(agentId: string, env?: AgentConfigEnv, options?: GetToolsOptions) {
   const config = await getAgentConfig(agentId, env);
-  const tools: ReturnType<typeof createKnowledgeBaseSearchToolTanStack>[] = [];
+  const tools: any[] = [];
 
   // Add knowledge base search if agent has documents and convexUrl is provided
   if (config?.agentConvexId && options?.convexUrl) {
     tools.push(createKnowledgeBaseSearchToolTanStack(config.agentConvexId, options.convexUrl));
   }
 
-  // TODO: Add MCP tools for TanStack path
+  // Add MCP tools if configured (TanStack AI tool format)
+  if (config?.mcpServers && config.mcpServers.length > 0) {
+    for (const mcpServer of config.mcpServers) {
+      if (!mcpServer.url) {
+        console.warn(`[Tools] (TanStack) Skipping MCP server with missing URL for agent: ${agentId}`);
+        continue;
+      }
+
+      try {
+        const mcpTools = await getMCPToolsTanStack({
+          serverUrl: mcpServer.url,
+          authHeader: mcpServer.authHeader,
+          transport: mcpServer.transport || 'http',
+        });
+
+        tools.push(...mcpTools);
+      } catch (error) {
+        console.error(`[Tools] (TanStack) Failed to fetch tools from ${mcpServer.url}:`, error);
+      }
+    }
+  }
+
   // TODO: Add webhook tools for TanStack path
 
   return tools;

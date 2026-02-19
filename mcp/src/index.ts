@@ -12,9 +12,40 @@ import { serve } from '@hono/node-server';
  * 
  * Available tools:
  * - scottPhysicsFacts: Returns Scott's top 10 interesting physics facts
+ * - showWidget: Returns a UI resource via MCP Apps resourceUri
  */
 
 const app = new Hono();
+
+const WIDGET_RESOURCE_URI = 'ui://mcp-test-server/widget';
+const WIDGET_RESOURCE = {
+  type: 'resource',
+  resource: {
+    uri: WIDGET_RESOURCE_URI,
+    mimeType: 'text/html',
+    text: `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP Widget</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 16px; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+      .title { font-size: 18px; margin-bottom: 8px; }
+      .pill { display: inline-block; padding: 4px 8px; background: #f2f2f2; border-radius: 999px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">MCP Widget Resource</div>
+      <div class="pill">ui://mcp-test-server/widget</div>
+      <p>This is a test UI resource served by the MCP test server.</p>
+    </div>
+  </body>
+</html>`,
+  },
+};
 
 // Scott's top 10 interesting physics facts (static data)
 const PHYSICS_FACTS = [
@@ -86,6 +117,24 @@ const TOOLS = [
         }
       }
     }
+  },
+  {
+    name: 'showWidget',
+    description: 'Returns a UI resource via MCP Apps so the client can render an embedded widget.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Optional context to echo in the tool result'
+        }
+      }
+    },
+    _meta: {
+      ui: {
+        resourceUri: WIDGET_RESOURCE_URI
+      }
+    }
   }
 ];
 
@@ -149,6 +198,18 @@ app.post('/', async (c) => {
         });
       }
 
+      if (name === 'showWidget') {
+        const query = args.query || 'No query provided';
+        return c.json({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            result: `Widget ready for: ${query}`,
+            isError: false
+          }
+        });
+      }
+
       // Unknown tool
       return c.json({
         jsonrpc: '2.0',
@@ -156,6 +217,29 @@ app.post('/', async (c) => {
         error: {
           code: -32601,
           message: `Method not found: ${name}`
+        }
+      }, 404);
+    }
+
+    // Handle resources/read - return UI resources
+    if (method === 'resources/read') {
+      const { uri } = params || {};
+      if (uri === WIDGET_RESOURCE_URI) {
+        return c.json({
+          jsonrpc: '2.0',
+          id,
+          result: {
+            contents: [WIDGET_RESOURCE]
+          }
+        });
+      }
+
+      return c.json({
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: -32602,
+          message: `Unknown resource URI: ${uri}`
         }
       }, 404);
     }
@@ -215,4 +299,3 @@ serve({
   fetch: app.fetch,
   port: PORT
 });
-

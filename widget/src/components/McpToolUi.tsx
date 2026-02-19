@@ -18,10 +18,25 @@ export type UiResourceWrapper = {
   };
 };
 
+type UiResource = UiResourceWrapper['resource'];
+
+function isUIResourceSafe(value: unknown): value is UiResourceWrapper {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  if (!('type' in obj)) return false;
+  return isUIResource(value as { type: string });
+}
+
+function isRawResource(value: unknown): value is UiResource {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  return typeof obj.uri === 'string' && typeof obj.mimeType === 'string';
+}
+
 export function findUiResource(value: unknown): UiResourceWrapper | null {
   if (!value) return null;
 
-  if (isUIResource(value)) {
+  if (isUIResourceSafe(value)) {
     return value as UiResourceWrapper;
   }
 
@@ -29,7 +44,7 @@ export function findUiResource(value: unknown): UiResourceWrapper | null {
     const obj = value as Record<string, unknown>;
     const content = obj.content;
     if (Array.isArray(content)) {
-      const resource = content.find((item) => isUIResource(item));
+      const resource = content.find((item) => isUIResourceSafe(item));
       if (resource) return resource as UiResourceWrapper;
     }
   }
@@ -76,10 +91,22 @@ export function McpToolUi({ toolResult }: McpToolUiProps) {
         }
 
         const data = await response.json();
-        const resource = Array.isArray(data.contents) ? data.contents.find((item: unknown) => isUIResource(item)) : null;
-        if (resource && isActive) {
-          setRemoteResource(resource as UiResourceWrapper);
-          setRemoteError(null);
+        const resource = Array.isArray(data.contents)
+          ? data.contents.find((item: unknown) => isUIResourceSafe(item))
+          : null;
+        const rawResource = !resource && Array.isArray(data.contents)
+          ? data.contents.find((item: unknown) => isRawResource(item))
+          : null;
+        if (isActive) {
+          if (resource) {
+            setRemoteResource(resource as UiResourceWrapper);
+            setRemoteError(null);
+          } else if (rawResource) {
+            setRemoteResource({ type: 'resource', resource: rawResource });
+            setRemoteError(null);
+          } else {
+            setRemoteError('MCP resource had no renderable UI content');
+          }
         }
       } catch (error) {
         if (isActive) {
@@ -103,8 +130,13 @@ export function McpToolUi({ toolResult }: McpToolUiProps) {
   return (
     <UIResourceRenderer
       resource={resource.resource}
+      htmlProps={{
+        autoResizeIframe: { height: true },
+        style: { width: '100%' },
+      }}
       onUIAction={(action) => {
         console.log('MCP UI action:', action);
+        return Promise.resolve();
       }}
     />
   );

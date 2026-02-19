@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { tool } from '@openai/agents';
+import { toolDefinition } from '@tanstack/ai';
 
 /**
  * MCP Client for connecting to Model Context Protocol servers
@@ -288,6 +289,91 @@ export async function getMCPTools(
 }
 
 /**
+ * Get tools from an MCP server in TanStack AI format
+ *
+ * Mirrors getMCPTools but returns @tanstack/ai server tools.
+ * Injects `_meta.ui.resourceUri` into tool results when provided by the MCP server.
+ */
+export async function getMCPToolsTanStack(
+  config: MCPClientConfig
+): Promise<any[]> {
+  try {
+    console.log(`[MCP] (TanStack) Connecting to server: ${config.serverUrl} (transport: ${config.transport || 'http'})`);
+
+    if (config.transport === 'sse') {
+      throw new Error('SSE transport not yet fully implemented - use http transport');
+    }
+
+    const callMCPTool = async (toolName: string, args: any) => {
+      const result = await callMCPMethod(config, 'tools/call', {
+        name: toolName,
+        arguments: args,
+      });
+
+      return result?.result ?? JSON.stringify(result ?? {});
+    };
+
+    const listResult = await callMCPMethod(config, 'tools/list', {});
+    const availableTools = listResult?.tools || [];
+
+    console.log(`[MCP] (TanStack) Server offers ${availableTools.length} tools: ${availableTools.map((t: any) => t.name).join(', ')}`);
+
+    const tools: any[] = [];
+
+    for (const mcpTool of availableTools) {
+      const { name, description, inputSchema } = mcpTool;
+      const resourceUri = mcpTool?._meta?.ui?.resourceUri;
+
+      const zodSchema = buildZodFromJsonSchema(inputSchema);
+      const definition = toolDefinition({
+        name,
+        description: description || `MCP tool: ${name}`,
+        inputSchema: zodSchema,
+      });
+
+      const serverTool = definition.server(async (args) => {
+        console.log(`[MCP] (TanStack) Calling tool: ${name} with args:`, args);
+        const result = await callMCPTool(name, args);
+        console.log(`[MCP] (TanStack) Tool ${name} returned:`, typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200));
+
+        if (!resourceUri) {
+          return result;
+        }
+
+        if (result && typeof result === 'object') {
+          return {
+            ...result,
+            _meta: {
+              ...(result as any)._meta,
+              ui: { resourceUri },
+            },
+          };
+        }
+
+        return {
+          result,
+          _meta: {
+            ui: { resourceUri },
+          },
+        };
+      });
+
+      tools.push(serverTool);
+      console.log(`[MCP] (TanStack) ✓ Registered tool: ${name}`);
+    }
+
+    console.log(`[MCP] (TanStack) Successfully loaded ${tools.length} tools`);
+    return tools;
+  } catch (error) {
+    console.error('[MCP] (TanStack) Failed to connect to MCP server:', error);
+    console.error('[MCP] (TanStack) Server URL:', config.serverUrl);
+    console.error('[MCP] (TanStack) Error details:', error instanceof Error ? error.stack : String(error));
+
+    return [];
+  }
+}
+
+/**
  * Build a simple Zod schema from JSON Schema
  * Simplified version - just handles basic object properties
  */
@@ -335,4 +421,3 @@ function buildZodFromJsonSchema(jsonSchema: any): z.ZodObject<any> {
   
   return z.object(shape);
 }
-
