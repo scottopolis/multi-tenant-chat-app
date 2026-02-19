@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Chat } from './components/Chat';
 import { ChatList } from './components/ChatList';
 import { Button } from './components/ui/button';
-import { createChat } from './lib/api';
+import { createChat, listChats } from './lib/api';
 import { MessageSquarePlus, Loader2, Menu } from 'lucide-react';
 import { AgentProvider, useAgent } from './contexts/AgentContext';
 
@@ -32,40 +32,39 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { agentId } = useAgent();
+  const { agentId, apiKey } = useAgent();
   const queryClient = useQueryClient();
   const [chatId, setChatId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const isCreatingRef = useRef(false);
 
-  // Auto-create a chat on mount if none exists
+  const { data: chats, isLoading: isChatsLoading } = useQuery({
+    queryKey: ['chats', agentId],
+    queryFn: () => listChats(agentId, apiKey ?? undefined),
+  });
+
+  // Select the most recent existing chat for this session
   useEffect(() => {
-    if (!chatId && !isCreatingRef.current) {
-      isCreatingRef.current = true;
-      handleCreateChat();
+    if (!chatId && chats && chats.length > 0) {
+      setChatId(chats[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId]);
+  }, [chatId, chats]);
 
   // Reset chat when agent changes
   useEffect(() => {
     setChatId(null);
-    isCreatingRef.current = false;
   }, [agentId]);
 
   const handleCreateChat = async () => {
     if (isCreating) return;
     setIsCreating(true);
-    isCreatingRef.current = true;
     try {
-      const newChat = await createChat({ title: 'New Chat' }, agentId);
+      const newChat = await createChat({ title: 'New Chat' }, agentId, apiKey ?? undefined);
       setChatId(newChat.id);
       // Refresh chat list
       queryClient.invalidateQueries({ queryKey: ['chats', agentId] });
     } catch (error) {
       console.error('Failed to create chat:', error);
-      isCreatingRef.current = false;
     } finally {
       setIsCreating(false);
     }
@@ -80,10 +79,10 @@ function AppContent() {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          {isCreating ? (
+          {isChatsLoading || isCreating ? (
             <>
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500">Creating chat...</p>
+              <p className="text-gray-500">Loading conversations...</p>
             </>
           ) : (
             <>
@@ -110,6 +109,7 @@ function AppContent() {
       >
         <ChatList
           agentId={agentId}
+          apiKey={apiKey}
           currentChatId={chatId}
           onSelectChat={handleSelectChat}
           onClose={() => setShowSidebar(false)}
