@@ -22,6 +22,11 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: string;
+  toolEventType?: 'tool_call' | 'tool_result';
+  toolName?: string;
+  toolCallId?: string;
+  toolInput?: unknown;
+  toolResult?: unknown;
 }
 
 export interface ChatWithMessages extends Chat {
@@ -233,6 +238,12 @@ export async function* streamMessage(
             if (parsed.type === 'content' && parsed.delta) {
               // Content chunk - yield the delta text
               yield { event: 'text', data: parsed.delta };
+            } else if (parsed.type === 'tool_call') {
+              // Tool call event
+              yield { event: 'tool_call', data: JSON.stringify(parsed) };
+            } else if (parsed.type === 'tool_result') {
+              // Tool result event
+              yield { event: 'tool_result', data: JSON.stringify(parsed) };
             } else if (parsed.type === 'done') {
               // Stream complete
               yield { event: 'done', data: '' };
@@ -240,7 +251,7 @@ export async function* streamMessage(
               // Error from server
               yield { event: 'error', data: JSON.stringify({ error: parsed.message || 'Unknown error' }) };
             }
-            // Ignore other chunk types (thinking, tool calls, etc. for now)
+            // Ignore other chunk types (thinking, etc. for now)
           } catch {
             // If not JSON, treat as raw text (legacy format)
             yield { event: 'text', data: rawData };
@@ -268,4 +279,3 @@ export async function getModels(agentId: string = 'default', apiKey?: string): P
   const data = await response.json();
   return data.models;
 }
-

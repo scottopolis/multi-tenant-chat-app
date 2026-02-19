@@ -5,7 +5,5 @@
  */
 
 // Client: Connect to external MCP servers
-export { getMCPTools } from './client';
+export { getMCPTools, getMCPToolsTanStack, readMCPResource } from './client';
 export type { MCPClientConfig } from './client';
-
-

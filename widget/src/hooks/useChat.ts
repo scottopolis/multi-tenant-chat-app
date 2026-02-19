@@ -9,6 +9,11 @@ import type { Message } from '@/lib/api';
 export interface ChatMessage extends Omit<Message, 'createdAt'> {
   isStreaming?: boolean;
   createdAt?: string;
+  toolName?: string;
+  toolCallId?: string;
+  toolInput?: unknown;
+  toolResult?: unknown;
+  toolEventType?: 'tool_call' | 'tool_result';
 }
 
 export interface UseChatOptions {
@@ -102,6 +107,13 @@ export function useChat({ chatId, agentId, apiKey, onError, onChatNotFound }: Us
         let fullContent = '';
         let isStructuredResponse = false;
         let firstChunkReceived = false;
+        const toolEvents: Array<{
+          type: 'tool_call' | 'tool_result';
+          toolName?: string;
+          toolCallId?: string;
+          toolInput?: unknown;
+          toolResult?: unknown;
+        }> = [];
 
         for await (const { event, data } of streamMessage(chatId, {
           content: content.trim(),
@@ -130,6 +142,38 @@ export function useChat({ chatId, agentId, apiKey, onError, onChatNotFound }: Us
                 )
               );
             }
+          } else if (event === 'tool_call') {
+            const parsed = JSON.parse(data);
+            let toolInput: unknown = parsed.toolCall?.function?.arguments;
+            if (typeof toolInput === 'string') {
+              try {
+                toolInput = JSON.parse(toolInput);
+              } catch {
+                // Keep as string if not valid JSON
+              }
+            }
+            toolEvents.push({
+              type: 'tool_call',
+              toolName: parsed.toolCall?.function?.name,
+              toolCallId: parsed.toolCall?.id,
+              toolInput,
+            });
+          } else if (event === 'tool_result') {
+            const parsed = JSON.parse(data);
+            let toolResult: unknown = parsed.result ?? parsed.content ?? parsed;
+            if (typeof toolResult === 'string') {
+              try {
+                toolResult = JSON.parse(toolResult);
+              } catch {
+                // Keep as string if not valid JSON
+              }
+            }
+            toolEvents.push({
+              type: 'tool_result',
+              toolName: parsed.toolName,
+              toolCallId: parsed.toolCallId,
+              toolResult,
+            });
           } else if (event === 'done') {
             // Streaming complete - set final content and mark as done
             // For structured responses, this is when content first appears (after parsing)
@@ -141,6 +185,27 @@ export function useChat({ chatId, agentId, apiKey, onError, onChatNotFound }: Us
               )
             );
             
+            if (toolEvents.length > 0) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const insertIndex = updated.findIndex((msg) => msg.id === assistantMessageId);
+                if (insertIndex === -1) return prev;
+                const toolMessages = toolEvents.map((evt) => ({
+                  id: crypto.randomUUID(),
+                  chatId,
+                  role: 'system' as const,
+                  content: '',
+                  toolName: evt.toolName,
+                  toolCallId: evt.toolCallId,
+                  toolInput: evt.toolInput,
+                  toolResult: evt.toolResult,
+                  toolEventType: evt.type,
+                }));
+                updated.splice(insertIndex, 0, ...toolMessages);
+                return updated;
+              });
+            }
+
             // Invalidate chat query to refresh from server
             queryClient.invalidateQueries({ queryKey: ['chat', chatId, agentId] });
           } else if (event === 'error') {
@@ -175,4 +240,3 @@ export function useChat({ chatId, agentId, apiKey, onError, onChatNotFound }: Us
     error,
   };
 }
-

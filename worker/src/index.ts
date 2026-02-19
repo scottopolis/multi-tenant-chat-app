@@ -7,6 +7,7 @@ import twilioRoutes from './routes/twilio';
 import voiceRoutes from './routes/voice';
 import { dynamicCors } from './middleware';
 import { convexMutation, convexQuery } from './convex/client';
+import { readMCPResource } from './mcp';
 
 export { VoiceCallSession } from './voice/VoiceCallSession';
 export { WebVoiceSession } from './voice/WebVoiceSession';
@@ -105,6 +106,57 @@ app.route('/twilio', twilioRoutes);
  * Voice preview routes (Web Voice)
  */
 app.route('/voice', voiceRoutes);
+
+/**
+ * POST /api/mcp/resources/read
+ * Proxy MCP resource reads via configured MCP servers for the agent.
+ *
+ * Body: { uri: string }
+ */
+app.post('/api/mcp/resources/read', async (c) => {
+  try {
+    const agentId = c.get('agentId');
+    const { getAgentConfig } = await import('./tenants/config');
+    const agentConfig = await getAgentConfig(agentId, { CONVEX_URL: c.env.CONVEX_URL });
+
+    const bodySchema = z.object({
+      uri: z.string().min(1, 'uri is required'),
+    });
+    const body = await c.req.json().catch(() => ({}));
+    const validation = bodySchema.safeParse(body);
+    if (!validation.success) {
+      return c.json({ error: 'Invalid request', details: validation.error.issues }, 400);
+    }
+
+    const { uri } = validation.data;
+    const servers = agentConfig?.mcpServers || [];
+
+    for (const server of servers) {
+      if (!server.url) continue;
+      try {
+        const result = await readMCPResource(
+          {
+            serverUrl: server.url,
+            authHeader: server.authHeader,
+            transport: server.transport || 'http',
+          },
+          uri
+        );
+
+        if (result?.contents && Array.isArray(result.contents) && result.contents.length > 0) {
+          return c.json({ contents: result.contents }, 200);
+        }
+      } catch (error) {
+        console.warn(`[MCP] Resource read failed for ${server.url}:`, error);
+      }
+    }
+
+    return c.json({ error: 'Resource not found' }, 404);
+  } catch (error) {
+    console.error('Error reading MCP resource:', error);
+    return c.json({ error: 'Failed to read MCP resource' }, 500);
+  }
+});
 
 
 /**
@@ -271,12 +323,17 @@ app.get('/api/chats/:chatId', async (c) => {
       if (conversation) {
         // Convert events to messages format for widget compatibility
         const messages = conversation.events
-          .filter(e => e.eventType === 'message')
+          .filter(e => e.eventType === 'message' || e.eventType === 'tool_call' || e.eventType === 'tool_result')
           .map(e => ({
             id: `${conversation._id}-${e.seq}`,
             chatId: conversation._id,
-            role: e.role as 'user' | 'assistant' | 'system',
+            role: (e.eventType === 'message' ? e.role : 'system') as 'user' | 'assistant' | 'system',
             content: e.content || '',
+            toolEventType: e.eventType === 'tool_call' || e.eventType === 'tool_result' ? e.eventType : undefined,
+            toolName: e.toolName,
+            toolCallId: e.toolCallId,
+            toolInput: e.toolInput,
+            toolResult: e.toolResult,
             createdAt: new Date(e.createdAt).toISOString(),
           }));
 

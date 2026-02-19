@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { tool } from '@openai/agents';
+import { toolDefinition } from '@tanstack/ai';
 
 /**
  * MCP Client for connecting to Model Context Protocol servers
@@ -58,6 +59,50 @@ function parseSSEResponse(sseText: string): any {
   }
   
   return JSON.parse(jsonData);
+}
+
+async function callMCPMethod(
+  config: MCPClientConfig,
+  method: string,
+  params?: unknown
+): Promise<any> {
+  const response = await fetch(config.serverUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'User-Agent': 'Mozilla/5.0 (compatible; MCPClient/1.0)',
+      ...(config.authHeader ? { 'Authorization': config.authHeader } : {}),
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method,
+      params: params ?? {},
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`MCP request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const responseText = await response.text();
+  const result = responseText.startsWith('event:') || responseText.startsWith('data:')
+    ? parseSSEResponse(responseText)
+    : JSON.parse(responseText);
+
+  if (result.error) {
+    throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
+  }
+
+  return result.result;
+}
+
+export async function readMCPResource(
+  config: MCPClientConfig,
+  uri: string
+): Promise<any> {
+  return callMCPMethod(config, 'resources/read', { uri });
 }
 
 /**
@@ -127,44 +172,12 @@ export async function getMCPTools(
     // Make a simple HTTP POST to call MCP tools directly
     // Bypass the @ai-sdk/mcp wrapper to avoid dynamic tool issues
     const callMCPTool = async (toolName: string, args: any) => {
-      const response = await fetch(config.serverUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/event-stream',
-          'User-Agent': 'Mozilla/5.0 (compatible; MCPClient/1.0)',
-          ...(config.authHeader ? { 'Authorization': config.authHeader } : {}),
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: {
-            name: toolName,
-            arguments: args,
-          },
-        }),
+      const result = await callMCPMethod(config, 'tools/call', {
+        name: toolName,
+        arguments: args,
       });
 
-      if (!response.ok) {
-        throw new Error(`MCP call failed: ${response.status} ${response.statusText}`);
-      }
-
-      const responseText = await response.text();
-      
-      // Parse SSE or JSON response
-      let result: any;
-      if (responseText.startsWith('event:') || responseText.startsWith('data:')) {
-        result = parseSSEResponse(responseText);
-      } else {
-        result = JSON.parse(responseText);
-      }
-      
-      if (result.error) {
-        throw new Error(`MCP error: ${result.error.message || JSON.stringify(result.error)}`);
-      }
-
-      return result.result?.result || JSON.stringify(result.result || result);
+      return result?.result ?? JSON.stringify(result ?? {});
     };
 
     // First, list available tools from the server
@@ -221,6 +234,7 @@ export async function getMCPTools(
     
     for (const mcpTool of availableTools) {
       const { name, description, inputSchema } = mcpTool;
+      const resourceUri = mcpTool?._meta?.ui?.resourceUri;
       
       // Convert JSON Schema to simple Zod schema
       const zodSchema = buildZodFromJsonSchema(inputSchema);
@@ -234,7 +248,27 @@ export async function getMCPTools(
           console.log(`[MCP] Calling tool: ${name} with args:`, args);
           const result = await callMCPTool(name, args);
           console.log(`[MCP] Tool ${name} returned:`, typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200));
-          return result;
+
+          if (!resourceUri) {
+            return result;
+          }
+
+          if (result && typeof result === 'object') {
+            return {
+              ...result,
+              _meta: {
+                ...(result as any)._meta,
+                ui: { resourceUri },
+              },
+            };
+          }
+
+          return {
+            result,
+            _meta: {
+              ui: { resourceUri },
+            },
+          };
         },
       });
       
@@ -250,6 +284,91 @@ export async function getMCPTools(
     console.error('[MCP] Error details:', error instanceof Error ? error.stack : String(error));
     
     // Return empty array - agent can continue with other available tools
+    return [];
+  }
+}
+
+/**
+ * Get tools from an MCP server in TanStack AI format
+ *
+ * Mirrors getMCPTools but returns @tanstack/ai server tools.
+ * Injects `_meta.ui.resourceUri` into tool results when provided by the MCP server.
+ */
+export async function getMCPToolsTanStack(
+  config: MCPClientConfig
+): Promise<any[]> {
+  try {
+    console.log(`[MCP] (TanStack) Connecting to server: ${config.serverUrl} (transport: ${config.transport || 'http'})`);
+
+    if (config.transport === 'sse') {
+      throw new Error('SSE transport not yet fully implemented - use http transport');
+    }
+
+    const callMCPTool = async (toolName: string, args: any) => {
+      const result = await callMCPMethod(config, 'tools/call', {
+        name: toolName,
+        arguments: args,
+      });
+
+      return result?.result ?? JSON.stringify(result ?? {});
+    };
+
+    const listResult = await callMCPMethod(config, 'tools/list', {});
+    const availableTools = listResult?.tools || [];
+
+    console.log(`[MCP] (TanStack) Server offers ${availableTools.length} tools: ${availableTools.map((t: any) => t.name).join(', ')}`);
+
+    const tools: any[] = [];
+
+    for (const mcpTool of availableTools) {
+      const { name, description, inputSchema } = mcpTool;
+      const resourceUri = mcpTool?._meta?.ui?.resourceUri;
+
+      const zodSchema = buildZodFromJsonSchema(inputSchema);
+      const definition = toolDefinition({
+        name,
+        description: description || `MCP tool: ${name}`,
+        inputSchema: zodSchema,
+      });
+
+      const serverTool = definition.server(async (args) => {
+        console.log(`[MCP] (TanStack) Calling tool: ${name} with args:`, args);
+        const result = await callMCPTool(name, args);
+        console.log(`[MCP] (TanStack) Tool ${name} returned:`, typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200));
+
+        if (!resourceUri) {
+          return result;
+        }
+
+        if (result && typeof result === 'object') {
+          return {
+            ...result,
+            _meta: {
+              ...(result as any)._meta,
+              ui: { resourceUri },
+            },
+          };
+        }
+
+        return {
+          result,
+          _meta: {
+            ui: { resourceUri },
+          },
+        };
+      });
+
+      tools.push(serverTool);
+      console.log(`[MCP] (TanStack) ✓ Registered tool: ${name}`);
+    }
+
+    console.log(`[MCP] (TanStack) Successfully loaded ${tools.length} tools`);
+    return tools;
+  } catch (error) {
+    console.error('[MCP] (TanStack) Failed to connect to MCP server:', error);
+    console.error('[MCP] (TanStack) Server URL:', config.serverUrl);
+    console.error('[MCP] (TanStack) Error details:', error instanceof Error ? error.stack : String(error));
+
     return [];
   }
 }
@@ -302,5 +421,3 @@ function buildZodFromJsonSchema(jsonSchema: any): z.ZodObject<any> {
   
   return z.object(shape);
 }
-
-

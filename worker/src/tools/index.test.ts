@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getTools } from './index';
+import { getAiTools, getTools } from './index';
 import * as mcpModule from '../mcp';
 import * as agentModule from '../tenants/config';
 import type { AgentConfig } from '../tenants/types';
@@ -12,6 +12,7 @@ import type { AgentConfig } from '../tenants/types';
 // Mock MCP client
 vi.mock('../mcp', () => ({
   getMCPTools: vi.fn(),
+  getMCPToolsTanStack: vi.fn(),
 }));
 
 // Mock agent config
@@ -366,5 +367,57 @@ describe('Tools', () => {
       });
     });
   });
-});
 
+  describe('getAiTools (TanStack) with MCP servers', () => {
+    it('should include MCP tools from configured servers', async () => {
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
+        mcpServers: [
+          {
+            url: 'http://localhost:3001',
+            transport: 'http',
+          },
+        ],
+      };
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
+
+      const mockMCPTools = [
+        {
+          name: 'tanstackTool',
+          description: 'Tool from MCP server',
+          execute: async () => ({ ok: true }),
+        },
+      ];
+      vi.mocked(mcpModule.getMCPToolsTanStack).mockResolvedValue(mockMCPTools);
+
+      const tools = await getAiTools('test-agent');
+
+      expect(Array.isArray(tools)).toBe(true);
+      expect(tools.some((t) => t.name === 'tanstackTool')).toBe(true);
+
+      expect(mcpModule.getMCPToolsTanStack).toHaveBeenCalledTimes(1);
+      expect(mcpModule.getMCPToolsTanStack).toHaveBeenCalledWith({
+        serverUrl: 'http://localhost:3001',
+        authHeader: undefined,
+        transport: 'http',
+      });
+    });
+  });
+
+  describe('getAiTools (TanStack) with no MCP servers', () => {
+    it('should not call MCP client when no servers configured', async () => {
+      const mockConfig: AgentConfig = {
+        agentId: 'test-agent',
+        orgId: 'test-org',
+        // No mcpServers configured
+      };
+      vi.mocked(agentModule.getAgentConfig).mockResolvedValue(mockConfig);
+
+      const tools = await getAiTools('test-agent');
+
+      expect(Array.isArray(tools)).toBe(true);
+      expect(mcpModule.getMCPToolsTanStack).not.toHaveBeenCalled();
+    });
+  });
+});
