@@ -4,7 +4,6 @@ import { api } from '../../../../../convex-backend/convex/_generated/api'
 import { useTenant } from '../../../lib/tenant'
 import {
   formatRelativeDate,
-  getConversationPreview,
   getMessageCount,
 } from '../../../lib/conversations'
 
@@ -94,9 +93,6 @@ function ConversationsList() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="py-3 pl-6 pr-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Preview
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Agent
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -118,10 +114,7 @@ function ConversationsList() {
                     key={conversation._id}
                     className="hover:bg-gray-50 transition-colors"
                   >
-                    <td className="py-4 pl-6 pr-3 text-sm text-gray-900 max-w-xs truncate">
-                      {conversation.title || getConversationPreview(conversation.events)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <td className="whitespace-nowrap py-4 pl-6 pr-3 text-sm text-gray-500">
                       {agent?.name ?? 'Unknown'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">

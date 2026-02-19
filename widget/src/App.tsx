@@ -99,43 +99,11 @@ function AppContent() {
 
   return (
     <div className="h-screen flex bg-white">
-      {/* Sidebar */}
-      <div
-        className={`${
-          showSidebar ? 'translate-x-0' : '-translate-x-full'
-        } fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 transition-transform duration-200 ease-in-out md:relative md:translate-x-0 ${
-          showSidebar ? '' : 'md:hidden'
-        }`}
-      >
-        <ChatList
-          agentId={agentId}
-          apiKey={apiKey}
-          currentChatId={chatId}
-          onSelectChat={handleSelectChat}
-          onClose={() => setShowSidebar(false)}
-        />
-      </div>
-
-      {/* Backdrop for mobile */}
-      {showSidebar && (
-        <div
-          className="fixed inset-0 z-30 bg-black/20 md:hidden"
-          onClick={() => setShowSidebar(false)}
-        />
-      )}
-
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSidebar(!showSidebar)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
             <h1 className="text-lg font-semibold text-gray-900">Chat Assistant</h1>
           </div>
           <Button
