@@ -17,6 +17,7 @@ import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
  */
 export interface AgentConfigEnv {
   CONVEX_URL?: string; // Convex deployment URL for agent configs
+  CONVEX_HTTP_SECRET?: string; // Shared secret for Convex HTTP actions
 }
 
 /**
@@ -60,7 +61,7 @@ export async function getAgentConfig(
 
   if (env?.CONVEX_URL) {
     try {
-      config = await fetchFromConvex(agentId, env.CONVEX_URL);
+      config = await fetchFromConvex(agentId, env.CONVEX_URL, env.CONVEX_HTTP_SECRET);
       console.log(`[AgentConfig] Loaded from Convex: ${agentId}`);
     } catch (error) {
       console.error(`[AgentConfig] Convex fetch failed for ${agentId}:`, error);
@@ -85,7 +86,8 @@ export async function getAgentConfig(
  */
 async function fetchFromConvex(
   agentId: string,
-  convexUrl: string
+  convexUrl: string,
+  httpSecret?: string
 ): Promise<AgentConfig> {
   // Use the public HTTP endpoint instead of the query API
   // This bypasses Clerk auth requirements
@@ -93,7 +95,10 @@ async function fetchFromConvex(
   const siteUrl = convexUrl.replace('.convex.cloud', '.convex.site');
   const response = await fetch(`${siteUrl}/api/agents/${encodeURIComponent(agentId)}`, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(httpSecret ? { Authorization: `Bearer ${httpSecret}` } : {}),
+    },
   });
 
   if (!response.ok) {
@@ -200,7 +205,7 @@ export async function agentExists(
   }
 
   try {
-    const config = await fetchFromConvex(agentId, env.CONVEX_URL);
+    const config = await fetchFromConvex(agentId, env.CONVEX_URL, env.CONVEX_HTTP_SECRET);
     return !!config;
   } catch {
     return false;

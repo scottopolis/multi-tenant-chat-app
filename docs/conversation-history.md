@@ -134,29 +134,26 @@ Read-only view showing the full conversation with:
 
 ## Security Model
 
-### Access Control
+### Access Control (Current Behavior)
 
-All conversation access is scoped by tenant. The system never trusts client-provided `tenantId`.
+Conversation access is tenant-scoped in Convex for dashboard views, and session-scoped for the widget.
 
-| Action | Who Can Access | Validation |
-|--------|----------------|------------|
-| Create | Anyone with valid API key | Agent lookup derives `tenantId` |
-| Read/Write | Conversation owner | Session ID or user ID match |
+| Action | Who Can Access | Validation (Current) |
+|--------|----------------|----------------------|
+| Create | Anyone who can call the worker API | Agent lookup derives `tenantId`; API key enforced at worker |
+| Read/Write | Conversation owner | Session ID or user ID match in Convex functions |
 | List (widget) | Same browser session | Session ID filter |
-| List (dashboard) | Tenant admins | Clerk auth + tenant ownership |
+| List (dashboard) | Signed-in users | Clerk identity + tenant ownership enforced in Convex |
 
-**File**: `convex-backend/convex/conversations.ts` (`validateAccess` function)
+See `docs/authentication.md` for the authoritative status.
 
 ### Widget Access
 
-The widget uses API key authentication. For listing conversations:
-
-- **Anonymous users**: Filtered by `sessionId` (stored in localStorage)
-- **Authenticated users**: Filtered by `userId` (passed from tenant's site)
+The worker validates API keys for widget traffic. Conversation listing is scoped by `sessionId` (stored in localStorage) and optional `userId` for authenticated users.
 
 ### Dashboard Access
 
-The dashboard uses Clerk authentication. All queries are scoped to the logged-in tenant's conversations only.
+The dashboard uses Clerk for UI gating, and Convex functions enforce tenant ownership based on the Clerk identity.
 
 ## LLM Format Conversion
 

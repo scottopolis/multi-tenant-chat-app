@@ -4,6 +4,32 @@ import { api } from "./_generated/api";
 
 const http = httpRouter();
 
+function requireHttpSecret(request: Request): Response | null {
+  const secret = process.env.CONVEX_HTTP_SECRET;
+  if (!secret) return null;
+
+  const header =
+    request.headers.get("Authorization") ||
+    request.headers.get("X-Convex-Auth");
+
+  if (!header) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : header.trim();
+  if (token !== secret) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  return null;
+}
+
 /**
  * Public endpoint to validate API key
  * Used by the worker to authenticate widget requests
@@ -16,6 +42,9 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
+      const authError = requireHttpSecret(request);
+      if (authError) return authError;
+
       const body = await request.json();
       const keyHash = body.keyHash;
 
@@ -57,6 +86,9 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
+      const authError = requireHttpSecret(request);
+      if (authError) return authError;
+
       const body = await request.json();
       const keyHash = body.keyHash;
 
@@ -96,6 +128,9 @@ http.route({
   pathPrefix: "/api/agents/",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
+    const authError = requireHttpSecret(request);
+    if (authError) return authError;
+
     const url = new URL(request.url);
     const pathParts = url.pathname.split("/");
     const agentId = decodeURIComponent(pathParts[pathParts.length - 1]);

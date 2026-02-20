@@ -1,6 +1,6 @@
 # Chat Widget
 
-The chat widget is an embeddable React application that allows your customers to interact with AI agents directly on your website. It runs inside an iframe and communicates with your Cloudflare Worker backend via authenticated API requests.
+The chat widget is an embeddable React application that allows your customers to interact with AI agents directly on your website. It runs inside an iframe and communicates with your Cloudflare Worker backend via API requests secured by API keys and domain allowlists (see `docs/authentication.md`).
 
 ## How It Works
 
@@ -28,23 +28,29 @@ On mobile devices (viewport width ≤768px), the widget expands to full-screen w
 
 The widget uses a layered security approach since true authentication is impossible in a client-side embed context—any token shipped to the browser can be extracted.
 
-### Three Layers of Protection
+### Current Implementation (Today)
+
+- The widget **sends** an API key via `Authorization: Bearer <apiKey>` if configured.
+- The worker **enforces** API keys and domain allowlists for `/api/*` routes by default.
+- Local development can bypass enforcement by setting `AUTH_MODE=permissive`.
+
+See `docs/authentication.md` for configuration details.
+
+### Security Layers
 
 1. **Cloudflare Edge** — DDoS protection, WAF rules, bot management, and rate limiting at the edge before requests reach your worker.
-
 2. **Cloudflare Worker** — API key validation, tenant-agent binding verification, domain allowlist checks, and dynamic CORS headers.
-
 3. **Convex Backend** — Tenant isolation on all queries and secure API key storage (hashed, never returned after creation).
+
+See `specs/widget-security.md` for the intended security specification.
 
 ### API Key Authentication
 
-Each embedded widget includes an API key that identifies the tenant. The worker validates this key against hashed values stored in Convex, ensures the key belongs to the correct tenant for the requested agent, and checks that the request origin matches the agent's allowed domains list.
-
-See [specs/widget-security.md](../specs/widget-security.md) for the complete security specification.
+Each embedded widget includes an API key that identifies the tenant. The worker validates this key against hashed values stored in Convex, verifies the key belongs to the agent's tenant, and applies domain allowlists.
 
 ### Domain Allowlists
 
-Tenants configure which domains are allowed to embed their widget. The worker checks the `Origin` header against this allowlist and only returns proper CORS headers for allowed origins. This prevents unauthorized websites from using your API key.
+Tenants configure which domains are allowed to embed their widget. The worker checks the `Origin` header against this allowlist and only returns proper CORS headers for allowed origins.
 
 ## Configuration Options
 

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * API Key Queries and Mutations
@@ -72,6 +73,9 @@ export const updateLastUsed = mutation({
 export const listByTenant = query({
   args: { tenantId: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const keys = await ctx.db
       .query("apiKeys")
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
@@ -108,6 +112,9 @@ export const create = mutation({
     scopes: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     return await ctx.db.insert("apiKeys", {
       tenantId: args.tenantId,
       keyHash: args.keyHash,
@@ -130,6 +137,9 @@ export const revoke = mutation({
     tenantId: v.id("tenants"), // For verification
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const apiKey = await ctx.db.get(args.id);
 
     if (!apiKey) {

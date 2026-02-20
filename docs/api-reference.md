@@ -9,12 +9,12 @@ This document describes the REST API endpoints provided by the Cloudflare Worker
 
 ## Authentication
 
-> **Note:** Authentication is not currently implemented. All requests use a default organization ID.
+Authentication is **not enforced** on the worker API right now.
 
-Future authentication will use JWT tokens:
-```
-Authorization: Bearer <token>
-```
+- The widget may send `Authorization: Bearer <apiKey>`, but the worker does not validate it yet.
+- Agent selection still relies on `?agent=<agentId>` query parameters.
+
+See `docs/authentication.md` for the authoritative status and remaining work.
 
 ## Endpoints
 
@@ -239,7 +239,6 @@ All errors follow this format:
 > **Note:** Rate limiting is not currently implemented.
 
 Future implementations will include per-organization rate limits.
-
 
 
 

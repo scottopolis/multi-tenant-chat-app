@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * Voice Call Queries and Mutations
@@ -46,6 +47,9 @@ export const listByTenant = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const limit = args.limit || 50;
     return await ctx.db
       .query("voiceCalls")
@@ -64,6 +68,14 @@ export const listByAgent = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      return [];
+    }
+    assertTenantAccess(tenant._id, agent.tenantId);
+
     const limit = args.limit || 50;
     return await ctx.db
       .query("voiceCalls")

@@ -1,5 +1,11 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import {
+  assertTenantAccess,
+  assertUserMatches,
+  requireIdentity,
+  requireTenantForIdentity,
+} from "./auth";
 
 /**
  * Tenant Queries and Mutations
@@ -12,6 +18,9 @@ import { query, mutation } from "./_generated/server";
 export const getByClerkUserId = query({
   args: { clerkUserId: v.string() },
   handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    assertUserMatches(identity, args.clerkUserId);
+
     return await ctx.db
       .query("tenants")
       .withIndex("by_clerk_user", (q) => q.eq("clerkUserId", args.clerkUserId))
@@ -26,6 +35,8 @@ export const getByClerkUserId = query({
 export const getByClerkOrgId = query({
   args: { clerkOrgId: v.string() },
   handler: async (ctx, args) => {
+    await requireIdentity(ctx);
+
     return await ctx.db
       .query("tenants")
       .withIndex("by_clerk_org", (q) => q.eq("clerkOrgId", args.clerkOrgId))
@@ -39,6 +50,9 @@ export const getByClerkOrgId = query({
 export const get = query({
   args: { id: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.id);
+
     return await ctx.db.get(args.id);
   },
 });
@@ -49,6 +63,7 @@ export const get = query({
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    await requireIdentity(ctx);
     return await ctx.db.query("tenants").collect();
   },
 });
@@ -65,6 +80,9 @@ export const create = mutation({
     plan: v.optional(v.string()), // Defaults to "free"
   },
   handler: async (ctx, args) => {
+    const identity = await requireIdentity(ctx);
+    assertUserMatches(identity, args.clerkUserId);
+
     // Check if tenant already exists for this user
     const existing = await ctx.db
       .query("tenants")
@@ -95,6 +113,9 @@ export const update = mutation({
     plan: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.id);
+
     const { id, ...updates } = args;
     await ctx.db.patch(id, updates);
     return id;
@@ -108,6 +129,9 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.id);
+
     // TODO: In production, implement cascade delete for related data
     // - Delete all agents for this tenant
     // - Delete all API keys
@@ -124,6 +148,7 @@ export const remove = mutation({
 export const deleteOrphanedTenants = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireIdentity(ctx);
     const allTenants = await ctx.db.query("tenants").collect();
     const orphaned = allTenants.filter((t) => !t.clerkUserId);
     for (const tenant of orphaned) {

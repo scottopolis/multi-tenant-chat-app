@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * Voice Agent Queries and Mutations
@@ -26,7 +27,13 @@ export const getByAgentId = query({
 export const getById = query({
   args: { id: v.id("voiceAgents") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const voiceAgent = await ctx.db.get(args.id);
+    if (!voiceAgent) return null;
+
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, voiceAgent.tenantId);
+
+    return voiceAgent;
   },
 });
 
@@ -36,6 +43,9 @@ export const getById = query({
 export const listByTenant = query({
   args: { tenantId: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     return await ctx.db
       .query("voiceAgents")
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
@@ -60,6 +70,9 @@ export const create = mutation({
     enabled: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const existing = await ctx.db
       .query("voiceAgents")
       .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
@@ -106,6 +119,14 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
 
+    const voiceAgent = await ctx.db.get(id);
+    if (!voiceAgent) {
+      throw new Error("Voice agent not found");
+    }
+
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, voiceAgent.tenantId);
+
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
@@ -128,6 +149,14 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("voiceAgents") },
   handler: async (ctx, args) => {
+    const voiceAgent = await ctx.db.get(args.id);
+    if (!voiceAgent) {
+      throw new Error("Voice agent not found");
+    }
+
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, voiceAgent.tenantId);
+
     await ctx.db.delete(args.id);
   },
 });

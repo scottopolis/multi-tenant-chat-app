@@ -110,10 +110,9 @@ chat-assistant/
 - ✅ Modular tool system (built-in + webhook-based)
 - ✅ Modern React UI with Tailwind CSS
 - ✅ Convex backend for persistent storage
-- 🚧 Authentication (prepared but not implemented)
+- 🚧 Auth enforcement not wired (see docs/authentication.md)
 - 🚧 Langfuse integration (prepared for future use)
 
 ## Roadmap
 
 See [PLAN.md](../PLAN.md) for the complete implementation plan and future enhancements.
-
