@@ -5,7 +5,7 @@ import { z } from 'zod';
 import documentRoutes from './routes/documents';
 import twilioRoutes from './routes/twilio';
 import voiceRoutes from './routes/voice';
-import { dynamicCors } from './middleware';
+import { authMiddleware, dynamicCors, permissiveAuthMiddleware } from './middleware';
 import { convexMutation, convexQuery } from './convex/client';
 import { readMCPResource } from './mcp';
 
@@ -23,13 +23,16 @@ type Bindings = {
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_HOST?: string;
   CONVEX_URL?: string; // Convex deployment URL for agent configs
+  CONVEX_HTTP_SECRET?: string; // Shared secret for Convex HTTP actions
+  AUTH_MODE?: string; // "enforce" (default) | "permissive"
   VOICE_CALL_SESSION: import('@cloudflare/workers-types').DurableObjectNamespace; // Durable Object for voice calls
   WEB_VOICE_SESSION: import('@cloudflare/workers-types').DurableObjectNamespace; // Durable Object for web voice preview
 };
 
 type Variables = {
   agentId: string;
-  orgId: string;
+  tenantId?: string;
+  orgId?: string;
   userId?: string;
 };
 
@@ -45,44 +48,15 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 app.use('*', dynamicCors());
 
 /**
- * Auth Middleware (Placeholder)
- * 
- * MVP: Extract agent ID from query parameter ?agent=acme-support
- * 
- * TODO: Auth middleware for production
- * - Verify JWT from Authorization header
- * - Extract orgId and userId from JWT payload
- * - Agent ID can come from query param or be inferred from org
- * - Reject requests with invalid/expired tokens
- * - Support API key authentication as alternative
- * 
- * Example JWT validation:
- *   const token = c.req.header('Authorization')?.replace('Bearer ', '');
- *   if (!token) {
- *     return c.json({ error: 'Unauthorized' }, 401);
- *   }
- *   try {
- *     const payload = await verifyJWT(token);
- *     c.set('orgId', payload.orgId);
- *     c.set('userId', payload.userId);
- *     c.set('agentId', c.req.query('agent') || 'default');
- *   } catch (error) {
- *     return c.json({ error: 'Invalid token' }, 401);
- *   }
+ * Auth Middleware (Enforced for /api/*)
+ *
+ * - Default: enforce API key + domain allowlist
+ * - Local/dev: set AUTH_MODE=permissive to bypass API key enforcement
  */
-app.use('*', async (c, next) => {
-  // MVP: Get agent from query param
-  const agentParam = c.req.query('agent');
-  const agentId = agentParam && agentParam.trim() !== '' ? agentParam : 'default';
-  
-  // Get agent config to extract orgId (pass env for Convex access)
-  const { getAgentConfig } = await import('./tenants/config');
-  const agentConfig = await getAgentConfig(agentId, { CONVEX_URL: c.env.CONVEX_URL });
-  
-  c.set('agentId', agentId);
-  c.set('orgId', agentConfig.orgId);
-  c.set('userId', 'anonymous');
-  await next();
+app.use('/api/*', async (c, next) => {
+  const mode = (c.env.AUTH_MODE || 'enforce').toLowerCase();
+  const middleware = mode === 'permissive' ? permissiveAuthMiddleware() : authMiddleware();
+  return middleware(c as any, next);
 });
 
 /**
@@ -218,7 +192,7 @@ app.post('/api/chats', async (c) => {
     }
 
     // Fallback to in-memory storage if Convex not configured
-    const orgId = c.get('orgId');
+    const orgId = c.get('orgId') || c.get('tenantId') || 'unknown';
     const chat = createChat(orgId, agentId, title);
     return c.json(chat, 201);
   } catch (error) {
@@ -275,7 +249,7 @@ app.get('/api/chats', async (c) => {
     }
 
     // Fallback to in-memory storage
-    const orgId = c.get('orgId');
+    const orgId = c.get('orgId') || c.get('tenantId') || 'unknown';
     const chats = listChats(orgId, agentId);
     
     return c.json({ chats });

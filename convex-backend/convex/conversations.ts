@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 import { Id } from "./_generated/dataModel";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * Conversation Queries and Mutations
@@ -283,6 +284,9 @@ export const listBySession = query({
       return [];
     }
 
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, agent.tenantId);
+
     const limit = args.limit ?? 50;
 
     const conversations = await ctx.db
@@ -376,6 +380,9 @@ export const listByTenant = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const paginationOpts = {
       ...args.paginationOpts,
       numItems: Math.min(args.paginationOpts.numItems, 20),
@@ -399,6 +406,9 @@ export const getForDashboard = query({
     conversationId: v.id("conversations"),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const conversation = await ctx.db.get(args.conversationId);
 
     if (!conversation) {
@@ -429,6 +439,9 @@ export const getUsageStats = query({
     tenantId: v.id("tenants"),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     const conversations = await ctx.db
       .query("conversations")
       .withIndex("by_tenant_lastEvent", (q) => q.eq("tenantId", args.tenantId))

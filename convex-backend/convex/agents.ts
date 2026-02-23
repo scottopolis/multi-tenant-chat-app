@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * Agent Queries and Mutations
@@ -49,6 +50,9 @@ export const getById = query({
     const agent = await ctx.db.get(args.id);
     if (!agent) return null;
 
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, agent.tenantId);
+
     return {
       ...agent,
       mcpServers: agent.mcpServers ? JSON.parse(agent.mcpServers) : [],
@@ -71,6 +75,9 @@ export const getById = query({
 export const listByTenant = query({
   args: { tenantId: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     return await ctx.db
       .query("agents")
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
@@ -117,6 +124,9 @@ export const create = mutation({
     allowedDomains: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     // Check if agentId already exists
     const existing = await ctx.db
       .query("agents")
@@ -170,6 +180,12 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
+    const agent = await ctx.db.get(id);
+    if (!agent) {
+      throw new Error("Agent not found");
+    }
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, agent.tenantId);
 
     await ctx.db.patch(id, {
       ...updates,
@@ -186,6 +202,13 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("agents") },
   handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.id);
+    if (!agent) {
+      throw new Error("Agent not found");
+    }
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, agent.tenantId);
+
     await ctx.db.delete(args.id);
   },
 });

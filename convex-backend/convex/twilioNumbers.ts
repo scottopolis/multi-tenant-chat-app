@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { assertTenantAccess, requireTenantForIdentity } from "./auth";
 
 /**
  * Twilio Number Queries and Mutations
@@ -106,6 +107,9 @@ export const getById = query({
 export const listByTenant = query({
   args: { tenantId: v.id("tenants") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     return await ctx.db
       .query("twilioNumbers")
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
@@ -119,6 +123,14 @@ export const listByTenant = query({
 export const listByAgent = query({
   args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      return [];
+    }
+    assertTenantAccess(tenant._id, agent.tenantId);
+
     return await ctx.db
       .query("twilioNumbers")
       .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
@@ -139,6 +151,9 @@ export const create = mutation({
     twilioSid: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, args.tenantId);
+
     // Check if phone number already exists
     const existing = await ctx.db
       .query("twilioNumbers")
@@ -175,6 +190,13 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
+    const twilioNumber = await ctx.db.get(id);
+    if (!twilioNumber) {
+      throw new Error("Twilio number not found");
+    }
+
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, twilioNumber.tenantId);
 
     const filtered: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(updates)) {
@@ -198,6 +220,14 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("twilioNumbers") },
   handler: async (ctx, args) => {
+    const twilioNumber = await ctx.db.get(args.id);
+    if (!twilioNumber) {
+      throw new Error("Twilio number not found");
+    }
+
+    const tenant = await requireTenantForIdentity(ctx);
+    assertTenantAccess(tenant._id, twilioNumber.tenantId);
+
     await ctx.db.delete(args.id);
   },
 });

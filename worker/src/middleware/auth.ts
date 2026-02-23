@@ -28,6 +28,7 @@ interface ApiKeyInfo {
 
 interface AuthEnv {
   CONVEX_URL?: string;
+  CONVEX_HTTP_SECRET?: string;
 }
 
 interface AuthVariables {
@@ -55,12 +56,16 @@ function getConvexSiteUrl(convexUrl: string): string {
  */
 async function validateApiKey(
   keyHash: string,
-  convexUrl: string
+  convexUrl: string,
+  httpSecret?: string
 ): Promise<ApiKeyInfo | null> {
   const siteUrl = getConvexSiteUrl(convexUrl);
   const response = await fetch(`${siteUrl}/api/keys/validate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(httpSecret ? { Authorization: `Bearer ${httpSecret}` } : {}),
+    },
     body: JSON.stringify({ keyHash }),
   });
 
@@ -79,13 +84,17 @@ async function validateApiKey(
  */
 async function updateKeyLastUsed(
   keyHash: string,
-  convexUrl: string
+  convexUrl: string,
+  httpSecret?: string
 ): Promise<void> {
   try {
     const siteUrl = getConvexSiteUrl(convexUrl);
     await fetch(`${siteUrl}/api/keys/touch`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(httpSecret ? { Authorization: `Bearer ${httpSecret}` } : {}),
+      },
       body: JSON.stringify({ keyHash }),
     });
   } catch (error) {
@@ -117,6 +126,7 @@ export function authMiddleware() {
       console.error("[Auth] CONVEX_URL not configured");
       return c.json({ error: "Service configuration error" }, 500);
     }
+    const httpSecret = c.env.CONVEX_HTTP_SECRET;
 
     // 1. Extract API key
     const authHeader = c.req.header("Authorization");
@@ -131,7 +141,7 @@ export function authMiddleware() {
 
     // 2. Hash and validate key
     const keyHash = await hashApiKey(apiKey);
-    const keyInfo = await validateApiKey(keyHash, convexUrl);
+    const keyInfo = await validateApiKey(keyHash, convexUrl, httpSecret);
 
     if (!keyInfo) {
       return c.json({ error: "Invalid API key", code: "INVALID_API_KEY" }, 401);
@@ -196,7 +206,7 @@ export function authMiddleware() {
     c.set("apiKeyHash", keyHash);
 
     // 8. Update last used timestamp (fire and forget)
-    updateKeyLastUsed(keyHash, convexUrl);
+    updateKeyLastUsed(keyHash, convexUrl, httpSecret);
 
     await next();
   };
@@ -214,6 +224,7 @@ export function permissiveAuthMiddleware() {
     next: Next
   ) => {
     const convexUrl = c.env.CONVEX_URL;
+    const httpSecret = c.env.CONVEX_HTTP_SECRET;
 
     // Get agent ID from query param
     const agentParam = c.req.query("agent");
@@ -239,7 +250,7 @@ export function permissiveAuthMiddleware() {
 
     if (apiKey && convexUrl) {
       const keyHash = await hashApiKey(apiKey);
-      const keyInfo = await validateApiKey(keyHash, convexUrl);
+      const keyInfo = await validateApiKey(keyHash, convexUrl, httpSecret);
 
       if (keyInfo && !keyInfo.revokedAt) {
         c.set("apiKeyId", keyInfo.id);
@@ -247,7 +258,7 @@ export function permissiveAuthMiddleware() {
         c.set("tenantId", keyInfo.tenantId);
 
         // Update last used timestamp
-        updateKeyLastUsed(keyHash, convexUrl);
+        updateKeyLastUsed(keyHash, convexUrl, httpSecret);
       }
     }
 

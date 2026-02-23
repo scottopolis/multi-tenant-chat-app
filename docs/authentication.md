@@ -1,72 +1,52 @@
-# Authentication
+# Authentication & Access Control
 
-## Overview
+This document is the source of truth for how authentication and authorization work today, and what is still missing.
 
-This application uses [Clerk](https://clerk.com) for authentication. Clerk handles user sign-up, sign-in, session management, and identity verification.
+## Current State (Implemented Today)
 
-## Current Setup: Personal Accounts
+### Dashboard (Clerk UI)
+- The dashboard uses Clerk for sign-in/sign-up UI.
+- Routes under `/_authed/*` require a Clerk session and show the Clerk SignIn component when unauthenticated.
+- The dashboard fetches a Clerk JWT (`template: "convex"`) and passes it to Convex via `ConvexProviderWithClerk`.
 
-Each user gets their own workspace (tenant) automatically when they first sign in. This is the simplest model:
+**Important:** Tenant-scoped Convex queries/mutations now enforce Clerk identity and tenant ownership. If a function takes `tenantId`, it validates that the signed-in user owns that tenant.
 
-- **One user = One tenant**
-- No team collaboration features
-- No organization management overhead
-- Instant onboarding — users can start using the dashboard immediately after sign-in
+### Widget + Worker API
+- The worker now enforces API key + domain allowlist checks for `/api/*` routes by default.
+- Local bypass is available via `AUTH_MODE=permissive` in `worker/.dev.vars`.
+- The widget sends an API key via `Authorization: Bearer <apiKey>` when configured.
+- CORS is set after origin validation in auth middleware; in permissive mode it is effectively open.
 
-### How It Works
+### Convex HTTP Endpoints
+The worker calls Convex HTTP actions and **must** authenticate with a shared secret:
+- `POST /api/keys/validate`
+- `POST /api/keys/touch`
+- `GET /api/agents/:agentId`
 
-1. User signs up or signs in via Clerk
-2. On first dashboard visit, a tenant is automatically created for them
-3. All their agents, API keys, and data are scoped to their personal tenant
-4. The user's Clerk user ID links to their tenant record
+Set the secret in both environments:
+- Worker: `CONVEX_HTTP_SECRET`
+- Convex: `CONVEX_HTTP_SECRET`
 
-### User Experience
+## Building Blocks That Exist
 
-- Landing page shows "Sign In" button for unauthenticated visitors
-- After sign-in, users are redirected to the dashboard
-- User avatar appears in the header with account management options
-- Sign-out returns to the landing page
+- API key hashing and validation in Convex: `convex-backend/convex/apiKeys.ts` and `convex-backend/convex/http.ts`.
+- Worker auth middleware that can enforce:
+  - API key validity
+  - tenant-agent binding
+  - domain allowlists
+  - CORS for validated origins
 
-## Security
+## What Is Still Required (To Finish Auth)
 
-- Authentication is handled entirely by Clerk (no passwords stored in our database)
-- Convex backend validates Clerk JWT tokens for API calls
-- All data queries are scoped by tenant ID to prevent cross-user data access
+1. **Extend enforcement to any new dashboard functions** as they’re added.
+2. **Add Org/Team support** (Clerk Organizations) if/when you want shared workspaces.
 
----
+## Remaining Security Considerations
 
-## Future: Adding Team/Organization Support
+- **Convex query/mutation HTTP endpoints are not authenticated**. The worker currently calls them directly using `CONVEX_URL`. This is acceptable as long as that URL isn’t exposed and all public traffic goes through the worker, but it is still a potential risk if the URL leaks. If you want to harden this, consider:
+  - Restricting access to Convex deployments where possible, and
+  - Moving any sensitive operations to protected HTTP actions that verify a shared secret.
 
-Clerk supports "Organizations" which allow multiple users to collaborate under a shared workspace. This is useful for:
+## Future: Team/Organization Support (Optional)
 
-- Agencies managing multiple client chatbots
-- Teams collaborating on agent development
-- Enterprise accounts with role-based access control
-
-### What Would Change
-
-| Current (Personal) | Future (Organizations) |
-|-------------------|----------------------|
-| User ID → Tenant | Organization ID → Tenant |
-| One workspace per user | One workspace per org |
-| No collaboration | Team members share access |
-| Free Clerk tier | Requires Clerk paid plan |
-
-### Migration Path
-
-The infrastructure is already prepared for this upgrade:
-
-1. **Database schema** already has an optional `clerkOrgId` field on tenants
-2. **TenantProvider** can be updated to prefer `orgId` over `userId`
-3. **OrganizationSwitcher** component can be added for users to switch between personal and team workspaces
-
-### When to Consider Organizations
-
-- Users request team collaboration features
-- You need role-based permissions (admin, member, viewer)
-- Enterprise customers require SSO or domain-based access
-- You want to charge per-organization rather than per-user
-
-### Clerk Pricing Note
-
-Organizations are available on Clerk's Pro plan and above. Review [Clerk's pricing](https://clerk.com/pricing) before implementing team features.
+Clerk Organizations can replace the current “one user = one tenant” model. The schema already includes `clerkOrgId` on tenants, so the change is mostly in tenant resolution and UI (org switcher). This is not implemented yet.
